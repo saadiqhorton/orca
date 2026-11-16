@@ -26,7 +26,7 @@ import {
 } from '../operations/structured-agent-session-command-turn'
 import type { StoppedHistoryDelivery } from '../../../../shared/agent-session/lifecycle/stopping/agent-session-stopped-history'
 import { withStoppedHistory } from '../../../../shared/agent-session/lifecycle/stopping/agent-session-stopped-history'
-import { structuredMailProviderBody } from '../../../runtime/orchestration/mailbox/structured-mail/structured-mail-source'
+import { structuredMailProviderBody } from '../../../runtime/orchestration/mailbox/structured-mail/structured-mail-provider-body'
 import {
   markStructuredAgentSessionInputUnadmitted,
   beginStructuredAgentSessionHandover,
