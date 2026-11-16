@@ -12,6 +12,9 @@ import type {
   StructuredAgentSessionHostSession
 } from '../host/structured-agent-session-host-types'
 
+// Two windows pressing at once must not send Codex two approvals for one denial.
+const approving = new Set<string>()
+
 export async function approveStructuredAutoReviewDenial(
   host: {
     deps: Pick<StructuredAgentSessionHostDeps, 'store' | 'agents'>
@@ -32,24 +35,31 @@ export async function approveStructuredAutoReviewDenial(
     return { status: 'unsupported' }
   }
   const identity = { provider: 'orca' as const, clientMessageId: `auto-review-approval:${itemId}` }
+  const key = `${sessionId}\u0000${itemId}`
   // One approval per denial, as Codex's own list forgets a denial once it is approved.
-  if (await journal.reads.hasRecordedItem(agentJournalItemKey(identity))) {
+  if (approving.has(key) || (await journal.reads.hasRecordedItem(agentJournalItemKey(identity)))) {
     return { status: 'approved' }
   }
-  if (!(await approve({ sessionId, threadId: denial.threadId, event: denial.event }))) {
-    return { status: 'unavailable' }
-  }
-  await journal.appendItem(
-    identity,
-    {
-      kind: 'status',
-      text: `You approved one retry of: ${denial.summary}`,
-      presentation: AUTO_REVIEW_APPROVAL_PRESENTATION
-    },
-    {
-      fence: host.deps.store.getConversation(sessionId)?.currentFence ?? 0,
-      turnScope: AGENT_JOURNAL_THREAD_SCOPE
+  approving.add(key)
+  try {
+    if (!(await approve({ sessionId, threadId: denial.threadId, event: denial.event }))) {
+      return { status: 'unavailable' }
     }
-  )
-  return { status: 'approved' }
+    await journal.appendItem(
+      identity,
+      {
+        kind: 'status',
+        text: `You approved one retry of: ${denial.summary}`,
+        tone: 'notice',
+        presentation: AUTO_REVIEW_APPROVAL_PRESENTATION
+      },
+      {
+        fence: host.deps.store.getConversation(sessionId)?.currentFence ?? 0,
+        turnScope: AGENT_JOURNAL_THREAD_SCOPE
+      }
+    )
+    return { status: 'approved' }
+  } finally {
+    approving.delete(key)
+  }
 }

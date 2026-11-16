@@ -22,14 +22,9 @@ const text = (value: unknown): string | null =>
 const snake = (key: string): string => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
 
 // The notification spells fields and enum values in camelCase; Codex's review event in snake_case.
-const APPROVABLE_ACTIONS = new Set([
-  'command',
-  'execve',
-  'writeStdin',
-  'applyPatch',
-  'networkAccess',
-  'mcpToolCall'
-])
+// Terminal input and permission requests carry paths and profiles Codex reads in other shapes, so
+// those denials show without the button rather than offer an approval Codex would refuse.
+const APPROVABLE_ACTIONS = new Set(['command', 'execve', 'applyPatch', 'networkAccess', 'mcpToolCall'])
 const ENUM_FIELDS = new Set(['type', 'source', 'protocol'])
 
 function reviewAction(action: Record<string, unknown>): Record<string, unknown> | null {
@@ -82,10 +77,8 @@ export function readCodexAutoReviewDenial(params: unknown): CodexAutoReviewDenia
   if (!notification || !review || !action || !threadId || review.status !== 'denied') {
     return null
   }
-  const summary = actionSummary(action)
-  if (!summary) {
-    return null
-  }
+  // Codex's own warning for this denial is hidden, so an action this build cannot word still shows.
+  const summary = actionSummary(action) ?? 'an action'
   const approvable = reviewAction(action)
   const reviewId = text(notification.reviewId)
   const rationale = text(review.rationale)

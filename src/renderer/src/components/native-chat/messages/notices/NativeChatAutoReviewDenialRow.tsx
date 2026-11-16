@@ -8,7 +8,7 @@ import type { CodexAutoReviewDenial } from '../../../../../../shared/agent-sessi
 import { useNativeChatVisualOwner } from '../../media/visuals/native-chat-visual-owner'
 import { NativeChatDetailsDisclosure } from '../diagnostics/NativeChatProviderDetails'
 
-type ApprovalState = 'idle' | 'pending' | 'approved' | 'failed'
+type ApprovalState = 'idle' | 'pending' | 'approved' | 'not-running' | 'failed'
 
 /** An action the agent's automatic review denied; only the person, from this chat, may approve a retry. */
 export function NativeChatAutoReviewDenialRow({
@@ -35,7 +35,13 @@ export function NativeChatAutoReviewDenialRow({
         'agentSession.approveAutoReviewDenial',
         { sessionId: owner.sessionId, itemId }
       )
-      setState(result.status === 'approved' ? 'approved' : 'failed')
+      setState(
+        result.status === 'approved'
+          ? 'approved'
+          : result.status === 'unavailable'
+            ? 'not-running'
+            : 'failed'
+      )
     } catch {
       setState('failed')
     }
@@ -68,13 +74,18 @@ export function NativeChatAutoReviewDenialRow({
               : t('components.native-chat.notices.autoReviewApprove', 'Approve once')}
           </Button>
           <span>
-            {state === 'failed'
+            {state === 'not-running'
               ? t(
-                  'components.native-chat.notices.autoReviewApproveFailed',
-                  "Couldn't record your approval. {{agent}} must be running; try again.",
+                  'components.native-chat.notices.autoReviewApproveNotRunning',
+                  "{{agent}} isn't running. Send it a message to start it, then approve again.",
                   { agent }
                 )
-              : t(
+              : state === 'failed'
+                ? t(
+                    'components.native-chat.notices.autoReviewApproveFailed',
+                    "Couldn't record your approval. Try again."
+                  )
+                : t(
                   'components.native-chat.notices.autoReviewApproveHint',
                   '{{agent}} may retry this exact action once. Its review still checks the retry.',
                   { agent }

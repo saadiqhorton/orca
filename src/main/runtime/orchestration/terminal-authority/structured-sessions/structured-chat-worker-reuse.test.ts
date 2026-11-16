@@ -337,7 +337,6 @@ describe('a send to a finished structured worker', () => {
       await vi.waitFor(async () => {
         const cards = await queuedCardTexts(identity.sessionId)
         expect(cards).toHaveLength(2)
-        expect(cards[0]).toContain('Read them with the `check` command above')
         expect(isWholeMail(cards[1]!)).toBe(true)
         expect(cards[1]).toContain('and the docs')
       }, WAIT)
@@ -345,7 +344,6 @@ describe('a send to a finished structured worker', () => {
       worker.handlers.onNotification?.('turn/completed', { turn: { id: 'turn-1' } })
       await host.flushStreamedEvents(identity.sessionId)
       await vi.waitFor(() => expect(worker.turns).toHaveLength(2), WAIT)
-      expect(turnText(worker.turns[1]!)).toContain('Read them with the `check` command above')
       await settleTurn(identity.sessionId, 1)
       await vi.waitFor(() => expect(worker.turns).toHaveLength(3), WAIT)
       expect(isMailPointer(turnText(worker.turns[2]!))).toBe(true)

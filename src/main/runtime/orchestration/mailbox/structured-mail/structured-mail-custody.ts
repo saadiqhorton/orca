@@ -235,6 +235,10 @@ export function settleStructuredMailAttempt(
       }
       // The agent was sent a pointer, not the mail: it stays unread until `check` takes it.
       retire(false)
+      if (owed === 'stale') {
+        // A chat that lost the mailbox cannot `check` it: the new owner is pointed at it.
+        db.markAsUndelivered([row.message_id])
+      }
       break
     }
     case 'unknown':
