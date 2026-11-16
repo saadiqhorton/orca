@@ -5,15 +5,15 @@ import { join } from 'node:path'
 import { pairedRuntimeConnectionFromOffer } from '../../../../shared/remote-runtime/pairing/paired-runtime-connection'
 import { RemoteRuntimeRequestConnection } from '../../../../shared/remote-runtime/requests/remote-runtime-request-connection'
 import '../../../../shared/remote-runtime/requests/remote-runtime-request-socket'
-import { subscribeRemoteRuntimeTransport } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-transport'
-import { DESKTOP_HUB_CLIENT_CAPABILITY } from '../../../../shared/orchestration/desktop-hub-contract'
-import type { DesktopHubRequestEvent } from '../../../../shared/orchestration/desktop-hub-contract'
-import { OrcaRuntimeRpcServer } from '../../rpc/server/runtime-rpc'
 import { answerDesktopHubRequest } from './desktop-hub-answer'
-import { buildDesktopHubCatalog } from './desktop-hub-catalog'
-import { getDesktopHubRegistry } from './desktop-hub-registry'
 import {
-  isHubRequest,
+  crossHostE2eCatalog,
+  formatDesktopHubList,
+  volunteerDesktopHubOverSharedControl
+} from './desktop-hub-e2e-hub'
+import { getDesktopHubRegistry } from './desktop-hub-registry'
+import { OrcaRuntimeRpcServer } from '../../rpc/server/runtime-rpc'
+import {
   pairingOf,
   rejectionCode,
   resultOf,
@@ -31,15 +31,17 @@ export type CrossHostE2eTranscript = {
   lines: string[]
   forwardedMethods: string[]
   hostname: string
+  hostA: string
   marker: string
   readOutput: string
   stopped: boolean
   otherSession: string
   needsSignIn: string
   unreachable: string
+  answerPath: 'shared-control'
 }
 
-/** Desktop hub plus two runtime processes' sockets. The worker task is `hostname` in host B's worktree. */
+/** Two runtimes plus a desktop hub on the shared-control socket production uses. */
 export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTranscript> {
   const lines: string[] = []
   const say = (line: string): void => {
@@ -54,7 +56,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
   mkdirSync(userDataB, { recursive: true })
   writeFileSync(join(worktree, 'MARKER'), 'host-b-worktree\n')
   const runtimeA = stubRuntime('dockhand')
-  const runtimeB = stubRuntime('ubuntu-server-local')
+  const runtimeB = stubRuntime('dezignerdrugz00')
   const serverA = new OrcaRuntimeRpcServer({
     runtime: runtimeA,
     userDataPath: userDataA,
@@ -71,124 +73,52 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
   let savedOutput = ''
   let requesterB: RemoteRuntimeRequestConnection | null = null
   let other: RemoteRuntimeRequestConnection | null = null
+  let hub: { close: () => void; answerPath: 'shared-control' } | null = null
   try {
     await serverA.start()
     await serverB.start()
     const pairingA = pairingOf(serverA, 'dockhand')
-    const pairingB = pairingOf(serverB, 'ubuntu-server-local')
+    const pairingB = pairingOf(serverB, 'dezignerdrugz00')
     requesterB = new RemoteRuntimeRequestConnection(pairedRuntimeConnectionFromOffer(pairingB))
-    const catalog = buildDesktopHubCatalog({
-      machineName: 'windows-desktop',
-      localPlacement: { peerFingerprint: 'fp-desktop', homePeerFingerprint: 'fp-desktop' },
-      executions: [
-        {
-          label: 'ubuntu',
-          machineName: 'ubuntu-server-local',
-          environmentId: 'env-ubuntu',
-          health: 'available',
-          server: {
-            name: 'ubuntu',
-            peerFingerprint: 'fp-ubuntu',
-            homePeerFingerprint: 'fp-home',
-            pairingRevision: 1
-          }
-        },
-        {
-          label: 'temple',
-          machineName: 'TEMPLEOFDOOM',
-          environmentId: 'env-temple',
-          health: 'blocked',
-          blockedReason: 'access-revoked'
-        },
-        {
-          label: 'arch',
-          machineName: 'ARCHIT4ME',
-          environmentId: 'env-arch',
-          health: 'disconnected'
-        },
-        {
-          label: 'dock',
-          machineName: 'dockhand',
-          environmentId: 'env-dock',
-          health: 'available',
-          server: { name: 'dock', peerFingerprint: 'fp-dock', homePeerFingerprint: 'fp-dock-home' }
-        }
-      ]
-    })
-    const queued: DesktopHubRequestEvent[] = []
-    let subscription: Awaited<ReturnType<typeof subscribeRemoteRuntimeTransport>> | null = null
-    const deliver = (event: DesktopHubRequestEvent): void => {
-      if (!subscription?.sendRequest) {
-        queued.push(event)
-        return
-      }
-      void respond(event)
-    }
-    const respond = async (event: DesktopHubRequestEvent): Promise<void> => {
-      const answer = await answerDesktopHubRequest({
-        request: event,
-        catalog: () => catalog,
-        callHost: async (placement, method) => {
-          forwardedMethods.push(method)
-          if (placement.hostKey !== 'env-ubuntu') {
-            throw new Error(`refusing to dial ${placement.hostKey}`)
-          }
-          const probe = await requesterB!.request<{ unsubscribed: boolean }>(
-            'runtime.clientEvents.unsubscribe',
-            { subscriptionId: 'not-this-session' },
-            5_000
-          )
-          if (!probe.ok || probe.result.unsubscribed !== false) {
-            throw new Error('host B did not accept the desktop socket')
-          }
-          if (method === 'orchestration.federationAttachStart') {
-            const hostname = runProcessSync({
-              program: 'sh',
-              args: ['-c', 'hostname && cat MARKER'],
-              cwd: worktree,
-              timeoutMs: 5_000
-            })
-            if (hostname.code !== 0) {
-              throw new Error(hostname.stderr || 'hostname failed in the host B worktree')
+    const catalog = crossHostE2eCatalog()
+    say(`machine A runtime: dockhand  userData=${userDataA}`)
+    say(`machine B runtime: dezignerdrugz00  env=ubuntu-server-local  worktree=${worktree}`)
+    hub = await volunteerDesktopHubOverSharedControl({
+      pairing: pairingA,
+      identity: IDENTITY,
+      onError: (error) => say(`desktop subscription error: ${error.message}`),
+      answer: async (event) =>
+        answerDesktopHubRequest({
+          request: event,
+          catalog: () => catalog,
+          callHost: async (placement, method) => {
+            forwardedMethods.push(method)
+            if (placement.hostKey !== 'env-ubuntu') {
+              throw new Error(`refusing to dial ${placement.hostKey}`)
             }
-            savedOutput = hostname.stdout.trim()
-            return rpcOk({ state: 'ready', dispatchId: 'disp_e2e', output: savedOutput })
+            const probe = await requesterB!.request<{ unsubscribed: boolean }>(
+              'runtime.clientEvents.unsubscribe',
+              { subscriptionId: 'not-this-session' },
+              5_000
+            )
+            if (!probe.ok || probe.result.unsubscribed !== false) {
+              throw new Error('host B did not accept the desktop socket')
+            }
+            if (method === 'orchestration.federationAttachStart') {
+              savedOutput = runHostBHostname(worktree)
+              return rpcOk({ state: 'ready', dispatchId: 'disp_e2e', output: savedOutput })
+            }
+            if (method === 'orchestration.federationShow') {
+              return rpcOk({ state: 'ready', output: savedOutput })
+            }
+            if (method === 'orchestration.federationStop') {
+              return rpcOk({ state: 'stopped', dispatchId: 'disp_e2e' })
+            }
+            return rpcOk({ method })
           }
-          if (method === 'orchestration.federationShow') {
-            return rpcOk({ state: 'ready', output: savedOutput })
-          }
-          if (method === 'orchestration.federationStop') {
-            return rpcOk({ state: 'stopped', dispatchId: 'disp_e2e' })
-          }
-          return rpcOk({ method })
-        }
-      })
-      await subscription?.sendRequest?.(
-        'orchestration.desktopHub.answer',
-        { requestId: event.requestId, ...answer },
-        10_000
-      )
-    }
-    subscription = await subscribeRemoteRuntimeTransport(
-      pairedRuntimeConnectionFromOffer(pairingA),
-      'runtime.clientEvents.subscribe',
-      { orchestrationHub: IDENTITY },
-      8_000,
-      {
-        onResponse: (response) => {
-          if (response.ok && isHubRequest(response.result)) {
-            deliver(response.result)
-          }
-        },
-        onError: (error) => {
-          say(`desktop subscription error: ${error.message}`)
-        }
-      },
-      { clientCapabilities: [DESKTOP_HUB_CLIENT_CAPABILITY] }
-    )
-    for (const event of queued.splice(0)) {
-      void respond(event)
-    }
+        })
+    })
+    say(`hub answer path: ${hub.answerPath} (no sendRequest; one-shot ${'orchestration.desktopHub.answer'})`)
     await waitFor(() => getDesktopHubRegistry(runtimeA).hasVolunteer())
     const listed = await serverA.dispatchLocal({
       method: 'orchestration.desktopHub.list',
@@ -197,21 +127,35 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     if (!listed.ok) {
       throw new Error(listed.error.message)
     }
-    const hosts = (listed.result as { hosts: { name: string; status: string }[] }).hosts
-    say('host list:')
-    for (const host of hosts) {
-      say(`  ${host.name}  ${host.status}`)
+    const hosts = (
+      listed.result as {
+        hosts: { name: string; machineName?: string; status: string; selector: string }[]
+      }
+    ).hosts
+    for (const line of formatDesktopHubList(hosts)) {
+      say(line)
+    }
+    if (listed.error?.message?.includes('did not answer')) {
+      throw new Error(listed.error.message)
     }
     const registry = getDesktopHubRegistry(runtimeA)
     const needsSignIn = await rejectionCode(registry.place('TEMPLEOFDOOM'))
-    say(`worker-start --host TEMPLEOFDOOM: ${needsSignIn}`)
+    say(`$ orca orchestration worker-start --host TEMPLEOFDOOM: ${needsSignIn}`)
     const unreachable = await rejectionCode(registry.place('ARCHIT4ME'))
-    say(`worker-start --host ARCHIT4ME: ${unreachable}`)
+    say(`$ orca orchestration worker-start --host ARCHIT4ME: ${unreachable}`)
     if (forwardedMethods.length !== 0) {
       throw new Error('a host that is not connected was dialed')
     }
+    const hostA = runProcessSync({
+      program: 'hostname',
+      args: [],
+      cwd: userDataA,
+      timeoutMs: 5_000
+    }).stdout.trim()
+    say(`machine A hostname: ${hostA}`)
+    say('$ orca orchestration worker-start --host ubuntu-server-local --spec hostname')
     const placed = await registry.place('ubuntu-server-local')
-    say(`worker-start --host ubuntu-server-local -> ${placed.selector}`)
+    say(`placed -> ${placed.selector}`)
     const started = await registry.call(
       placed.selector,
       'orchestration.federationAttachStart',
@@ -219,6 +163,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       8_000,
       undefined
     )
+    say('$ orca orchestration worker-read')
     const read = await registry.call(
       placed.selector,
       'orchestration.federationShow',
@@ -226,6 +171,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       8_000,
       undefined
     )
+    say('$ orca orchestration worker-stop')
     const stopped = await registry.call(
       placed.selector,
       'orchestration.federationStop',
@@ -241,6 +187,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     say(`hostname in host B worktree: ${oneLine(startResult.output)}`)
     say(`worker-read: ${oneLine(readResult.output)}`)
     say(`worker-stop: ${stopResult.state}`)
+    say('$ orca orchestration worker-status  stopped')
     other = new RemoteRuntimeRequestConnection(
       pairedRuntimeConnectionFromOffer(pairingOf(serverA, 'other-app'))
     )
@@ -254,17 +201,36 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       lines,
       forwardedMethods,
       hostname: String(startResult.output),
+      hostA,
       marker: 'host-b-worktree',
       readOutput: String(readResult.output),
       stopped: stopResult.state === 'stopped',
       otherSession,
       needsSignIn,
-      unreachable
+      unreachable,
+      answerPath: hub.answerPath
     }
   } finally {
+    hub?.close()
     requesterB?.close()
     other?.close()
     await Promise.allSettled([serverA.stop(), serverB.stop()])
     rmSync(root, { recursive: true, force: true })
   }
+}
+
+function runHostBHostname(worktree: string): string {
+  const hostname = runProcessSync({
+    program: 'sh',
+    args: [
+      '-c',
+      'echo "B_CWD=$(pwd)"; hostname; cat MARKER'
+    ],
+    cwd: worktree,
+    timeoutMs: 5_000
+  })
+  if (hostname.code !== 0) {
+    throw new Error(hostname.stderr || 'hostname failed in the host B worktree')
+  }
+  return hostname.stdout.trim()
 }

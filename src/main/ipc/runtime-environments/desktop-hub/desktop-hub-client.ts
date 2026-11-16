@@ -3,19 +3,14 @@ import { userInfo } from 'node:os'
 import { app } from 'electron'
 import { getCanonicalUserDataPath } from '../../../persistence/loading-store/user-data-path'
 import { createRuntimeEnvironmentMobileRelayHosts } from '../mobile-relay/runtime-environment-mobile-relay-hosts'
-import type { RuntimeOrchestrationEnvelope } from '../../../../shared/runtime-rpc-envelope'
 import { lastVerifiedRuntimeStatus } from '../../../../shared/remote-runtime/host-status/runtime-host-status'
 import { createOrchestrationEnvironmentTransport } from '../requests/orchestration-environment-transport'
-import { callRuntimeEnvironment } from '../requests/runtime-environment-transport-routing'
-import { subscribeRuntimeEnvironment } from '../requests/runtime-environment-subscription-routing'
 import { describeRelayHosts } from '../../../runtime/mobile-desktop-relay/mobile-relay-host-descriptions'
 import { wslHostClientInstanceId } from '../../../wsl/host-lifecycle/wsl-host-client-instance'
-import { answerDesktopHubRequest } from '../../../runtime/orchestration/desktop-hub/desktop-hub-answer'
 import { buildDesktopHubCatalog } from '../../../runtime/orchestration/desktop-hub/desktop-hub-catalog'
 import { setDesktopHubCatalogProvider } from '../../../runtime/orchestration/desktop-hub/desktop-hub-provider'
 import { enableDesktopHubPlacementStore } from '../../../runtime/orchestration/desktop-hub/desktop-hub-placement-store'
-import type { DesktopHubRequestEvent } from '../../../../shared/orchestration/desktop-hub-contract'
-import type { RemoteRuntimeTransportSubscription } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-contract'
+import { openHubSubscription } from './desktop-hub-subscribe'
 
 type DesktopHubClientOptions = {
   userDataPath: string
@@ -55,9 +50,14 @@ export function startDesktopHubClient(options: DesktopHubClientOptions): () => v
       }
       stops.set(environmentId, {
         key,
-        stop: openHubSubscription(options, hosts, environmentId, identity, () =>
-          stops.delete(environmentId)
-        )
+        stop: openHubSubscription({
+          userDataPath: options.userDataPath,
+          environmentId,
+          identity,
+          catalog: () => currentCatalog(options, hosts),
+          callLocal: options.callLocal,
+          onStopped: () => stops.delete(environmentId)
+        })
       })
     }
   }
@@ -180,111 +180,3 @@ function currentCatalog(
   })
 }
 
-function openHubSubscription(
-  options: DesktopHubClientOptions,
-  relay: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>,
-  environmentId: string,
-  identity: { appInstallationId: string; userId: string },
-  onStopped: () => void
-): () => void {
-  const controller = new AbortController()
-  let subscription: RemoteRuntimeTransportSubscription | null = null
-  const queued: DesktopHubRequestEvent[] = []
-  const deliver = (event: DesktopHubRequestEvent): void => {
-    if (!subscription?.sendRequest) {
-      queued.push(event)
-      return
-    }
-    void answerAndSend(options, relay, subscription, event)
-  }
-  void subscribeRuntimeEnvironment(
-    options.userDataPath,
-    environmentId,
-    'runtime.clientEvents.subscribe',
-    { orchestrationHub: identity },
-    15_000,
-    {
-      onEvent: (payload) => {
-        if (payload.type !== 'response' || !payload.response.ok) {
-          return
-        }
-        const event = payload.response.result
-        if (isHubRequest(event)) {
-          deliver(event)
-        }
-      },
-      onClose: () => {
-        if (!controller.signal.aborted) {
-          controller.abort()
-          onStopped()
-        }
-      }
-    },
-    () => !controller.signal.aborted,
-    controller.signal
-  ).then(
-    (opened) => {
-      subscription = opened
-      if (controller.signal.aborted) {
-        opened.close()
-        return
-      }
-      for (const event of queued.splice(0)) {
-        void answerAndSend(options, relay, opened, event)
-      }
-    },
-    () => {
-      if (!controller.signal.aborted) {
-        onStopped()
-      }
-    }
-  )
-  return () => {
-    controller.abort()
-    subscription?.close()
-  }
-}
-
-async function answerAndSend(
-  options: DesktopHubClientOptions,
-  relay: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>,
-  subscription: RemoteRuntimeTransportSubscription,
-  event: DesktopHubRequestEvent
-): Promise<void> {
-  const answer = await answerDesktopHubRequest({
-    request: event,
-    catalog: () => currentCatalog(options, relay),
-    callHost: (placement, method, params, timeoutMs, envelope) =>
-      callRuntimeEnvironment(
-        options.userDataPath,
-        placement.hostKey,
-        method,
-        params,
-        timeoutMs,
-        placement.pairingRevision,
-        envelope as RuntimeOrchestrationEnvelope | undefined
-      ),
-    callLocal: async (_placement, method, params, _timeoutMs, envelope) => {
-      const response = await options.callLocal(method, params, envelope)
-      return response as Awaited<ReturnType<typeof callRuntimeEnvironment>>
-    }
-  })
-  await subscription.sendRequest?.(
-    'orchestration.desktopHub.answer',
-    { requestId: event.requestId, ...answer },
-    15_000
-  )
-}
-
-function isHubRequest(value: unknown): value is DesktopHubRequestEvent {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'type' in value &&
-    value.type === 'orchestrationHubRequested' &&
-    'requestId' in value &&
-    typeof value.requestId === 'string' &&
-    'op' in value &&
-    (value.op === 'list' || value.op === 'resolve' || value.op === 'call')
-  )
-}

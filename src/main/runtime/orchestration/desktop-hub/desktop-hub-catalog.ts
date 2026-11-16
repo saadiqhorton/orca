@@ -22,7 +22,7 @@ export type DesktopHubCatalogExecution = {
   } | null
 }
 
-/** Names a row the way the sidebar does: the machine name, then the saved environment label. */
+/** Names a row the way the sidebar does: the saved environment label, then the machine name. */
 export function buildDesktopHubCatalog(input: {
   machineName: string
   localPlacement?: { peerFingerprint: string; homePeerFingerprint?: string }
@@ -52,8 +52,8 @@ export function buildDesktopHubCatalog(input: {
   const used = new Set<string>([desktopName])
   for (const execution of input.executions) {
     const status = desktopHubStatus(execution)
-    const preferred = execution.machineName?.trim() || execution.label
-    const name = uniqueName(preferred, execution.label, used)
+    const preferred = execution.label.trim() || execution.machineName?.trim() || execution.environmentId
+    const name = uniqueName(preferred, execution.machineName?.trim() || execution.label, used)
     const row: DesktopHubHostRow = {
       kind: 'execution',
       name,

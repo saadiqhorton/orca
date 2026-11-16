@@ -9,8 +9,8 @@ const catalog = buildDesktopHubCatalog({
   machineName: 'windows-desktop',
   executions: [
     {
-      label: 'ubuntu',
-      machineName: 'ubuntu-server-local',
+      label: 'ubuntu-server-local',
+      machineName: 'dezignerdrugz00',
       environmentId: 'env-ubuntu',
       health: 'available',
       server: { name: 'ubuntu', peerFingerprint: 'fp-ubuntu' }

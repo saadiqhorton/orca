@@ -7,8 +7,8 @@ const catalog = buildDesktopHubCatalog({
   machineName: 'windows-desktop',
   executions: [
     {
-      label: 'ubuntu',
-      machineName: 'ubuntu-server-local',
+      label: 'ubuntu-server-local',
+      machineName: 'dezignerdrugz00',
       environmentId: 'env-ubuntu',
       health: 'available',
       server: { name: 'ubuntu', peerFingerprint: 'fp-ubuntu', homePeerFingerprint: 'fp-home' }
@@ -25,10 +25,10 @@ const catalog = buildDesktopHubCatalog({
 
 describe('desktop hub answerer', () => {
   it('forwards a worker start to the connected host and does not dial one that needs sign-in', async () => {
-    expect(catalog.hosts.map((host) => [host.name, host.status])).toEqual([
-      ['windows-desktop', 'connected'],
-      ['ubuntu-server-local', 'connected'],
-      ['TEMPLEOFDOOM', 'needs_sign_in']
+    expect(catalog.hosts.map((host) => [host.name, host.machineName, host.status])).toEqual([
+      ['windows-desktop', 'windows-desktop', 'connected'],
+      ['ubuntu-server-local', 'dezignerdrugz00', 'connected'],
+      ['temple', 'TEMPLEOFDOOM', 'needs_sign_in']
     ])
     const callHost = vi.fn(async () => ({
       id: 'host-b',
@@ -45,6 +45,15 @@ describe('desktop hub answerer', () => {
     expect(refused).toMatchObject({ ok: false, error: { code: 'needs_sign_in' } })
     expect(callHost).not.toHaveBeenCalled()
     expect(ssh).not.toHaveBeenCalled()
+    const placed = await answerDesktopHubRequest({
+      request: request('resolve', { name: 'ubuntu-server-local' }),
+      catalog: () => catalog,
+      callHost
+    })
+    expect(placed).toMatchObject({
+      ok: true,
+      result: { hostKey: 'env-ubuntu', name: 'ubuntu-server-local' }
+    })
     const forwarded = await answerDesktopHubRequest({
       request: request('call', {
         hostKey: 'env-ubuntu',

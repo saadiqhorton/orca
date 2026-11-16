@@ -6,9 +6,11 @@ async function main(): Promise<void> {
     console.log(line)
   }
   if (
+    transcript.answerPath !== 'shared-control' ||
     transcript.needsSignIn !== 'needs_sign_in' ||
     transcript.unreachable !== 'host_unreachable' ||
     !transcript.hostname.includes(transcript.marker) ||
+    !transcript.hostname.includes('B_CWD=') ||
     transcript.readOutput !== transcript.hostname ||
     !transcript.stopped ||
     transcript.otherSession !== 'session_refused'
