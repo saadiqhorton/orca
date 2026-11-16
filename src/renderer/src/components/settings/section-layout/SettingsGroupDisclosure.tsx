@@ -49,18 +49,24 @@ export function SettingsGroupDisclosure({
         onClick={() => setOpen(!open)}
         // Unsaved edits must remain reachable.
         disabled={forceOpen}
-        className="flex min-h-11 w-full items-center gap-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 disabled:cursor-default"
+        className="flex min-h-11 w-full items-center gap-2 text-left text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 disabled:cursor-default"
       >
         <ChevronRight
           className={cn(
-            'size-3.5 text-muted-foreground transition-transform',
+            'size-3.5 shrink-0 text-muted-foreground transition-transform',
             expanded && 'rotate-90'
           )}
         />
-        {label ?? t('auto.components.settings.AppearanceAdvancedDisclosure.advanced', 'Advanced')}
-        {description ? (
-          <span className="truncate text-xs font-normal text-muted-foreground">{description}</span>
-        ) : null}
+        {/* A description too long for the line wraps under the label instead of being cut off. */}
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 py-1.5">
+          <span>
+            {label ??
+              t('auto.components.settings.AppearanceAdvancedDisclosure.advanced', 'Advanced')}
+          </span>
+          {description ? (
+            <span className="text-xs font-normal text-muted-foreground">{description}</span>
+          ) : null}
+        </span>
       </button>
       {/* Stays mounted while collapsed so a settings jump can find and reveal its rows. */}
       <div hidden={!expanded} className={flush ? undefined : SETTINGS_GROUP_NESTED_INSET_CLASS}>
