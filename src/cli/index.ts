@@ -28,6 +28,7 @@ import {
   isLocalEnvironmentSelector,
   refuseLocalManagementSelector
 } from './hosts/local-environment-selector'
+import { isDesktopHubHostValue } from './hosts/desktop-hub-host-flag'
 
 const COMMAND_PATHS = COMMAND_SPECS.flatMap((spec) => specPaths(spec))
 
@@ -114,9 +115,10 @@ export async function main(
         (parsed.flags.has('environment') &&
           !isLocalEnvironmentSelector(parsed.flags.get('environment'))))
     ) {
+      const named = parsed.flags.has('on') ? '--on' : '--host'
       throw new RuntimeClientError(
         'invalid_argument',
-        '--on already names the server; drop --environment. Your own Orca reaches it.'
+        `${named} already names the server; drop --environment. Your own Orca reaches it.`
       )
     }
     const ignoreRemoteSelection = onCallersOrca || ignoresRemoteSelection(parsed.commandPath)
@@ -215,7 +217,7 @@ function runsOnCallersOrca(
   return (
     commandPath[0] === 'orchestration' &&
     ON_CALLERS_ORCA_COMMANDS.has(commandPath[1] ?? '') &&
-    flags.has('on')
+    (flags.has('on') || isDesktopHubHostValue(flags.get('host')))
   )
 }
 

@@ -20,13 +20,14 @@ export const ENVIRONMENT_COMMAND_SPECS: CommandSpec[] = [
     usage: 'orca host list [--json]',
     allowedFlags: [...LOCAL_COMMAND_FLAGS],
     notes: [
-      'Answers "what can I target and what do I pass" in one place: this machine, the SSH targets registered on it, and the Orca servers paired with it.',
+      'Answers "what can I target and what do I pass" in one place: this machine, the SSH targets registered on it, the Orca servers paired with it, and every machine the desktop app is connected to.',
+      'Desktop-connected rows use --host <name> and a status of connected, needs_sign_in, or unreachable. Start a worker on one with `orca orchestration worker-start --host <name>`. Do not use SSH. A needs_sign_in host must be signed in or re-paired in the desktop app. An unreachable host is not connected, and Orca will not try SSH.',
       'The three kinds are reached differently. A paired Orca server is a connection, selected with --environment <name>. An SSH target is a machine the connected Orca host reaches, selected with --host ssh:<id>. Passing one where the other belongs is the most common way to get an empty or missing-host answer.',
       'Commands that take --host also accept any name this list prints, such as --host "this machine" or --host <ssh-target-name> (except `orca host rm`, which takes only the ssh:<target-id> form). A name two hosts share is refused with the exact flag for each.',
       'SSH rows include the detected remote platform after that target has connected (linux, darwin, or win32); disconnected or older targets report platform unknown.',
       'SSH rows also include whether the target is currently connected and its lifecycle status when known.',
       'Paired-server rows come from the pairing store and report platform unknown; ask one server directly with `orca host name --environment <name>`.',
-      "SSH targets are read from this machine's own Orca runtime, so this lists that machine's targets and not another server's. Run `orca host list` on the other machine to see the targets registered there.",
+      "SSH targets are read from this machine's own Orca runtime. Desktop-connected hosts come from the desktop app this machine is paired with, so a session on one execution host lists the user's other machines too.",
       '--environment and --pairing-code are rejected rather than ignored: paired servers come from this machine\u2019s pairing store, so a routed answer would describe two machines at once.'
     ],
     examples: ['orca host list', 'orca host list --json']

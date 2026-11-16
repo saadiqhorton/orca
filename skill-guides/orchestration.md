@@ -34,9 +34,15 @@ ORCA orchestration worker-start --spec "<task>" --worktree current --agent <agen
 ```
 
 `<agent>` is an Orca agent id: one the user named, else the agent you are
-running as when the worker shares your execution host. Otherwise, such as a
-different SSH/WSL host or `--on`, ask the user. `worker-start` does not check
-that the CLI is installed; a missing one fails as an `agent_readiness` timeout.
+running as when the worker shares your execution host. To run on another
+machine the desktop app is connected to, run `orca host list` and start with
+`--host <name>` using a row whose status is `connected` (the machine name in
+that list, such as `ubuntu-server-local`). Never use SSH, never open a port,
+and never copy keys. If the status is `needs_sign_in` or `unreachable`, say so
+and stop. `--on` is only a paired Orca server saved on this machine; load
+`references/placement-and-remote.md` before using it. `worker-start` does not
+check that the CLI is installed; a missing one fails as an `agent_readiness`
+timeout.
 
 - Start every independent worker, then **end your turn**. "Report back" and
   "tell me when it's done" still mean end your turn; Orca wakes you and you
@@ -118,7 +124,7 @@ assignment does not prove its agent stopped.
 | Situation                                      | Reference                            |
 | ---------------------------------------------- | ------------------------------------ |
 | Task DAGs, several Runs                        | `references/coordinator-loop.md`     |
-| Child worktrees, SSH, WSL, a connected server  | `references/placement-and-remote.md` |
+| Child worktrees, a desktop-connected host, a paired server | `references/placement-and-remote.md` |
 | Group messages                                 | `references/messaging-and-gates.md`  |
 | A failed or unknown worker; retry, stop, reset | `references/recovery-and-cleanup.md` |
 | Custom argv or terminal layout                 | `references/low-level-topology.md`   |

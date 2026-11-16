@@ -1,5 +1,5 @@
 export type HostListEntry = {
-  kind: 'local' | 'ssh' | 'environment'
+  kind: 'local' | 'ssh' | 'environment' | 'execution'
   name: string
   id: string
   selector: string
@@ -10,18 +10,20 @@ export type HostListEntry = {
 }
 
 // Explicit host selectors prevent callers from using a display name on the wrong host scope.
-export function formatHostList(result: { hosts: HostListEntry[] }): string {
+export function formatHostList(result: { hosts: HostListEntry[]; note?: string }): string {
   const kindLabel: Record<HostListEntry['kind'], string> = {
     local: 'local',
     ssh: 'ssh target',
-    environment: 'orca server'
+    environment: 'orca server',
+    execution: 'desktop host'
   }
-  return result.hosts
+  const lines = result.hosts
     .map(
       (host) =>
-        `${kindLabel[host.kind].padEnd(11)} ${host.name}${host.machineName ? ` (${host.machineName})` : ''}  ${host.platform ?? 'platform unknown'}  ${formatHostConnection(host)}  ->  ${host.selector}`
+        `${kindLabel[host.kind].padEnd(12)} ${host.name}${host.machineName && host.machineName !== host.name ? ` (${host.machineName})` : ''}  ${host.platform ?? 'platform unknown'}  ${formatHostConnection(host)}  ->  ${host.selector}`
     )
     .join('\n')
+  return result.note ? `${lines}\n${result.note}` : lines
 }
 
 /** What one runtime calls itself; `machineName` is absent when the runtime predates the field. */
@@ -35,6 +37,9 @@ export function formatHostName(result: HostNameResult): string {
 }
 
 function formatHostConnection(host: HostListEntry): string {
+  if (host.kind === 'execution') {
+    return host.connectionStatus ?? 'connection unknown'
+  }
   if (host.kind !== 'ssh') {
     return ''
   }

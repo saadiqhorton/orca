@@ -19,6 +19,7 @@ import {
 } from './start/admission/worker-start-authority'
 import { parseTaskDeps } from './start/admission/task-deps-argument'
 import { WorkerStartParams } from '../../../../../../shared/rpc-contract/orchestration/orchestration-worker-start-params'
+import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 import {
   isWorkerStartTimeoutWithinTimerLimit,
   resolveWorkerStartReadinessTimeoutMs
@@ -65,7 +66,8 @@ export async function startWorker(
   startFollowUp?: WorkerFollowUp
 ): Promise<unknown> {
   const { runtime, orchestrationMutation, orchestrationCaller } = ctx
-  const prepared = await prepareWorkerStart(startParams, ctx, startFollowUp)
+  const routedParams = await routeDesktopHubCommand(runtime, startParams)
+  const prepared = await prepareWorkerStart(routedParams, ctx, startFollowUp)
   const { params, followUp, coordinator, bindRun, helperCreator, taskDeps, existingTask, withRun } =
     prepared
   const db = runtime.getOrchestrationDb()

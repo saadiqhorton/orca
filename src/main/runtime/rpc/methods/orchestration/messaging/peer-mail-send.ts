@@ -13,6 +13,7 @@ import {
 import type { RpcContext } from '../../../core'
 import { recordReceiptBeforeNudge } from './mutation-replay-nudge'
 import type { SendParams } from './send-params'
+import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 
 const NOTHING_SENT = { effectsApplied: false } as const
 
@@ -114,13 +115,17 @@ export function withPeerMailSend<R>(
   send: (params: SendInput, ctx: RpcContext) => Promise<R>
 ): (params: SendInput, ctx: RpcContext) => Promise<unknown> {
   return async (params, ctx) => {
-    const on = params.on
-    if (on === undefined || ctx.replayedMutationReceipt !== undefined) {
+    if (ctx.replayedMutationReceipt !== undefined) {
       return await send(params, ctx)
+    }
+    const routed = await routeDesktopHubCommand(ctx.runtime, params)
+    const on = routed.on
+    if (on === undefined) {
+      return await send(routed, ctx)
     }
     const attested = ctx.orchestrationCompatibilityCallerAuthority
     return await sendPeerMail({
-      params: { ...params, on },
+      params: { ...routed, on },
       runtime: ctx.runtime,
       orchestrationCaller: ctx.orchestrationCaller,
       attestedCaller: attested?.terminalHandle === params.from ? attested : undefined,

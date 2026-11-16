@@ -107,6 +107,7 @@ export const ORCHESTRATION_SEND_HANDLER: Record<string, CommandHandler> = {
       to,
       run: getOptionalStringFlag(flags, 'run'),
       on: getOptionalStringFlag(flags, 'on'),
+      host: getOptionalStringFlag(flags, 'host'),
       subject: getRequiredStringFlag(flags, 'subject'),
       body: getOptionalStringFlag(flags, 'body'),
       type,

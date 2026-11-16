@@ -42,6 +42,7 @@ import {
   OrcadPeerDesktopsParamsSchema
 } from '../orcad-peer-desktops-contract'
 import { OrcadTerminalCensusParamsSchema } from '../orcad-terminal-census'
+import { DesktopHubAnswerParams } from '../orchestration/desktop-hub-contract'
 import {
   CrewSubscribeParams,
   WorkerApprovalsSubscribeParams
@@ -1392,6 +1393,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.callerShow': null,
   'orchestration.check': CheckParams,
   'orchestration.crewSubscribe': CrewSubscribeParams,
+  'orchestration.desktopHub.answer': DesktopHubAnswerParams,
+  'orchestration.desktopHub.list': null,
   'orchestration.dispatch': DispatchParams,
   'orchestration.dispatchShow': DispatchShowParams,
   'orchestration.federationAck': FederationAckParams,

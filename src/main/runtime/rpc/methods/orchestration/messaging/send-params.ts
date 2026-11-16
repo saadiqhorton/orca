@@ -35,6 +35,8 @@ export const SendParams = z
     run: OptionalString,
     // A paired server: this Orca carries the mail there and the replies back (`send --on`).
     on: OptionalString,
+    // A desktop-connected execution host. The desktop hub rewrites this to `on` before delivery.
+    host: OptionalString,
     waitForLifecycleSettlement: OptionalBoolean,
     devMode: OptionalBoolean
   })

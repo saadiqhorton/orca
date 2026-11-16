@@ -6,6 +6,7 @@ import type { OrchestrationCallerShowResult } from '../../../shared/orchestratio
 import { renderOrchestrationArgv } from '../agent-view'
 import type { RuntimeStatus } from '../../../shared/runtime-session-contracts'
 import { ORCHESTRATION_PEER_MAIL_RUNTIME_CAPABILITY } from '../../../shared/orchestration/orchestration-runtime-capabilities'
+import { isDesktopHubHostValue } from '../../hosts/desktop-hub-host-flag'
 
 type AgentServerRoutedCommand = 'send' | 'worker-start' | 'check'
 
@@ -60,7 +61,7 @@ export async function refuseAgentServerRoute(
   command: AgentServerRoutedCommand,
   ctx: HandlerContext
 ): Promise<void> {
-  if (!ctx.client.isRemote || ctx.flags.has('on')) {
+  if (!ctx.client.isRemote || ctx.flags.has('on') || isDesktopHubHostValue(ctx.flags.get('host'))) {
     return
   }
   const server = serverSelector(ctx.flags)

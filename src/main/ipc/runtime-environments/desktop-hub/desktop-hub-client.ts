@@ -1,0 +1,290 @@
+import { createHash } from 'node:crypto'
+import { userInfo } from 'node:os'
+import { app } from 'electron'
+import { getCanonicalUserDataPath } from '../../../persistence/loading-store/user-data-path'
+import { createRuntimeEnvironmentMobileRelayHosts } from '../mobile-relay/runtime-environment-mobile-relay-hosts'
+import type { RuntimeOrchestrationEnvelope } from '../../../../shared/runtime-rpc-envelope'
+import { lastVerifiedRuntimeStatus } from '../../../../shared/remote-runtime/host-status/runtime-host-status'
+import { createOrchestrationEnvironmentTransport } from '../requests/orchestration-environment-transport'
+import { callRuntimeEnvironment } from '../requests/runtime-environment-transport-routing'
+import { subscribeRuntimeEnvironment } from '../requests/runtime-environment-subscription-routing'
+import { describeRelayHosts } from '../../../runtime/mobile-desktop-relay/mobile-relay-host-descriptions'
+import { wslHostClientInstanceId } from '../../../wsl/host-lifecycle/wsl-host-client-instance'
+import { answerDesktopHubRequest } from '../../../runtime/orchestration/desktop-hub/desktop-hub-answer'
+import { buildDesktopHubCatalog } from '../../../runtime/orchestration/desktop-hub/desktop-hub-catalog'
+import { setDesktopHubCatalogProvider } from '../../../runtime/orchestration/desktop-hub/desktop-hub-provider'
+import { enableDesktopHubPlacementStore } from '../../../runtime/orchestration/desktop-hub/desktop-hub-placement-store'
+import type { DesktopHubRequestEvent } from '../../../../shared/orchestration/desktop-hub-contract'
+import type { RemoteRuntimeTransportSubscription } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-contract'
+
+type DesktopHubClientOptions = {
+  userDataPath: string
+  machineName: () => string
+  localFingerprint: () => string
+  callLocal: (
+    method: string,
+    params: unknown,
+    envelope: unknown
+  ) => Promise<{ ok: boolean; result?: unknown; error?: { code: string; message: string } }>
+}
+
+/** The desktop app volunteers on each connected execution host and answers with its existing pairing sockets. */
+export function startDesktopHubClient(options: DesktopHubClientOptions): () => void {
+  enableDesktopHubPlacementStore()
+  const hosts = createRuntimeEnvironmentMobileRelayHosts()
+  const identity = desktopHubIdentity()
+  setDesktopHubCatalogProvider(() => Promise.resolve(currentCatalog(options, hosts)))
+  const stops = new Map<string, { key: string; stop: () => void }>()
+  const refresh = (): void => {
+    const desired = new Map<string, string>()
+    for (const host of describeRelayHosts(hosts)) {
+      if (host.health !== 'available') {
+        continue
+      }
+      desired.set(host.environmentId, `${host.identity.pairingRevision}:${host.identity.runtimeId}`)
+    }
+    for (const [environmentId, current] of stops) {
+      if (desired.get(environmentId) !== current.key) {
+        current.stop()
+        stops.delete(environmentId)
+      }
+    }
+    for (const [environmentId, key] of desired) {
+      if (stops.has(environmentId)) {
+        continue
+      }
+      stops.set(environmentId, {
+        key,
+        stop: openHubSubscription(options, hosts, environmentId, identity, () =>
+          stops.delete(environmentId)
+        )
+      })
+    }
+  }
+  const stopStatus = hosts.onStatusChanged(refresh)
+  const stopCatalog = hosts.onCatalogChanged?.(refresh) ?? ((): void => undefined)
+  refresh()
+  return () => {
+    stopStatus()
+    stopCatalog()
+    setDesktopHubCatalogProvider(null)
+    for (const subscription of stops.values()) {
+      subscription.stop()
+    }
+    stops.clear()
+  }
+}
+
+type DesktopRelayRpc = {
+  setMobileDesktopRelayHosts(hosts: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>): void
+  dispatchLocal(input: {
+    method: string
+    params?: unknown
+    orchestrationContractVersion?: number
+    orchestrationRequestId?: string
+  }): Promise<{ ok: boolean; result?: unknown; error?: { code: string; message: string } }>
+}
+
+/** Phone host catalog and the orchestration hub share the desktop's pairing sockets. */
+export function installDesktopConnectedSurfaces(
+  runtime: {
+    readMachineName(): string
+    getOrchestrationDb(): { getOrCreateLocalMutationCallerFingerprint(): string }
+  },
+  runtimeRpc: DesktopRelayRpc
+): void {
+  runtimeRpc.setMobileDesktopRelayHosts(createRuntimeEnvironmentMobileRelayHosts())
+  const stop = startDesktopHubClient({
+    userDataPath: getCanonicalUserDataPath(),
+    machineName: () => runtime.readMachineName(),
+    localFingerprint: () => runtime.getOrchestrationDb().getOrCreateLocalMutationCallerFingerprint(),
+    callLocal: (method, params, envelope) => {
+      const record =
+        envelope && typeof envelope === 'object' ? (envelope as Record<string, unknown>) : {}
+      return runtimeRpc.dispatchLocal({
+        method,
+        params,
+        ...(typeof record.orchestrationContractVersion === 'number'
+          ? { orchestrationContractVersion: record.orchestrationContractVersion }
+          : {}),
+        ...(typeof record.orchestrationRequestId === 'string'
+          ? { orchestrationRequestId: record.orchestrationRequestId }
+          : {})
+      })
+    }
+  })
+  app.on('will-quit', stop)
+}
+
+export function desktopHubIdentity(): { appInstallationId: string; userId: string } {
+  return {
+    appInstallationId: wslHostClientInstanceId(),
+    userId: createHash('sha256')
+      .update(`orca-desktop-user\0${userInfo().username}`)
+      .digest('base64url')
+      .slice(0, 32)
+  }
+}
+
+function currentCatalog(
+  options: DesktopHubClientOptions,
+  relay: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>
+) {
+  const listing = relay.list()
+  let localPlacement: { peerFingerprint: string; homePeerFingerprint?: string } | undefined
+  try {
+    const fingerprint = options.localFingerprint()
+    localPlacement = { peerFingerprint: fingerprint, homePeerFingerprint: fingerprint }
+  } catch {
+    localPlacement = undefined
+  }
+  const transport = createOrchestrationEnvironmentTransport()
+  return buildDesktopHubCatalog({
+    machineName: options.machineName(),
+    ...(localPlacement ? { localPlacement } : {}),
+    executions: describeRelayHosts(relay).map((host) => {
+      const status = listing.statusByEnvironmentId.get(host.environmentId)
+      const verified = lastVerifiedRuntimeStatus(status)
+      let server: {
+        name: string
+        peerFingerprint: string
+        homePeerFingerprint?: string
+        pairingRevision?: number
+      } | null = null
+      if (host.health === 'available') {
+        try {
+          const resolved = transport.resolve(host.environmentId)
+          server = {
+            name: resolved.name,
+            peerFingerprint: resolved.peerFingerprint,
+            ...(resolved.homePeerFingerprint
+              ? { homePeerFingerprint: resolved.homePeerFingerprint }
+              : {}),
+            ...(resolved.pairingRevision !== undefined
+              ? { pairingRevision: resolved.pairingRevision }
+              : {})
+          }
+        } catch {
+          server = null
+        }
+      }
+      return {
+        label: host.label,
+        ...(verified?.machineName ? { machineName: verified.machineName } : {}),
+        environmentId: host.environmentId,
+        health: host.health,
+        ...(status?.snapshot?.blockedReason ? { blockedReason: status.snapshot.blockedReason } : {}),
+        server
+      }
+    })
+  })
+}
+
+function openHubSubscription(
+  options: DesktopHubClientOptions,
+  relay: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>,
+  environmentId: string,
+  identity: { appInstallationId: string; userId: string },
+  onStopped: () => void
+): () => void {
+  const controller = new AbortController()
+  let subscription: RemoteRuntimeTransportSubscription | null = null
+  const queued: DesktopHubRequestEvent[] = []
+  const deliver = (event: DesktopHubRequestEvent): void => {
+    if (!subscription?.sendRequest) {
+      queued.push(event)
+      return
+    }
+    void answerAndSend(options, relay, subscription, event)
+  }
+  void subscribeRuntimeEnvironment(
+    options.userDataPath,
+    environmentId,
+    'runtime.clientEvents.subscribe',
+    { orchestrationHub: identity },
+    15_000,
+    {
+      onEvent: (payload) => {
+        if (payload.type !== 'response' || !payload.response.ok) {
+          return
+        }
+        const event = payload.response.result
+        if (isHubRequest(event)) {
+          deliver(event)
+        }
+      },
+      onClose: () => {
+        if (!controller.signal.aborted) {
+          controller.abort()
+          onStopped()
+        }
+      }
+    },
+    () => !controller.signal.aborted,
+    controller.signal
+  ).then(
+    (opened) => {
+      subscription = opened
+      if (controller.signal.aborted) {
+        opened.close()
+        return
+      }
+      for (const event of queued.splice(0)) {
+        void answerAndSend(options, relay, opened, event)
+      }
+    },
+    () => {
+      if (!controller.signal.aborted) {
+        onStopped()
+      }
+    }
+  )
+  return () => {
+    controller.abort()
+    subscription?.close()
+  }
+}
+
+async function answerAndSend(
+  options: DesktopHubClientOptions,
+  relay: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>,
+  subscription: RemoteRuntimeTransportSubscription,
+  event: DesktopHubRequestEvent
+): Promise<void> {
+  const answer = await answerDesktopHubRequest({
+    request: event,
+    catalog: () => currentCatalog(options, relay),
+    callHost: (placement, method, params, timeoutMs, envelope) =>
+      callRuntimeEnvironment(
+        options.userDataPath,
+        placement.hostKey,
+        method,
+        params,
+        timeoutMs,
+        placement.pairingRevision,
+        envelope as RuntimeOrchestrationEnvelope | undefined
+      ),
+    callLocal: async (_placement, method, params, _timeoutMs, envelope) => {
+      const response = await options.callLocal(method, params, envelope)
+      return response as Awaited<ReturnType<typeof callRuntimeEnvironment>>
+    }
+  })
+  await subscription.sendRequest?.(
+    'orchestration.desktopHub.answer',
+    { requestId: event.requestId, ...answer },
+    15_000
+  )
+}
+
+function isHubRequest(value: unknown): value is DesktopHubRequestEvent {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    value.type === 'orchestrationHubRequested' &&
+    'requestId' in value &&
+    typeof value.requestId === 'string' &&
+    'op' in value &&
+    (value.op === 'list' || value.op === 'resolve' || value.op === 'call')
+  )
+}

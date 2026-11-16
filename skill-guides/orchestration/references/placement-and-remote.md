@@ -1,5 +1,29 @@
 # Placement and remote execution
 
+## Desktop-connected execution hosts
+
+The desktop app is the hub for the machines it is connected to. From any Orca
+session — on the desktop, or on one of those machines — list them and start
+there. Do not use SSH.
+
+```text
+orca host list
+orca orchestration worker-start --spec "<task>" --host <name> --worktree new-top-level --repo <exact_remote_repo_selector> --agent <agent>
+```
+
+`--host` is a name `orca host list` prints with status `connected`. That list
+includes every machine the desktop app is connected to, not only this machine.
+`needs_sign_in` means the user must sign in or re-pair in the desktop app.
+`unreachable` means the desktop cannot reach that host. Say which one, and
+stop. Orca will not try SSH.
+
+`send --host <name>` mails an agent on that machine. After start, `worker-show`,
+`worker-read`, and `worker-stop` take the Dispatch id from the receipt and do
+not need `--host` again. Replies come back to this session's `check`.
+
+`--on` is different: a paired Orca server saved on the machine running the
+command. Use `--host` for a desktop-connected execution host.
+
 Folder workspaces are valid. `new-child` and `new-top-level` make Git worktrees,
 never in a folder project; never `git init` a user's folder. From a multi-repo
 folder workspace, `new-child` nests under the folder and needs `--repo` naming
@@ -38,8 +62,10 @@ handle.
 
 ## Agents on another server
 
-To message an agent that already runs on a paired server, send with `--on`,
-using the same server names as `worker-start --on`:
+To message an agent on a desktop-connected machine, use `--host` and the name
+from `orca host list`. To message an agent that already runs on a paired
+server saved on this machine, send with `--on`, using the same server names as
+`worker-start --on`:
 
 ```bash
 ORCA orchestration send --on <server> --to <term_…|orca_session_id:…> --subject "<text>" --body "<text>"
