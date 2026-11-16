@@ -274,7 +274,7 @@ const flush = async () => {
   }
 }
 
-describe('structured mailbox delivery: each message whole', () => {
+describe('structured mailbox delivery: each message as its own card', () => {
   it('settles a handoff that wins stale-card withdrawal without sending it to the new owner', async () => {
     const h = harness({ busy: true })
     h.receive('m1')
@@ -286,8 +286,9 @@ describe('structured mailbox delivery: each message whole', () => {
       return { kind: 'accepted' }
     })
     h.delivery.withdrawStale()
-    await vi.waitFor(() => expect(h.mail.get('m1')?.read).toBe(1))
-    expect(h.records.size).toBe(0)
+    await vi.waitFor(() => expect(h.records.size).toBe(0))
+    // The agent was only pointed at `check`: the mail waits there unread.
+    expect(h.mail.get('m1')?.read).toBe(0)
     expect(h.sent.map(({ sessionId, operationId }) => [sessionId, operationId])).toEqual([
       ['session-1', first]
     ])

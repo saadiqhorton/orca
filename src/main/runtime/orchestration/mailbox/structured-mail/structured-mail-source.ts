@@ -2,17 +2,22 @@ import { runCoordinatorKey } from '../../addressing/orchestration-caller-identit
 import { readAnswerSenderSnapshot } from '../../../../../shared/agent-session/answer-sender-snapshot'
 /** Snapshot distinct sender provenance and join mail to its surviving Run, Dispatch and message records. */
 
-import type {
-  AgentMessageSource,
-  AgentMessageSender,
-  OrchestrationMailNotice
+import {
+  orchestrationMailNotice,
+  readAgentMessageSource,
+  type AgentMessageSource,
+  type AgentMessageSender,
+  type OrchestrationMailNotice
 } from '../../../../../shared/agent-session/agent-session-message-source'
 import type { AgentJournalMessageItem } from '../../../../../shared/agent-session/journal/agent-session-journal-types'
 import type { MessageRow } from '../../db/orchestration-records'
 import type { OrchestrationDb } from '../../db/orchestration-db'
 import { agentMessageRelation } from '../senders/agent-message-relation'
 import { agentMessageSender, type SenderSnapshotResolver } from '../senders/agent-message-sender'
-import type { OrchestrationCliCommand } from '../../workers/launch/orchestration-cli-command'
+import {
+  localOrchestrationCliCommand,
+  type OrchestrationCliCommand
+} from '../../workers/launch/orchestration-cli-command'
 import { completionReportFollowUp } from '../../workers/reports/report-follow-up-action'
 import {
   formatMessageBannerWithContent,
@@ -105,9 +110,8 @@ export function structuredMailSource(input: {
   }
 }
 
-/** One orchestration message as one chat message: the whole message, with who it is from.
- *  `whole` is false when it would exceed a chat message's limit; that one then points at `check`
- *  and stays unread there. */
+/** One orchestration message as one chat card: the whole message, with who it is from, for people.
+ *  `whole` is false when it would exceed a chat message's limit; that card then shows the pointer. */
 export function structuredMailMessage(input: {
   db: OrchestrationDb
   mailboxHandle: string
@@ -206,4 +210,23 @@ function historicalAnswerSender(
     name: known.name,
     ...(known.agent ? { agent: known.agent } : {})
   }
+}
+
+/** What the agent itself is sent for a mail card: Orca's pointer at `check`, never another agent's
+ *  words. Mail read through `check` reaches the agent as tool output, which no reviewer counts as the
+ *  user's authorization; a person's own messages pass through unchanged. */
+export function structuredMailProviderBody(
+  body: AgentJournalMessageItem,
+  cliCommand: OrchestrationCliCommand = localOrchestrationCliCommand()
+): AgentJournalMessageItem {
+  const mail = orchestrationMailNotice(readAgentMessageSource(body.from))
+  if (!mail) {
+    return body
+  }
+  const pointer = formatMessagePointer(
+    Math.max(1, mail.messages.length),
+    mail.mailbox,
+    cliCommand
+  ).trim()
+  return { ...body, blocks: [{ type: 'text', text: pointer }] }
 }
