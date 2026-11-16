@@ -1,0 +1,73 @@
+name: Sync upstream release
+
+# Rebase cross-host-groups-cloud onto the latest stablyai/orca release, then typecheck
+# and run the drag / cross-host group tests. Conflicts and failed checks open an issue
+# (or a PR when issues are disabled).
+
+on:
+  schedule:
+    # Once a day, late morning UTC; offset from other Orca crons.
+    - cron: '27 11 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-upstream-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  sync:
+    if: github.repository != 'stablyai/orca'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SYNC_BRANCH: cross-host-groups-cloud
+      UPSTREAM_REPO: stablyai/orca
+    steps:
+      - name: Checkout cross-host-groups-cloud
+        uses: actions/checkout@v6
+        with:
+          ref: cross-host-groups-cloud
+          fetch-depth: 0
+
+      - name: Rebase onto the latest Orca release
+        id: rebase
+        run: bash .github/scripts/sync-upstream-release.sh rebase
+
+      - uses: ./.github/actions/install-node-dependencies
+        if: steps.rebase.outputs.changed == 'true'
+        with:
+          native-runtime: node
+
+      - name: Typecheck
+        id: typecheck
+        if: steps.rebase.outputs.changed == 'true'
+        run: pnpm tc
+
+      - name: Test drag and cross-host groups
+        id: tests
+        if: steps.rebase.outputs.changed == 'true'
+        run: >-
+          pnpm test
+          src/renderer/src/components/sidebar/worktree-list/drag
+          src/shared/project-group-clusters.test.ts
+          src/shared/sidebar-list/sections/project-group-cross-host-sections.test.ts
+          src/renderer/src/store/project-groups/repos-project-group-cross-host-move.test.ts
+          src/renderer/src/store/project-groups/repos-project-group-cross-host-twin.test.ts
+          --maxWorkers=2
+
+      - name: Report a failed check
+        if: failure() && steps.rebase.outputs.changed == 'true' && (steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure')
+        run: |
+          bash .github/scripts/sync-upstream-release.sh report \
+            "cross-host-groups-cloud failed checks after rebase onto ${{ steps.rebase.outputs.tag }}" \
+            "Rebased onto \`${{ steps.rebase.outputs.tag }}\` (\`${{ steps.rebase.outputs.onto }}\`) but typecheck or drag/cross-host tests failed. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+
+      - name: Push rebased branch
+        if: success() && steps.rebase.outputs.changed == 'true'
+        run: bash .github/scripts/sync-upstream-release.sh push
