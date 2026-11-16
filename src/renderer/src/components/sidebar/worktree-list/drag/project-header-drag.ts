@@ -25,7 +25,13 @@ import { createProjectHeaderDragSession } from './project-header-drag-start'
 import { getWorktreeSidebarDragAutoscroll } from './worktree-sidebar-drag-autoscroll'
 import { hasPointerBeenReleased } from './header-drag-pointer-release'
 import { swallowNextClickOnDragHandle } from './header-drag-click-swallow'
-import { useGrabbingBodyCursor } from './use-grabbing-body-cursor'
+import { useHeaderDragPreviewSession } from './use-header-drag-preview-session'
+import {
+  discardProjectHeaderDragPreview,
+  moveProjectHeaderDragPreview,
+  startHeaderDragPreview,
+  teardownHeaderDragHandle
+} from './project-header-drag-preview'
 import type { Repo } from '../../../../../../shared/repo-types'
 
 // Virtualized rows can unmount during drag; pointer events and cached header geometry avoid stale drop targets.
@@ -146,14 +152,9 @@ export function useRepoHeaderDrag({
         setSessionArmed(false)
         return
       }
-      try {
-        session.handleEl.releasePointerCapture(session.pointerId)
-      } catch {
-        // Pointer cancellation or unmount may already have released capture.
-      }
-      if (session.promoted) {
+      teardownHeaderDragHandle(session.handleEl, session.pointerId, session.promoted, commit, () => {
         clickSwallowTimeoutRef.current = swallowNextClickOnDragHandle(session.handleEl)
-      }
+      })
       setProjectGroupDropTargetHighlight(getContainerRef.current(), null)
       const sidebarDropIndex =
         commit && session.promoted && latestDropIndexRef.current !== null
@@ -249,15 +250,11 @@ export function useRepoHeaderDrag({
           return
         }
         session.promoted = true
-        // Virtualization may detach headers; global listeners keep dragging alive without capture.
-        if (session.handleEl.isConnected) {
-          try {
-            session.handleEl.setPointerCapture(session.pointerId)
-          } catch {}
-        }
+        startHeaderDragPreview(session.handleEl, e, getContainerRef.current())
         refreshHeaderRects()
         setState({ draggingRepoId: session.repo.id, dropIndex: null, dropIndicatorY: null })
       }
+      moveProjectHeaderDragPreview(e.clientX, e.clientY)
       refreshHeaderRects()
       applyDrop(session.repo.id, computeDrop(e.clientY))
       ensureAutoscroll()
@@ -302,9 +299,10 @@ export function useRepoHeaderDrag({
     sessionArmed
   ])
 
-  useGrabbingBodyCursor(state.draggingRepoId !== null)
+  useHeaderDragPreviewSession(sessionArmed)
 
   const onHandlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>, repo: Repo) => {
+    discardProjectHeaderDragPreview()
     const session = createProjectHeaderDragSession({
       event,
       repo,

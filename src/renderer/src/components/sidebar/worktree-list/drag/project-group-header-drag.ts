@@ -22,6 +22,13 @@ import { createProjectGroupHeaderDragSession } from './project-group-header-drag
 import { getWorktreeSidebarDragAutoscroll } from './worktree-sidebar-drag-autoscroll'
 import { hasPointerBeenReleased } from './header-drag-pointer-release'
 import { swallowNextClickOnDragHandle } from './header-drag-click-swallow'
+import { useHeaderDragPreviewSession } from './use-header-drag-preview-session'
+import {
+  discardProjectHeaderDragPreview,
+  moveProjectHeaderDragPreview,
+  startHeaderDragPreview,
+  teardownHeaderDragHandle
+} from './project-header-drag-preview'
 
 // Virtualized rows can unmount during drag; pointer events and cached model indices keep drops stable.
 
@@ -129,14 +136,9 @@ export function useProjectGroupHeaderDrag({
         setSessionArmed(false)
         return
       }
-      try {
-        session.handleEl.releasePointerCapture(session.pointerId)
-      } catch {
-        // Pointer cancellation or unmount may already have released capture.
-      }
-      if (session.promoted) {
+      teardownHeaderDragHandle(session.handleEl, session.pointerId, session.promoted, commit, () => {
         clickSwallowTimeoutRef.current = swallowNextClickOnDragHandle(session.handleEl)
-      }
+      })
       const sidebarDropIndex =
         commit && session.promoted && latestDropIndexRef.current !== null
           ? latestDropIndexRef.current
@@ -225,15 +227,11 @@ export function useProjectGroupHeaderDrag({
           return
         }
         session.promoted = true
-        // Virtualization may detach headers; global listeners keep dragging alive without capture.
-        if (session.handleEl.isConnected) {
-          try {
-            session.handleEl.setPointerCapture(session.pointerId)
-          } catch {}
-        }
+        startHeaderDragPreview(session.handleEl, event, getContainerRef.current())
         refreshHeaderRects()
         setState({ draggingGroupId: session.groupId, dropIndex: null, dropIndicatorY: null })
       }
+      moveProjectHeaderDragPreview(event.clientX, event.clientY)
       refreshHeaderRects()
       applyDrop(session.groupId, computeDrop(event.clientY))
       ensureAutoscroll()
@@ -286,22 +284,11 @@ export function useProjectGroupHeaderDrag({
     sessionArmed
   ])
 
-  useEffect(() => {
-    if (state.draggingGroupId === null) {
-      return
-    }
-    const body = document.body
-    const { cursor: prevCursor, userSelect: prevUserSelect } = body.style
-    body.style.cursor = 'grabbing'
-    body.style.userSelect = 'none'
-    return () => {
-      body.style.cursor = prevCursor
-      body.style.userSelect = prevUserSelect
-    }
-  }, [state.draggingGroupId])
+  useHeaderDragPreviewSession(sessionArmed)
 
   const onHandlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLElement>, groupId: string) => {
+      discardProjectHeaderDragPreview()
       const session = createProjectGroupHeaderDragSession({
         event,
         groupId,

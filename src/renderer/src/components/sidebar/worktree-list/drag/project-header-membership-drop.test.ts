@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Repo } from '../../../../../../shared/repo-types'
 import { getProjectHeaderDragBucketKey } from './project-header-drop'
 import type { RenderRow } from '../listing/render-row'
@@ -8,12 +8,24 @@ import {
   PROJECT_GROUP_DROP_TARGET_ATTRIBUTE,
   getProjectGroupSectionEndIndexByGroupId,
   resolveProjectHeaderMembershipTarget,
-  setProjectGroupDropTargetHighlight
+  setProjectGroupDropTargetHighlight,
+  trackProjectHeaderMembershipTarget
 } from './project-header-membership'
+import {
+  discardProjectHeaderDragPreview,
+  mountProjectHeaderDragPreview,
+  PROJECT_HEADER_DRAG_PREVIEW_CLASS
+} from './project-header-drag-preview'
 import { commitProjectHeaderDragDrop } from './project-header-drag-commit'
 import type { ProjectHeaderDragSession } from './project-header-drag-contract'
+import { buildProjectGroupClusters } from '../../../../../../shared/project-group-clusters'
+import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 
 const ROW_HEIGHT = 28
+
+afterEach(() => {
+  discardProjectHeaderDragPreview()
+})
 
 function rect(top: number, height: number, left = 0, width = 240): DOMRect {
   return {
@@ -34,28 +46,28 @@ function rect(top: number, height: number, left = 0, width = 240): DOMRect {
  * `rows` are the other rendered rows (by index) so a section end can be measured.
  */
 function sidebar(
-  groups: { id: string; index: number; start: number; endIndex?: number }[],
+  groups: { id: string; index: number; start: number; endIndex?: number; stickyTop?: number }[],
   rows: { index: number; start: number }[] = []
 ): HTMLElement {
   const container = document.createElement('div')
   container.getBoundingClientRect = () => rect(0, 600)
-  const addRow = (index: number, start: number): HTMLElement => {
+  const addRow = (index: number, start: number, stickyTop?: number): HTMLElement => {
     const row = document.createElement('div')
     row.setAttribute('data-worktree-virtual-row', '')
     row.setAttribute('data-index', String(index))
     row.setAttribute('data-worktree-virtual-row-start', String(start))
-    row.getBoundingClientRect = () => rect(start, ROW_HEIGHT)
+    row.getBoundingClientRect = () => rect(stickyTop ?? start, ROW_HEIGHT)
     container.append(row)
     return row
   }
   for (const entry of groups) {
-    const row = addRow(entry.index, entry.start)
+    const row = addRow(entry.index, entry.start, entry.stickyTop)
     const header = document.createElement('div')
     header.setAttribute('data-project-group-membership-id', entry.id)
     if (entry.endIndex !== undefined) {
       header.setAttribute('data-project-group-membership-section-end-index', String(entry.endIndex))
     }
-    header.getBoundingClientRect = () => rect(entry.start, ROW_HEIGHT)
+    header.getBoundingClientRect = () => rect(entry.stickyTop ?? entry.start, ROW_HEIGHT)
     row.append(header)
   }
   for (const entry of rows) {
@@ -124,6 +136,123 @@ describe('resolveProjectHeaderMembershipTarget', () => {
     expect(
       resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: 300, container })
     ).toEqual({ kind: 'group', groupId: 'infra' })
+  })
+
+  it('treats the top edge of a nested child as the parent, not root, when reordering', () => {
+    const container = sidebar(
+      [
+        { id: 'infra', index: 0, start: 0, endIndex: 9 },
+        { id: 'dockhand', index: 3, start: 100, endIndex: 6 }
+      ],
+      [
+        { index: 6, start: 200 },
+        { index: 9, start: 400 }
+      ]
+    )
+    expect(
+      resolveProjectHeaderMembershipTarget({
+        pointerX: 20,
+        pointerY: 102,
+        container,
+        headerTopEdgePx: 6
+      })
+    ).toEqual({ kind: 'group', groupId: 'infra' })
+  })
+
+  it('joins a collapsed parent on its header only; the hidden child is not a target', () => {
+    const container = sidebar([{ id: 'infra', index: 0, start: 0 }])
+    const at = (y: number) =>
+      resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: y, container })
+    expect(at(10)).toEqual({ kind: 'group', groupId: 'infra' })
+    expect(at(40)).toEqual({ kind: 'root' })
+  })
+
+  it('lets a last collapsed or empty child drop out to the parent, and the parent top-edge out to root', () => {
+    const container = sidebar(
+      [
+        { id: 'infra', index: 0, start: 0, endIndex: 9 },
+        { id: 'dockhand', index: 3, start: 100 }
+      ],
+      [{ index: 6, start: 200 }]
+    )
+    const at = (y: number, headerTopEdgePx?: number) =>
+      resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: y, container, headerTopEdgePx })
+    expect(at(110)).toEqual({ kind: 'group', groupId: 'dockhand' })
+    expect(at(150)).toEqual({ kind: 'group', groupId: 'infra' })
+    expect(at(2, 6)).toEqual({ kind: 'root' })
+  })
+
+  it('joins a pinned parent header while content-Y is inside a nested child', () => {
+    const container = sidebar(
+      [
+        { id: 'infra', index: 0, start: 0, endIndex: 9, stickyTop: 0 },
+        { id: 'dockhand', index: 3, start: 100, endIndex: 6 }
+      ],
+      [
+        { index: 6, start: 200 },
+        { index: 9, start: 400 }
+      ]
+    )
+    container.scrollTop = 150
+    expect(
+      resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: 10, container })
+    ).toEqual({ kind: 'group', groupId: 'infra' })
+    // Viewport 30 is below the pinned parent (0–28); content Y 180 is still inside the child.
+    expect(
+      resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: 30, container })
+    ).toEqual({ kind: 'group', groupId: 'dockhand' })
+  })
+
+  it('ignores a floating parent-header clone so it cannot beat the child as innermost', () => {
+    const container = sidebar(
+      [
+        { id: 'infra', index: 0, start: 0, endIndex: 9 },
+        { id: 'dockhand', index: 3, start: 100, endIndex: 6 }
+      ],
+      [
+        { index: 6, start: 200 },
+        { index: 9, start: 400 }
+      ]
+    )
+    const parent = container.querySelector<HTMLElement>('[data-project-group-membership-id="infra"]')
+    if (!parent) {
+      throw new Error('missing parent header')
+    }
+    const clone = mountProjectHeaderDragPreview({
+      source: parent,
+      pointerX: 20,
+      pointerY: 150,
+      sidebar: null
+    })
+    container.append(clone)
+    expect(clone.hasAttribute('data-project-group-membership-id')).toBe(false)
+    expect(clone.classList.contains(PROJECT_HEADER_DRAG_PREVIEW_CLASS)).toBe(true)
+    expect(clone.style.pointerEvents).toBe('none')
+    expect(
+      resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: 150, container })
+    ).toEqual({ kind: 'group', groupId: 'dockhand' })
+  })
+
+  it('skips a preview node even if strip missed the membership id', () => {
+    const container = sidebar(
+      [
+        { id: 'infra', index: 0, start: 0, endIndex: 9 },
+        { id: 'dockhand', index: 3, start: 100, endIndex: 6 }
+      ],
+      [
+        { index: 6, start: 200 },
+        { index: 9, start: 400 }
+      ]
+    )
+    const clone = document.createElement('div')
+    clone.className = PROJECT_HEADER_DRAG_PREVIEW_CLASS
+    clone.setAttribute('data-project-group-membership-id', 'infra')
+    clone.setAttribute('data-project-group-membership-section-end-index', '3')
+    clone.getBoundingClientRect = () => rect(140, ROW_HEIGHT)
+    container.append(clone)
+    expect(
+      resolveProjectHeaderMembershipTarget({ pointerX: 20, pointerY: 150, container })
+    ).toEqual({ kind: 'group', groupId: 'dockhand' })
   })
 
   it('has no membership intent once the pointer leaves the sidebar', () => {
@@ -232,6 +361,38 @@ describe('setProjectGroupDropTargetHighlight', () => {
     setProjectGroupDropTargetHighlight(container, null)
     expect(marked()).toEqual([])
   })
+
+  it('highlights only the innermost nested group, never its parent', () => {
+    const container = sidebar(
+      [
+        { id: 'infra', index: 0, start: 0, endIndex: 9 },
+        { id: 'dockhand', index: 3, start: 100, endIndex: 6 }
+      ],
+      [
+        { index: 6, start: 200 },
+        { index: 9, start: 400 }
+      ]
+    )
+    const marked = () =>
+      [...container.querySelectorAll(`[${PROJECT_GROUP_DROP_TARGET_ATTRIBUTE}]`)].map((el) =>
+        el.getAttribute('data-project-group-membership-id')
+      )
+    const drag = session({
+      repo: repo(),
+      latestPointerX: 20,
+      latestPointerY: 150,
+      membershipEnabled: true,
+      reorderEnabled: false
+    })
+    expect(trackProjectHeaderMembershipTarget(drag, container, (id) => id)).toBe(true)
+    expect(drag.membershipTarget).toEqual({ kind: 'group', groupId: 'dockhand' })
+    expect(marked()).toEqual(['dockhand'])
+
+    drag.latestPointerY = 300
+    expect(trackProjectHeaderMembershipTarget(drag, container, (id) => id)).toBe(true)
+    expect(drag.membershipTarget).toEqual({ kind: 'group', groupId: 'infra' })
+    expect(marked()).toEqual(['infra'])
+  })
 })
 
 describe('commitProjectHeaderMembershipDrop', () => {
@@ -274,6 +435,80 @@ describe('commitProjectHeaderMembershipDrop', () => {
       onCommitProjectGroupOrder: onCommit
     })
     expect(onCommit).toHaveBeenCalledWith(repo({ projectGroupId: 'dock-local' }), null)
+  })
+
+  it('moves a project from a child group into its parent', () => {
+    const onCommit = vi.fn()
+    const nested = repo({ projectGroupId: 'dockhand' })
+    expect(
+      commitProjectHeaderMembershipDrop({
+        session: session({
+          repo: nested,
+          membershipTarget: { kind: 'group', groupId: 'infra' }
+        }),
+        liveRepos: [nested],
+        canonicalGroupIdOf: (id) => id,
+        onCommitProjectGroupOrder: onCommit
+      })
+    ).toBe(true)
+    expect(onCommit).toHaveBeenCalledWith(nested, 'infra')
+  })
+
+  it('moves a project from a child group out to root', () => {
+    const onCommit = vi.fn()
+    const nested = repo({ projectGroupId: 'dockhand' })
+    expect(
+      commitProjectHeaderMembershipDrop({
+        session: session({ repo: nested, membershipTarget: { kind: 'root' } }),
+        liveRepos: [nested],
+        canonicalGroupIdOf: (id) => id,
+        onCommitProjectGroupOrder: onCommit
+      })
+    ).toBe(true)
+    expect(onCommit).toHaveBeenCalledWith(nested, null)
+  })
+
+  it('does not treat a nested child as a twin of a same-named root group on another host', () => {
+    const onCommit = vi.fn()
+    const nested = repo({ projectGroupId: 'child-local' })
+    const group = (
+      id: string,
+      name: string,
+      parentGroupId: string | null,
+      executionHostId: string,
+      createdAt: number
+    ): ProjectGroup => ({
+      id,
+      name,
+      parentPath: null,
+      parentGroupId,
+      createdFrom: 'manual',
+      tabOrder: 0,
+      isCollapsed: false,
+      color: null,
+      createdAt,
+      updatedAt: createdAt,
+      executionHostId
+    })
+    const { canonicalById } = buildProjectGroupClusters([
+      group('infra-local', 'infra', null, 'runtime:a', 1),
+      group('child-local', 'dockhand group', 'infra-local', 'runtime:a', 1),
+      group('dock-remote', 'dockhand group', null, 'runtime:b', 9)
+    ])
+    const canonicalGroupIdOf = (id: string) => canonicalById.get(id)?.id ?? id
+    expect(canonicalGroupIdOf('child-local')).not.toBe(canonicalGroupIdOf('dock-remote'))
+    expect(
+      commitProjectHeaderMembershipDrop({
+        session: session({
+          repo: nested,
+          membershipTarget: { kind: 'group', groupId: 'dock-remote' }
+        }),
+        liveRepos: [nested],
+        canonicalGroupIdOf,
+        onCommitProjectGroupOrder: onCommit
+      })
+    ).toBe(true)
+    expect(onCommit).toHaveBeenCalledWith(nested, 'dock-remote')
   })
 
   it('ignores drops outside the sidebar', () => {

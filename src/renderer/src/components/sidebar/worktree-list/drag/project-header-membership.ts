@@ -1,6 +1,7 @@
 import { measureSidebarHeaderDragRect } from './sidebar-header-drag-geometry'
 import type { ProjectGroupCanonicalIdOf } from './project-header-drop'
 import type { ProjectHeaderDragSession } from './project-header-drag-contract'
+import { isProjectHeaderDragPreviewNode } from './project-header-drag-preview-dom'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { RenderRow } from '../listing/render-row'
 import { isSameRepoRow } from '@/store/repos/repo-host-identity'
@@ -44,9 +45,20 @@ export function resolveProjectHeaderMembershipTarget(args: {
     `[${PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE}]`
   )) {
     const groupId = element.getAttribute(PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE)
-    if (!groupId) {
+    if (!groupId || isProjectHeaderDragPreviewNode(element)) {
       continue
     }
+    const headerRect = element.getBoundingClientRect()
+    const headerEdge = Math.min(
+      args.headerTopEdgePx ?? 0,
+      Math.max(0, (headerRect.bottom - headerRect.top) / 4)
+    )
+    // Viewport hit: a pinned parent header stays a target while content-Y is inside a child.
+    const overHeader =
+      args.pointerX >= headerRect.left &&
+      args.pointerX <= headerRect.right &&
+      args.pointerY >= headerRect.top + headerEdge &&
+      args.pointerY <= headerRect.bottom
     const measured = measureSidebarHeaderDragRect(
       element,
       args.container,
@@ -55,10 +67,11 @@ export function resolveProjectHeaderMembershipTarget(args: {
     )
     const bottom = Math.max(measured.bottom, measureSectionBottom(element, args.container))
     const edge = Math.min(args.headerTopEdgePx ?? 0, (measured.bottom - measured.top) / 4)
-    if (y < measured.top + edge || y > bottom) {
+    const inSection = y >= measured.top + edge && y <= bottom
+    if (!overHeader && !inSection) {
       continue
     }
-    const span = bottom - measured.top
+    const span = overHeader ? headerRect.height : bottom - measured.top
     // Innermost (smallest) section wins so nested groups are reachable; ties go to the lower header.
     if (!best || span < best.span || (span === best.span && measured.top > best.top)) {
       best = { groupId, span, top: measured.top }
@@ -78,7 +91,10 @@ export function setProjectGroupDropTargetHighlight(
   for (const element of container.querySelectorAll<HTMLElement>(
     `[${PROJECT_GROUP_DROP_TARGET_ATTRIBUTE}]`
   )) {
-    if (element.getAttribute(PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE) !== groupId) {
+    if (
+      isProjectHeaderDragPreviewNode(element) ||
+      element.getAttribute(PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE) !== groupId
+    ) {
       element.removeAttribute(PROJECT_GROUP_DROP_TARGET_ATTRIBUTE)
     }
   }
@@ -88,7 +104,10 @@ export function setProjectGroupDropTargetHighlight(
   for (const element of container.querySelectorAll<HTMLElement>(
     `[${PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE}]`
   )) {
-    if (element.getAttribute(PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE) === groupId) {
+    if (
+      !isProjectHeaderDragPreviewNode(element) &&
+      element.getAttribute(PROJECT_GROUP_MEMBERSHIP_ID_ATTRIBUTE) === groupId
+    ) {
       element.setAttribute(PROJECT_GROUP_DROP_TARGET_ATTRIBUTE, '')
     }
   }
@@ -141,9 +160,8 @@ export function getProjectGroupSectionEndIndexByGroupId(
   return endIndexByGroupId
 }
 
-/** Tailwind classes a group header shows while it is the armed drop target. */
-export const PROJECT_GROUP_DROP_TARGET_CLASS_NAME =
-  'data-[project-group-drop-target]:rounded-md data-[project-group-drop-target]:bg-worktree-sidebar-accent data-[project-group-drop-target]:ring-1 data-[project-group-drop-target]:ring-worktree-sidebar-ring/60'
+/** Hook class so CSS can paint an instant drop-target wash (no transition: it is linked to the pointer). */
+export const PROJECT_GROUP_DROP_TARGET_CLASS_NAME = 'project-group-membership-drop-host'
 
 /** DOM attributes a group header exposes so a dragged project header can find it. */
 export function getProjectGroupMembershipDropAttributes(

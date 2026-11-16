@@ -1804,6 +1804,48 @@ html.native-shell .app-layout {
     0 1px 4px rgb(0 0 0 / 0.28);
 }
 
+/* Project-header drag: the clone is the finger (1:1 transform, no transition).
+   worktree-sidebar-accent sits on the sidebar fill, so the drop target uses a
+   foreground mix the way notice cards do. */
+.project-header-drag-preview {
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 8%, var(--worktree-sidebar));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--worktree-sidebar-ring) 55%, transparent),
+    0 10px 24px color-mix(in srgb, #000 22%, transparent);
+  cursor: grabbing;
+}
+
+.project-header-drag-preview [data-repo-header-actions],
+.project-header-drag-preview [data-repo-header-action],
+.project-header-drag-preview [data-repo-header-collapse-affordance] {
+  display: none;
+}
+
+[data-project-header-drag-source] {
+  opacity: 0.35;
+}
+
+[data-project-group-drop-target]:not(.project-header-drag-preview) {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 14%, var(--worktree-sidebar));
+  box-shadow:
+    inset 3px 0 0 var(--worktree-sidebar-ring),
+    0 0 0 1.5px color-mix(in srgb, var(--worktree-sidebar-ring) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-header-drag-preview {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--worktree-sidebar-ring) 55%, transparent);
+  }
+}
+
+:root[data-reduce-effects] .project-header-drag-preview {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--worktree-sidebar-ring) 55%, transparent);
+}
+
 /* Why: the project-order notice sits directly under the Projects header; a
    caret aligned to that label reads as a callout instead of a random card. */
 .worktree-sidebar-notice-card--to-section-title::before {

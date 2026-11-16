@@ -216,7 +216,9 @@ export function renderWorktreeSectionHeaderRow(
           data-project-group-header-drag-handle={isDraggableProjectGroupHeader ? '' : undefined}
           {...getProjectGroupMembershipDropAttributes(
             projectGroupIdForHeader,
-            projectGroupIdForHeader && !row.repeated
+            // Collapsed and empty groups are header-only. Writing rows.length as the end makes a
+            // missing last row +Infinity, so a last child swallows parent/root and you cannot drag out.
+            projectGroupIdForHeader && !row.repeated && !isHeaderCollapsed && row.count > 0
               ? headerDrag.projectGroupMembershipSectionEndIndexByGroupId.get(
                   projectGroupIdForHeader
                 )
@@ -226,12 +228,11 @@ export function renderWorktreeSectionHeaderRow(
           data-workspace-status={headerWorkspaceStatus ?? undefined}
           data-workspace-pin-drop-target={isPinnedHeader ? '' : undefined}
           className={cn(
-            'group relative flex h-7 w-full items-center gap-1.5 pr-2 text-left transition-all',
+            'group relative flex h-7 w-full items-center gap-1.5 pr-2 text-left',
             !(isDraggableRepoHeader || isDraggableProjectGroupHeader) && 'cursor-pointer',
             ctx.highlightedRevealRowKey === row.key &&
               'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/50',
-            (isDraggingThis || isDraggingThisProjectGroup) &&
-              'bg-accent/80 ring-1 ring-ring/40 shadow-md rounded-md scale-[1.01]',
+            (isDraggingThis || isDraggingThisProjectGroup) && 'rounded-md',
             // Set straight on the DOM while a project header hovers this group (no re-render per move).
             projectGroupIdForHeader && PROJECT_GROUP_DROP_TARGET_CLASS_NAME,
             headerWorkspaceStatus &&
@@ -302,7 +303,7 @@ export function renderWorktreeSectionHeaderRow(
               'flex min-w-0 flex-1 items-center gap-1.5 self-stretch',
               hostContext && 'can-hover:pr-18',
               (isDraggableRepoHeader || isDraggableProjectGroupHeader) &&
-                'cursor-grab active:cursor-grabbing'
+                'cursor-grab touch-none select-none active:cursor-grabbing'
             )}
           >
             <div
@@ -326,7 +327,7 @@ export function renderWorktreeSectionHeaderRow(
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-center gap-1.5">
                 <div
-                  className="min-w-0 truncate text-[13px] font-semibold leading-4"
+                  className="min-w-0 truncate text-[13px] font-semibold leading-4 select-none"
                   // Long group/project names truncate; keep the full name reachable on hover.
                   title={hostContext ? undefined : label}
                 >

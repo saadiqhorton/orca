@@ -176,6 +176,29 @@ describe('same-named project groups on different machines', () => {
     expect(headers).toEqual(expect.arrayContaining(['# dockhand group@0', '# dockhand@0']))
   })
 
+  it('does not merge a nested group with a same-named root group on another host', () => {
+    const parentA = group('infra-a', { name: 'infra', executionHostId: 'runtime:a' })
+    const nestedA = group('child-a', {
+      name: 'dockhand group',
+      parentGroupId: 'infra-a',
+      executionHostId: 'runtime:a'
+    })
+    const rootB = group('dock-b', { name: 'dockhand group', executionHostId: 'runtime:b' })
+    const repos = [
+      repo('dockhand', { executionHostId: 'runtime:a', projectGroupId: 'child-a' }),
+      repo('saadiqhorton', { executionHostId: 'runtime:b', projectGroupId: 'dock-b' })
+    ]
+    const headers = outline(build(repos, [parentA, nestedA, rootB]).sectionRows).filter((line) =>
+      line.startsWith('# ')
+    )
+    expect(headers.filter((line) => line.startsWith('# dockhand group'))).toEqual([
+      '# dockhand group@0',
+      '# dockhand group@1'
+    ])
+    expect(headers).toContain('# infra@0')
+    expect(headers).toContain('# saadiqhorton@1')
+  })
+
   it('collapses every twin under the merged header key', () => {
     const repos = [
       repo('dockhand', { executionHostId: 'runtime:a', projectGroupId: 'dock-a' }),
