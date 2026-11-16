@@ -7,6 +7,7 @@ import type { PointerEvent } from 'react'
 import {
   getProjectHeaderDragBucketKey,
   measureProjectHeaderDragRects,
+  type ProjectGroupCanonicalIdOf,
   type ProjectHeaderDragBucketKey
 } from './project-header-drop'
 import {
@@ -21,6 +22,9 @@ export function createProjectHeaderDragSession(args: {
   repo: Repo
   sidebarRepoHeaderIdsByBucket: ReadonlyMap<ProjectHeaderDragBucketKey, readonly string[]>
   rootProjectHeaderKeys?: readonly string[]
+  canonicalGroupIdOf?: ProjectGroupCanonicalIdOf
+  allowMembershipDrag?: boolean
+  allowReorder?: boolean
   getScrollContainer: () => HTMLElement | null
 }): ProjectHeaderDragSession | null {
   if (args.event.button !== 0) {
@@ -32,19 +36,25 @@ export function createProjectHeaderDragSession(args: {
   if (isRepoHeaderActionTarget(args.event.target, args.event.currentTarget)) {
     return null
   }
-  const bucketKey = getProjectHeaderDragBucketKey(args.repo)
+  const bucketKey = getProjectHeaderDragBucketKey(args.repo, args.canonicalGroupIdOf)
+  const reorderEnabled = args.allowReorder ?? true
+  const membershipEnabled = args.allowMembershipDrag ?? false
   const rootProjectHeaderHostId = args.rootProjectHeaderKeys?.some((key) => key.startsWith('host:'))
     ? args.event.currentTarget.dataset.rootProjectHeaderHost
     : undefined
-  const rootProjectHeaderKeys = getRootProjectHeaderDragKeys(
-    args.rootProjectHeaderKeys,
-    `repo:${args.repo.id}`,
-    rootProjectHeaderHostId
-  )
+  // Why: outside manual order there is no reorder, so never fall through to a root-order save.
+  const rootProjectHeaderKeys = reorderEnabled
+    ? getRootProjectHeaderDragKeys(
+        args.rootProjectHeaderKeys,
+        `repo:${args.repo.id}`,
+        rootProjectHeaderHostId
+      )
+    : undefined
   const sidebarRepoHeaderIds =
     rootProjectHeaderKeys ?? args.sidebarRepoHeaderIdsByBucket.get(bucketKey) ?? []
-  // A lone project cannot move within its bucket; preserve the collapse click instead.
-  if (sidebarRepoHeaderIds.length <= 1) {
+  const canReorder = reorderEnabled && sidebarRepoHeaderIds.length > 1
+  // A lone project with no group to join cannot move; preserve the collapse click instead.
+  if (!canReorder && !membershipEnabled) {
     return null
   }
   const container = args.getScrollContainer()
@@ -73,7 +83,10 @@ export function createProjectHeaderDragSession(args: {
     handleEl,
     startX: args.event.clientX,
     startY: args.event.clientY,
+    latestPointerX: args.event.clientX,
     latestPointerY: args.event.clientY,
-    promoted: false
+    promoted: false,
+    membershipEnabled,
+    reorderEnabled: canReorder
   }
 }

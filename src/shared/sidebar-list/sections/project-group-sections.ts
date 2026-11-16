@@ -6,6 +6,7 @@ import {
 import type { ProjectGroup } from '../../project-group-types'
 import type { ProjectOrderBy } from '../../ui-chrome-types'
 import { getDistinctProjectGroups, getEffectiveProjectGroupManualRank } from '../../project-groups'
+import { buildProjectGroupClusters } from '../../project-group-clusters'
 import { getProjectGroupHeaderKey } from './group-keys'
 import { appendOrderedGroups } from './group-sections'
 import { compareCodePoints, compareSidebarText } from '../sorting/text-order'
@@ -74,11 +75,17 @@ export function appendProjectGroupSections(
       compareFolderWorkspacesForDisplay(left.folderWorkspace, right.folderWorkspace)
     )
   }
+  // Same-named twins on different machines draw as one group (see project-group-clusters).
+  const { canonicalGroups, canonicalById, memberIdsByCanonicalId } =
+    buildProjectGroupClusters(projectGroups)
+  const getMemberIds = (canonicalId: string): readonly string[] =>
+    memberIdsByCanonicalId.get(canonicalId) ?? [canonicalId]
   const childGroupsByParentId = new Map<string | null, ProjectGroup[]>()
   // Why distinct: membership is id-keyed, so a same-id copy's header would sit empty (#30045).
-  for (const group of getDistinctProjectGroups(projectGroups)) {
-    const parentId =
+  for (const group of canonicalGroups) {
+    const rawParentId =
       group.parentGroupId && projectGroupsById.has(group.parentGroupId) ? group.parentGroupId : null
+    const parentId = rawParentId ? (canonicalById.get(rawParentId)?.id ?? rawParentId) : null
     const children = childGroupsByParentId.get(parentId) ?? []
     children.push(group)
     childGroupsByParentId.set(parentId, children)
@@ -93,18 +100,34 @@ export function appendProjectGroupSections(
     )
   }
 
-  const getProjectGroupSubtreeCount = (groupId: string): number => {
-    const directCount = groupByProjectGroupId.get(groupId)?.length ?? 0
-    const folderWorkspaceCount = folderWorkspacesByProjectGroupId.get(groupId)?.length ?? 0
+  const getProjectGroupSubtreeCount = (groupId: string, seen = new Set<string>()): number => {
+    if (seen.has(groupId)) {
+      return 0
+    }
+    seen.add(groupId)
+    let directCount = 0
+    for (const memberId of getMemberIds(groupId)) {
+      directCount += groupByProjectGroupId.get(memberId)?.length ?? 0
+      directCount += folderWorkspacesByProjectGroupId.get(memberId)?.length ?? 0
+    }
     const children = childGroupsByParentId.get(groupId) ?? []
     return children.reduce(
-      (count, child) => count + getProjectGroupSubtreeCount(child.id),
-      directCount + folderWorkspaceCount
+      (count, child) => count + getProjectGroupSubtreeCount(child.id, seen),
+      directCount
     )
   }
 
+  const appendedGroupIds = new Set<string>()
   const appendProjectGroup = (projectGroup: ProjectGroup, depth: number): void => {
-    const repoEntries = sortRepoEntriesWithinGroup(groupByProjectGroupId.get(projectGroup.id) ?? [])
+    // Guards a corrupt parent cycle from recursing forever.
+    if (appendedGroupIds.has(projectGroup.id)) {
+      return
+    }
+    appendedGroupIds.add(projectGroup.id)
+    const memberIds = getMemberIds(projectGroup.id)
+    const repoEntries = sortRepoEntriesWithinGroup(
+      memberIds.flatMap((memberId) => groupByProjectGroupId.get(memberId) ?? [])
+    )
     const childGroups = childGroupsByParentId.get(projectGroup.id) ?? []
     const key = getProjectGroupHeaderKey(projectGroup.id)
     result.push({
@@ -118,19 +141,23 @@ export function appendProjectGroupSections(
     })
     if (!collapsedGroups.has(key)) {
       // The group's folders, with whatever is nested under them, precede its projects.
-      appendWorktreeRows(result, ctx.repoOf, ctx.occurrencePlan, {
-        collapsedGroups,
-        groupDepth: depth + 1,
-        sectionKey: getFolderLaneSectionKey(projectGroup.id),
-        hostContextLabelByWorktreeIdentity: ctx.mixedWorktreeHostContextLabels,
-        folderPairByIdentity: ctx.folderPairByIdentity
-      })
+      for (const memberId of memberIds) {
+        appendWorktreeRows(result, ctx.repoOf, ctx.occurrencePlan, {
+          collapsedGroups,
+          groupDepth: depth + 1,
+          sectionKey: getFolderLaneSectionKey(memberId),
+          hostContextLabelByWorktreeIdentity: ctx.mixedWorktreeHostContextLabels,
+          folderPairByIdentity: ctx.folderPairByIdentity
+        })
+      }
       appendOrderedGroups(ctx, withRepoSectionDisplayLabels(repoEntries), depth + 1)
       for (const childGroup of childGroups) {
         appendProjectGroup(childGroup, depth + 1)
       }
     }
-    groupByProjectGroupId.delete(projectGroup.id)
+    for (const memberId of memberIds) {
+      groupByProjectGroupId.delete(memberId)
+    }
   }
 
   const remainingRepoEntries = [...(groupByProjectGroupId.get(null) ?? [])]
@@ -178,6 +205,9 @@ export function appendProjectGroupSections(
 /** The same group parents used by section emission, including missing-parent roots. */
 export function getProjectGroupOccurrencePaths(projectGroups: readonly ProjectGroup[]) {
   const groupsById = new Map(projectGroups.map((group) => [group.id, group]))
+  // Twins share their canonical header, so reveal paths must name that header too.
+  const { canonicalById } = buildProjectGroupClusters(projectGroups)
+  const canonicalIdOf = (groupId: string): string => canonicalById.get(groupId)?.id ?? groupId
   const paths = new Map<string, OccurrenceSectionPath>()
   for (const group of getDistinctProjectGroups(projectGroups)) {
     const pending: ProjectGroup[] = []
@@ -191,8 +221,16 @@ export function getProjectGroupOccurrencePaths(projectGroups: readonly ProjectGr
     let parent = current ? paths.get(current.id) : undefined
     for (let index = pending.length - 1; index >= 0; index -= 1) {
       const entry = pending[index]
-      const path: OccurrenceSectionPath = { key: getProjectGroupHeaderKey(entry.id), parent }
+      const canonicalId = canonicalIdOf(entry.id)
+      const shared = canonicalId !== entry.id ? paths.get(canonicalId) : undefined
+      const path: OccurrenceSectionPath = shared ?? {
+        key: getProjectGroupHeaderKey(canonicalId),
+        parent
+      }
       paths.set(entry.id, path)
+      if (!paths.has(canonicalId)) {
+        paths.set(canonicalId, path)
+      }
       parent = path
     }
   }
