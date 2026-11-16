@@ -22403,7 +22403,6 @@
         "previewFailed": "Couldn't check which workspaces this change matches.",
         "pinFailed": "Couldn't keep {{name}}.",
         "rules": {
-          "title": "Rules",
           "branchNote": "Merged branches are deleted with their workspace. Unmerged branches are kept.",
           "recommended": "Recommended",
           "inactiveDescription": "No activity for {{count}} days.",
@@ -22432,13 +22431,15 @@
           "inactiveDescription_other": "No activity for {{count}} days.",
           "matchesCount_one": "Matches 1 workspace now",
           "matchesCount_other": "Matches {{count}} workspaces now",
-          "checking": "Checking which workspaces match…"
+          "checking": "Checking which workspaces match…",
+          "checkFailed": "Couldn't check which workspaces match."
         },
         "protection": {
           "title": "Protection",
-          "alwaysKept": "Always kept: pinned workspaces, running agents or terminals, unsaved editor changes, uncommitted changes, unpushed commits.",
           "keepIgnoredFiles": "Keep workspaces with ignored files",
-          "keepIgnoredFilesDescription": "Files like .env and local config can't be recovered. node_modules and build output don't count."
+          "keepIgnoredFilesDescription": "Files like .env and local config can't be recovered. node_modules and build output don't count.",
+          "alwaysKeptLabel": "Always kept",
+          "alwaysKeptList": "Pinned workspaces, running agents or terminals, unsaved editor changes, uncommitted changes, unpushed commits."
         },
         "activity": {
           "loadFailed": "Couldn't load activity: {{error}}",
@@ -22510,8 +22511,6 @@
           "cleanup": "cleanup",
           "cleanUp": "clean up",
           "delete": "delete",
-          "statusDescription": "Run the cleanup rules now, or review workspaces yourself.",
-          "reviewWorkspaces": "review workspaces",
           "automatic": "automatic",
           "pullRequest": "PR",
           "inactiveDescription": "No activity for a number of days.",
@@ -22523,9 +22522,10 @@
           "activityDescription": "What each cleanup run removed and kept.",
           "history": "history",
           "runs": "runs",
-          "envFile": ".env"
+          "envFile": ".env",
+          "manual": "manual",
+          "automaticDescription": "Whether automatic cleanup is on, when it runs next, and running the rules now."
         },
-        "cleanUpNow": "Clean up now",
         "status": {
           "lastRunFailed": "Last run {{when}} couldn't finish: {{error}}",
           "lastRunNothing": "Last run {{when}} removed nothing.",
@@ -22533,13 +22533,7 @@
           "lastRunFreed_other": "Last run {{when}} removed {{count}} workspaces and freed {{size}}.",
           "lastRunRemoved_one": "Last run {{when}} removed 1 workspace.",
           "lastRunRemoved_other": "Last run {{when}} removed {{count}} workspaces.",
-          "offDetail": "Nothing is removed until you turn on a rule.",
-          "running": "Cleaning up now…",
           "nextRun": "Next run {{when}}.",
-          "on": "Automatic cleanup is on.",
-          "off": "Automatic cleanup is off.",
-          "review": "Review workspaces",
-          "turnOnHint": "Turn on a rule to use this.",
           "justNow": "just now",
           "inUnderAMinute": "in under a minute"
         },
@@ -22572,6 +22566,21 @@
           "description": "Selected workspaces will be pinned when you confirm. Pinned workspaces are excluded from automatic cleanup until you unpin them.",
           "named": "Pin and keep {{name}}",
           "label": "Pin and keep"
+        },
+        "manual": {
+          "title": "Manual cleanup",
+          "label": "Delete workspaces you pick",
+          "review": "Review workspaces",
+          "description": "See every workspace and choose which to delete."
+        },
+        "automatic": {
+          "offDetail": "Turn on a rule to remove workspaces on a schedule.",
+          "running": "Removing what your rules match…",
+          "title": "Automatic cleanup",
+          "on": "On",
+          "off": "Off",
+          "runningButton": "Running…",
+          "runNow": "Run rules now"
         }
       },
       "repository": {

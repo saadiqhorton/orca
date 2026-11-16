@@ -11,6 +11,11 @@ type SettingsGroupDisclosureProps = {
   /** A muted hint after the label naming what the disclosure holds. */
   description?: string
   forceOpen?: boolean
+  /** Owns the open state when set; a click or a settings jump reports through onOpenChange. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Lines its rows up with the card's other rows instead of one step in. */
+  flush?: boolean
   children: React.ReactNode
 }
 
@@ -19,10 +24,20 @@ export function SettingsGroupDisclosure({
   label,
   description,
   forceOpen = false,
+  open: controlledOpen,
+  onOpenChange,
+  flush = false,
   children
 }: SettingsGroupDisclosureProps): React.JSX.Element {
   const t = useTranslate()
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const open = controlledOpen ?? ownOpen
+  const setOpen = (next: boolean): void => {
+    if (controlledOpen === undefined) {
+      setOwnOpen(next)
+    }
+    onOpenChange?.(next)
+  }
   const expanded = open || forceOpen
   const revealRef = useSettingsTargetReveal<HTMLDivElement>(() => setOpen(true))
 
@@ -31,7 +46,7 @@ export function SettingsGroupDisclosure({
       <button
         type="button"
         aria-expanded={expanded}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setOpen(!open)}
         // Unsaved edits must remain reachable.
         disabled={forceOpen}
         className="flex min-h-11 w-full items-center gap-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 disabled:cursor-default"
@@ -48,7 +63,7 @@ export function SettingsGroupDisclosure({
         ) : null}
       </button>
       {/* Stays mounted while collapsed so a settings jump can find and reveal its rows. */}
-      <div hidden={!expanded} className={SETTINGS_GROUP_NESTED_INSET_CLASS}>
+      <div hidden={!expanded} className={flush ? undefined : SETTINGS_GROUP_NESTED_INSET_CLASS}>
         {children}
       </div>
     </div>
