@@ -12,6 +12,7 @@ describe('desktop hub host status', () => {
       'needs_sign_in'
     )
     expect(desktopHubStatus({ health: 'error', sshAuthFailed: true })).toBe('needs_sign_in')
+    expect(desktopHubStatus({ health: 'connecting' })).toBe('needs_sign_in')
     expect(desktopHubStatus({ health: 'disconnected' })).toBe('unreachable')
     expect(desktopHubHostError('needs_sign_in', 'TEMPLEOFDOOM')?.message).toContain('needs sign-in')
     expect(desktopHubHostError('unreachable', 'ARCHIT4ME')?.message).toContain('will not try SSH')

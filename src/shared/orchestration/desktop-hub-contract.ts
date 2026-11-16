@@ -107,7 +107,9 @@ export function desktopHubStatus(input: {
     input.sshAuthFailed ||
     input.blockedReason === 'access-revoked' ||
     input.blockedReason === 'server-replaced' ||
-    input.health === 'blocked'
+    input.health === 'blocked' ||
+    // After launch, a paired host waits for Reconnect (`awaiting_authenticated` / connecting).
+    input.health === 'connecting'
   ) {
     return 'needs_sign_in'
   }
