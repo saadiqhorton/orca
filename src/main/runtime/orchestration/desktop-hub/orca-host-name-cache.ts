@@ -1,3 +1,4 @@
+import { HARNESS_LAUNCH_CAPABILITIES } from '../../../../shared/agent-launch/harness-launch-capabilities'
 import {
   formatOrcaHostsEnv,
   ORCA_HOST_PREAMBLE,
@@ -49,11 +50,15 @@ export function orcaOwnedHostInstructionArgs(
   agent: string,
   opts?: { isRemote?: boolean }
 ): string[] | undefined {
-  if (agent !== 'claude' || !instructionFile) {
+  if (agent !== 'claude') {
     return undefined
   }
   if (opts?.isRemote) {
     return ['--append-system-prompt', ORCA_HOST_PREAMBLE]
   }
-  return ['--append-system-prompt-file', instructionFile]
+  const channel = HARNESS_LAUNCH_CAPABILITIES.claude.channels.instructions
+  if (channel.kind !== 'flag' || !instructionFile) {
+    return undefined
+  }
+  return [channel.flag, instructionFile]
 }
