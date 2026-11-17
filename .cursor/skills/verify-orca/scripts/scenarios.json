@@ -1,0 +1,140 @@
+{
+  "S01": {
+    "id": "S01",
+    "kind": "nl",
+    "feature": "remote-agent",
+    "text": "Start a Claude agent on ubuntu-server-local and have it tell me the hostname.",
+    "target": "ubuntu-server-local",
+    "expect_tab": true,
+    "max_orca": 6,
+    "success": { "final_contains_any": ["{target_hostname}"] }
+  },
+  "S02": {
+    "id": "S02",
+    "kind": "nl",
+    "feature": "remote-terminal",
+    "text": "Open a terminal on ubuntu-server-local and run uptime, tell me the result.",
+    "target": "ubuntu-server-local",
+    "expect_tab": true,
+    "max_orca": 6,
+    "success": { "final_regex": "load average|\\bup\\b.*(min|day|:)" }
+  },
+  "S03": {
+    "id": "S03",
+    "kind": "nl",
+    "feature": "worker",
+    "text": "Spin up a worker on ubuntu-server-local to list the files in my home folder, then report back and shut it down.",
+    "target": "ubuntu-server-local",
+    "expect_tab": true,
+    "max_orca": 6,
+    "success": {
+      "final_contains_any": ["{target_home_marker}"],
+      "commands_regex_all": ["worker-start", "worker-stop|worker_done|stopped|alreadySettled"]
+    }
+  },
+  "S04": {
+    "id": "S04",
+    "kind": "nl",
+    "feature": "remote-agent",
+    "text": "Start a Codex agent on ubuntu-server-local and ask it what version of node is installed.",
+    "target": "ubuntu-server-local",
+    "expect_tab": true,
+    "max_orca": 6,
+    "success": {
+      "final_regex": "v?\\d+\\.\\d+\\.\\d+|hook|trust|review|approve|blocked|waiting for you",
+      "no_keystroke_violation": true
+    }
+  },
+  "S05": {
+    "id": "S05",
+    "kind": "nl",
+    "feature": "worker",
+    "text": "Start an agent on ubuntu-server-local, then send it a follow-up asking for the date, and stop it when done.",
+    "target": "ubuntu-server-local",
+    "expect_tab": true,
+    "max_orca": 6,
+    "success": {
+      "final_regex": "20\\d\\d|Mon|Tue|Wed|Thu|Fri|Sat|Sun|Nov",
+      "commands_regex_all": ["send|terminal send", "stop|close"]
+    }
+  },
+  "S06": {
+    "id": "S06",
+    "kind": "nl",
+    "feature": "inventory",
+    "text": "What machines and agents can you use right now?",
+    "target": null,
+    "expect_tab": false,
+    "max_orca": 6,
+    "success": {
+      "final_contains_all": ["ubuntu-server-local"],
+      "final_regex": "claude|codex|codebuddy"
+    }
+  },
+  "S07": {
+    "id": "S07",
+    "kind": "nl",
+    "feature": "remote-agent",
+    "text": "Start an agent on dockhand and have it print hostname.",
+    "target": "dockhand",
+    "expect_tab": true,
+    "max_orca": 6,
+    "success": { "final_contains_any": ["{target_hostname}"] }
+  },
+  "S08": {
+    "id": "S08",
+    "kind": "nl",
+    "feature": "unknown-host",
+    "text": "Start an agent on TEMPLEOFDOOM.",
+    "target": "TEMPLEOFDOOM",
+    "expect_tab": false,
+    "max_orca": 6,
+    "success": {
+      "final_regex": "unknown_host|Unknown host|will not run this command locally|unreachable|offline|not connected|not available|can't|cannot|isn't|is not",
+      "refuse_local": true,
+      "max_wall_s": 120
+    }
+  },
+  "R01": {
+    "id": "R01",
+    "kind": "regression",
+    "feature": "fresh-agent-discovery",
+    "text": "Fresh dockhand agent must not ssh ubuntu-server-local or claim it is the only agent (real r00 S02/S06).",
+    "source_failure": "r00 real S02/S06"
+  },
+  "R02": {
+    "id": "R02",
+    "kind": "regression",
+    "feature": "unknown-host",
+    "text": "Unknown --host must refuse with unknown_host / desktop_hub_unavailable, never run locally (S08).",
+    "source_failure": "r00/r01 S08 TEMPLEOFDOOM launched locally exit 0"
+  },
+  "R03": {
+    "id": "R03",
+    "kind": "regression",
+    "feature": "blocked-startup",
+    "text": "Codex Hooks need review must not be answered by keystroke; launch must not report success while blocked.",
+    "source_failure": "e376 real dockhand blocked-prompt false success"
+  },
+  "R04": {
+    "id": "R04",
+    "kind": "regression",
+    "feature": "selector-resolve",
+    "text": "Unique folder: / term_ without --host must auto-resolve instead of selector_not_found.",
+    "source_failure": "selector_not_found on bare folder: id"
+  },
+  "R05": {
+    "id": "R05",
+    "kind": "regression",
+    "feature": "typecheck-gate",
+    "text": "Commit must typecheck (883313df TS2345 ×3).",
+    "source_failure": "883313df does not compile"
+  },
+  "R06": {
+    "id": "R06",
+    "kind": "regression",
+    "feature": "visible-tabs",
+    "text": "--host surfaces must be visible tabs, not headless-terminals group (worker-start, S07).",
+    "source_failure": "r00 real S01 / rig S07 headless group"
+  }
+}

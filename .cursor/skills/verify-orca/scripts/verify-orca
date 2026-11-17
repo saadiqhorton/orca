@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Launch, doctor, drive, and clean up Orca cross-host verification.
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$HERE/verify_orca.py" "$@"
