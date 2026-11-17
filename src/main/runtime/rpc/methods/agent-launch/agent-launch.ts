@@ -31,7 +31,8 @@ import {
 import {
   AgentLaunch,
   AgentLaunchReplay,
-  type AgentLaunchParams
+  type AgentLaunchParams,
+  type AgentLaunchRequestParams
 } from '../../../../../shared/rpc-contract/agent-launch/agent-launch-params'
 import { agentLaunchSurfaceFactory } from './agent-launch-surfaces'
 import { prepareAgentHandoffCard } from './agent-launch-handoff-card'
@@ -45,11 +46,9 @@ import {
   selectLaunchedTab
 } from './agent-launch-caller-selection'
 import { agentLaunchWorkspaceFactory } from './agent-launch-worktree-creation'
-import {
-  assertAgentLaunchTargetAuthorized,
-  supportsAgentLaunch
-} from './agent-launch-target-authorization'
+import { supportsAgentLaunch } from './agent-launch-target-authorization'
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
+import { placeAuthorizedAgentLaunch } from './agent-launch-orchestration-placement'
 import {
   publishEarlyTab,
   withPlacement,
@@ -262,11 +261,11 @@ export const AGENT_LAUNCH_METHODS = [
     requires: agentLaunchFeatureRequirement,
     permission: 'workspace',
     params: AgentLaunchReplay,
-    handler: async (params, context): Promise<AgentLaunchResult> => {
+    handler: async (requested, context): Promise<AgentLaunchResult> => {
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
-      assertAgentLaunchTargetAuthorized(params.target, context)
+      const params = await placeAuthorizedAgentLaunch(requested, context)
       try {
         return await runReplaySafeAgentLaunch(params, context)
       } catch (error) {
@@ -300,7 +299,7 @@ export const AGENT_LAUNCH_METHODS = [
 
 /** In-process schedules and RPC callers share admission, factories and prompt settlement. */
 export async function launchAgentOnHost(
-  { operationId, ...params }: AgentLaunchParams,
+  { operationId, ...requested }: AgentLaunchRequestParams,
   context: RpcContext,
   policy?: HostLaunchContext['agentLaunchPolicy']
 ): Promise<AgentLaunchResult> {
@@ -308,7 +307,7 @@ export async function launchAgentOnHost(
   if (!supportsAgentLaunch(host)) {
     throw new Error('agent_launch_unsupported')
   }
-  assertAgentLaunchTargetAuthorized(params.target, host)
+  const params = await placeAuthorizedAgentLaunch(requested, host)
   if (!operationId) {
     return runLegacyAgentLaunch(params, host)
   }

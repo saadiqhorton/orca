@@ -4,8 +4,10 @@ import {
   bindDesktopHubHost,
   isFolderWorktreeCreateWithoutRepo,
   needsDefaultRemoteWorktree,
+  ORCHESTRATION_SESSION_PLACEMENT_FLAG,
   shouldWrapDesktopHubHost
 } from './desktop-hub-command-route'
+import { ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
 import { formatScratchWorkspace } from './host-format'
 import { resolveRemoteSelectorsAcrossHosts } from './desktop-hub-selector-resolve'
 import { warnIfLaunchPromptLooksSecret } from '../agents/agent-launch-secret-prompt'
@@ -41,15 +43,43 @@ async function applyBoundHubDefaults(
   json: boolean
 ): Promise<{ commandPath: string[]; printed: boolean }> {
   if (needsDefaultRemoteWorktree(commandPath, flags)) {
-    const scratch = await client.call<{ worktree: string }>(
-      'orchestration.surface.ensureScratch',
-      {}
-    )
-    flags.set('worktree', scratch.result.worktree)
+    if (await hostPlacesOrchestrationSessions(client)) {
+      flags.set(ORCHESTRATION_SESSION_PLACEMENT_FLAG, true)
+    } else {
+      await applyScratchWorktreeDefault(flags, client)
+    }
   }
   if (!isFolderWorktreeCreateWithoutRepo(commandPath, flags)) {
     return { commandPath, printed: false }
   }
+  return applyScratchFolderCreateDefaults(commandPath, flags, client, host, json)
+}
+
+async function hostPlacesOrchestrationSessions(client: RuntimeClient): Promise<boolean> {
+  const status = await client.getCliStatus()
+  return (
+    status.result.runtime.capabilities?.includes(
+      ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY
+    ) === true
+  )
+}
+
+/** Older hosts without session placement keep the scratch default the CLI always chose. */
+async function applyScratchWorktreeDefault(
+  flags: Map<string, string | boolean>,
+  client: RuntimeClient
+): Promise<void> {
+  const scratch = await client.call<{ worktree: string }>('orchestration.surface.ensureScratch', {})
+  flags.set('worktree', scratch.result.worktree)
+}
+
+async function applyScratchFolderCreateDefaults(
+  commandPath: string[],
+  flags: Map<string, string | boolean>,
+  client: RuntimeClient,
+  host: string,
+  json: boolean
+): Promise<{ commandPath: string[]; printed: boolean }> {
   const name = flags.get('name')
   const scratch = await client.call<ScratchWorkspace>(
     'orchestration.surface.ensureScratch',

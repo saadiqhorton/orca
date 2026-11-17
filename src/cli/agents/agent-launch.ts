@@ -8,6 +8,7 @@ import {
   readCliAgentLaunch
 } from './agent-launch-request'
 import { cliLaunchPresentation } from './cli-launch-presentation'
+import { ORCHESTRATION_SESSION_PLACEMENT_FLAG } from '../hosts/desktop-hub-command-route'
 import { getRequiredStringFlag } from '../arguments/flags'
 import { printResult } from '../output/command-result-output'
 import { RuntimeClientError } from '../runtime/types'
@@ -21,7 +22,8 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
     const launch = readCliAgentLaunch(flags, parseCliAgent(getRequiredStringFlag(flags, 'agent')), {
       createsWorktree: false
     })
-    if (client.isRemote && !flags.has('worktree')) {
+    const sessionPlacement = flags.has(ORCHESTRATION_SESSION_PLACEMENT_FLAG)
+    if (client.isRemote && !flags.has('worktree') && !sessionPlacement) {
       throw new RuntimeClientError(
         'invalid_argument',
         'Remote agent launch requires --worktree because the client cwd cannot identify a server worktree.'
@@ -29,9 +31,14 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
     }
     const selector = flags.get('worktree')
     const current = selector === undefined || selector === 'active' || selector === 'current'
-    const worktree = current
-      ? await resolveCurrentWorktreeSelector(cwd, client, { agent: launch.agent })
-      : await getRequiredWorktreeSelector(flags, 'worktree', cwd, client)
+    const target = sessionPlacement
+      ? ({ kind: 'orchestration-session' } as const)
+      : {
+          kind: 'existing' as const,
+          worktree: current
+            ? await resolveCurrentWorktreeSelector(cwd, client, { agent: launch.agent })
+            : await getRequiredWorktreeSelector(flags, 'worktree', cwd, client)
+        }
     const capabilities = await getAgentLaunchCapabilities(client)
     if (!capabilities) {
       if (launch.operationId) {
@@ -49,7 +56,7 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
       client,
       launch,
       {
-        target: { kind: 'existing', worktree },
+        target,
         presentation: cliLaunchPresentation({
           focus: flags.get('focus') === true,
           visibleRemote: client.isRemote

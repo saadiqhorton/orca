@@ -49,6 +49,7 @@ import {
   getRequiredWorktreeSelector
 } from '../workspace-selection/workspace-selector'
 import { getTerminalHandle } from './terminal-selector'
+import { ORCHESTRATION_SESSION_PLACEMENT_FLAG } from '../hosts/desktop-hub-command-route'
 import { revealPairedTerminalOnLocalDesktop } from './paired-terminal-desktop-reveal'
 import { terminalCloseHandler } from './terminal-close'
 import { terminalSendHandler } from './terminal-send'
@@ -162,7 +163,8 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
     printResult(result, json, formatTerminalSetPaneTitle)
   },
   'terminal create': async ({ flags, client, cwd, json }) => {
-    if (client.isRemote && !flags.has('worktree')) {
+    const sessionPlacement = flags.has(ORCHESTRATION_SESSION_PLACEMENT_FLAG)
+    if (client.isRemote && !flags.has('worktree') && !sessionPlacement) {
       throw new RuntimeClientError(
         'invalid_argument',
         'Remote terminal create requires --worktree because the client cwd cannot identify a server worktree.'
@@ -202,6 +204,7 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
     }
     const result = await client.call<{ terminal: RuntimeTerminalCreate }>('terminal.create', {
       worktree: await getBrowserWorktreeSelector(flags, cwd, client),
+      ...(sessionPlacement ? { placement: 'orchestration-session' } : {}),
       command,
       ...(shell !== undefined ? { shell } : {}),
       title: getOptionalStringFlag(flags, 'title'),
