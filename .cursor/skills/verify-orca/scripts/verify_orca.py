@@ -356,7 +356,10 @@ def run_typecheck(root: Path, ev: Path, env: dict[str, str]) -> dict[str, Any]:
         timeout=900,
         env=env,
     )
-    (ev / "typecheck.log").write_text(r["out"][-200000:])
+    (ev / "typecheck.log").write_text(
+        (r["out"][-200000:] or "(no stdout/stderr; success is silent)\n")
+        + f"\nexit={r['exit']} secs={r['secs']}\n"
+    )
     return r
 
 
@@ -392,7 +395,7 @@ def run_e2e(root: Path, ev: Path, env: dict[str, str]) -> dict[str, Any]:
         timeout=120,
         env=env,
     )
-    (ev / "e2e.log").write_text(r["out"][-200000:])
+    (ev / "e2e.log").write_text(r["out"][-200000:] + f"\nexit={r['exit']} secs={r['secs']}\n")
     (ev / "transcripts" / "desktop-hub-e2e.log").parent.mkdir(parents=True, exist_ok=True)
     (ev / "transcripts" / "desktop-hub-e2e.log").write_text(r["out"])
     return r
@@ -533,7 +536,9 @@ def stand_in_suite(
         passed, cmds, evidence, skip = mapping[sid]
         reasons = []
         if not passed:
-            reasons.append("stand-in checks failed; see evidence")
+            reasons.append("stand-in checks failed")
+            if sid == "S01":
+                reasons.append("e2e must show `agent launch` and term_visible_e2e")
             if sid == "R01" and (orch_miss or cli_miss):
                 reasons.append("skill missing: " + ", ".join(orch_miss + cli_miss))
             if sid == "R05" and not tc_ok:
@@ -542,6 +547,8 @@ def stand_in_suite(
                 reasons.append("e2e exit " + str(e2e["exit"]))
             if not vt_ok and sid != "R05":
                 reasons.append("vitest exit " + str((vt or {}).get("exit")))
+            if sid in ("S08", "R02") and "unknown_host" not in bind_src:
+                reasons.append("bindDesktopHubHost missing unknown_host")
         extra = {
             "no_ssh": True,
             "zero_wrong_host": True,
