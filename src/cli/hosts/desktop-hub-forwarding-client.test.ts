@@ -29,7 +29,8 @@ describe('wrapDesktopHubClient', () => {
         params: {
           host: 'ubuntu-server-local',
           method: 'agent.launch',
-          params: { agent: 'claude' }
+          params: { agent: 'claude' },
+          timeoutMs: 90_000
         }
       }
     ])

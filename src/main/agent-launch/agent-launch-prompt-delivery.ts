@@ -9,6 +9,7 @@ import type {
   AgentLaunchResult,
   AgentLaunchModeReceipt
 } from '../../shared/agent-launch/contracts/agent-launch-intent'
+import { isAgentLaunchPromptDisposal } from '../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import { agentPromptRidesLaunchCommand } from '../../shared/agent-launch/startup/tui-agent-startup'
 
 import type { CreatedSurface } from './agent-launch-executor'
@@ -66,7 +67,16 @@ export async function settleLaunchPromptDisposal(
     return settledAtCreation(execution.intent, created)
   }
   if (created.promptRodeLaunchCommand) {
-    return HANDED_TO_TERMINAL
+    if (execution.signal?.aborted) {
+      return HANDED_TO_TERMINAL
+    }
+    const observed = await execution.surfaces.observeStartupPrompt?.({
+      handle: created.outcome.handle,
+      agent: execution.intent.agent,
+      terminalCreation: created.terminalCreation,
+      ...(execution.signal ? { signal: execution.signal } : {})
+    })
+    return observed ?? HANDED_TO_TERMINAL
   }
   return deliverTerminalLaunchPrompt(execution, created.outcome.handle, {
     freshLaunch: true,
@@ -95,6 +105,9 @@ export async function deliverTerminalLaunchPrompt(
     prompt: intent.prompt,
     ...(signal ? { signal } : {})
   })
+  if (isAgentLaunchPromptDisposal(delivered)) {
+    return delivered
+  }
   return delivered ? HANDED_TO_TERMINAL : NOT_DELIVERED
 }
 

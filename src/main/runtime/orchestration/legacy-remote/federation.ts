@@ -1,6 +1,10 @@
 import type { RuntimeTerminalCreate } from '../../../../shared/runtime-terminal-create-contract'
 import { waitForWorkerAgentReady } from '../../terminal/wait/launched-agent-composer-readiness'
 import { describeTerminalWaitBlockedReason } from '../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
+import {
+  isWorkerStartBlockedPromptError,
+  throwIfWorkerStartBlockedOnPrompt
+} from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import { buildDispatchPreamble } from '../workers/launch/worker-dispatch-preamble'
 import { sendAgentTurn } from '../turn-delivery/send-agent-turn'
 import { createWorkerBriefWriteGuard } from '../../terminal/wait/launched-agent-write-guard'
@@ -203,6 +207,7 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           if (setup.state === 'failed') {
             failedStage = 'setup_wait'
           }
+          throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
           throw new Error(
             wait.blockedReason
               ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
@@ -266,7 +271,7 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           residualResources: []
         }
       } catch (error) {
-        return failFederatedAttachmentWithReceipt({
+        const failed = failFederatedAttachmentWithReceipt({
           db,
           dispatchId: params.dispatchId,
           runtimeEpoch: runtime.getRuntimeId(),
@@ -275,6 +280,10 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           setup,
           launch: launch.receipt
         })
+        if (isWorkerStartBlockedPromptError(error)) {
+          throw error
+        }
+        return failed
       } finally {
         releaseTerminalClaim()
       }

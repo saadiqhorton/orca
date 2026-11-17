@@ -9,6 +9,7 @@ import { runtimeHostConnectionState } from '../../shared/remote-runtime/host-sta
 import type { CliStatusResult, RuntimeStatus } from '../../shared/runtime-types'
 import type { RuntimeClient } from '../runtime/client'
 import type { RuntimeCallOptions, RuntimeRpcSuccess } from '../runtime/types'
+import { desktopHubClientTimeoutMs, desktopHubForwardTimeoutMs } from './desktop-hub-call-timeout'
 
 const HUB_CONTROL_PREFIX = 'orchestration.desktopHub.'
 
@@ -81,16 +82,21 @@ export function wrapDesktopHubClient(inner: RuntimeClient, host: string): Runtim
       return inner.call<TResult>(method, params, options)
     }
     const envelope = hubEnvelope(method, params, options)
+    const timeoutMs = desktopHubForwardTimeoutMs(method, options?.timeoutMs)
+    const callOptions =
+      timeoutMs !== undefined
+        ? { ...options, timeoutMs: desktopHubClientTimeoutMs(timeoutMs) }
+        : options
     return inner.call<TResult>(
       'orchestration.desktopHub.call',
       {
         host,
         method,
         params: params ?? {},
-        ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
         ...(envelope ? { envelope } : {})
       },
-      options
+      callOptions
     )
   }
   wrapped.getCliStatus = async () => {

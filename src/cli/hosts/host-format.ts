@@ -42,9 +42,15 @@ export function formatScratchWorkspace(result: {
   created: boolean
   groupName?: string
   workspaceName?: string
+  host?: string
+  next?: string
 }): string {
   const action = result.created ? 'Created' : 'Using'
-  return `${action} ${result.groupName ?? 'Orca orchestration'} / ${result.workspaceName ?? 'scratch'} at ${result.path} (${result.worktree}). Visible in the desktop Orca sidebar.`
+  const where = result.host ? ` on ${result.host}` : ''
+  return [
+    `${action} ${result.groupName ?? 'Orca orchestration'} / ${result.workspaceName ?? 'scratch'} at ${result.path} (${result.worktree})${where}. Visible in the desktop Orca sidebar.`,
+    ...(result.next ? [result.next] : [])
+  ].join('\n')
 }
 
 type HostInventorySession = {

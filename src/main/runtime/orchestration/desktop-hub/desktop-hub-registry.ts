@@ -10,10 +10,20 @@ import {
   type DesktopHubPlacement,
   type DesktopHubRequestEvent
 } from '../../../../shared/orchestration/desktop-hub-contract'
-import {
-  readDesktopHubPlacement,
-  writeDesktopHubPlacement
-} from './desktop-hub-placement-store'
+import { readDesktopHubPlacement, writeDesktopHubPlacement } from './desktop-hub-placement-store'
+
+function desktopHubAskTimeoutMessage(
+  fields: Omit<DesktopHubRequestEvent, 'type' | 'requestId'>,
+  timeoutMs: number
+): string {
+  const host = fields.name ?? fields.hostKey ?? 'the target host'
+  const method = fields.method ?? fields.op
+  return (
+    `Desktop hub call timed out after ${timeoutMs}ms forwarding ${method} to "${host}". ` +
+    `The tab may still be opening. Check with \`orca terminal list --host ${host}\` or \`orca host inventory --json\`. ` +
+    'If a trust, hooks, or security dialog is on screen, open the tab in the desktop Orca window and answer it yourself — never via keystrokes. Retry the same command with --host.'
+  )
+}
 
 type Volunteer = {
   pairedDeviceId: string
@@ -102,7 +112,12 @@ export class DesktopHubRegistry {
       return { hub: 'unavailable', hosts: [], message: DESKTOP_HUB_UNAVAILABLE_MESSAGE }
     }
     const result = await this.ask({ op: 'list' }, 15_000)
-    if (!result || typeof result !== 'object' || !('hosts' in result) || !Array.isArray(result.hosts)) {
+    if (
+      !result ||
+      typeof result !== 'object' ||
+      !('hosts' in result) ||
+      !Array.isArray(result.hosts)
+    ) {
       throw new DesktopHubError('host_unreachable', DESKTOP_HUB_UNAVAILABLE_MESSAGE)
     }
     return { hub: 'remote', hosts: result.hosts as DesktopHubHostRow[] }
@@ -129,7 +144,7 @@ export class DesktopHubRegistry {
     if (!cached?.peerFingerprint) {
       throw new DesktopHubError(
         'desktop_hub_unavailable',
-        'This host\'s desktop placement is not cached. Reconnect the desktop app and retry. Orca will not try SSH.'
+        "This host's desktop placement is not cached. Reconnect the desktop app and retry. Orca will not try SSH."
       )
     }
     this.placements.set(selector, cached)
@@ -155,7 +170,7 @@ export class DesktopHubRegistry {
     if (blocked) {
       throw blocked
     }
-    const waitMs = Math.min(Math.max(timeoutMs ?? 15_000, 15_000), 30 * 60 * 1000)
+    const waitMs = Math.min(Math.max(timeoutMs ?? 15_000, 1), 30 * 60 * 1000)
     const result = await this.ask(
       {
         op: 'call',
@@ -179,7 +194,12 @@ export class DesktopHubRegistry {
 
   answer(
     callerDeviceId: string,
-    body: { requestId: string; ok: boolean; result?: unknown; error?: { code: string; message: string } }
+    body: {
+      requestId: string
+      ok: boolean
+      result?: unknown
+      error?: { code: string; message: string }
+    }
   ): { accepted: true } {
     const pending = this.pending.get(body.requestId)
     if (!pending || pending.pairedDeviceId !== callerDeviceId) {
@@ -191,8 +211,7 @@ export class DesktopHubRegistry {
       pending.reject(
         new DesktopHubError(
           body.error?.code ?? 'host_unreachable',
-          body.error?.message ??
-            'The desktop app could not reach that host. Orca will not try SSH.'
+          body.error?.message ?? 'The desktop app could not reach that host. Orca will not try SSH.'
         )
       )
     } else {
@@ -220,14 +239,18 @@ export class DesktopHubRegistry {
         this.pending.delete(requestId)
         reject(
           new DesktopHubError(
-            'host_unreachable',
-            'The desktop app did not answer. The host is unreachable from the desktop app, and Orca will not try SSH.'
+            'desktop_hub_call_timeout',
+            desktopHubAskTimeoutMessage(fields, timeoutMs)
           )
         )
       }, timeoutMs)
       timer.unref?.()
       this.pending.set(requestId, { pairedDeviceId, resolve, reject, timer })
-      const event: DesktopHubRequestEvent = { type: 'orchestrationHubRequested', requestId, ...fields }
+      const event: DesktopHubRequestEvent = {
+        type: 'orchestrationHubRequested',
+        requestId,
+        ...fields
+      }
       for (const volunteer of this.volunteers) {
         if (volunteer.pairedDeviceId === pairedDeviceId) {
           volunteer.emit(event)

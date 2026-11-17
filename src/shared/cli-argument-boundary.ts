@@ -9,6 +9,7 @@ export const CLI_BOOLEAN_FLAGS = new Set([
   'allow-public',
   'allow-system-shortcut',
   'annotate',
+  'answer-dialog',
   'attachments',
   'check',
   'children',

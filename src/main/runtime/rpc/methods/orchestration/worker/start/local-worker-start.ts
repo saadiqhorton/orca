@@ -4,6 +4,10 @@ import { resolveLocalWorkerLaunchPlan } from './local-worker-launch-plan'
 import { waitForWorkerAgentReady } from '../../../../../terminal/wait/launched-agent-composer-readiness'
 import type { OrcaRuntimeService } from '../../../../../orca-runtime'
 import { describeTerminalWaitBlockedReason } from '../../../../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
+import {
+  isWorkerStartBlockedPromptError,
+  throwIfWorkerStartBlockedOnPrompt
+} from './worker-start-blocked-prompt'
 import type { OrchestrationDb } from '../../../../../orchestration/db/orchestration-db'
 import type {
   DispatchContextRow,
@@ -191,6 +195,7 @@ export async function startLocalWorker(args: {
         if (setupReceipt.state === 'failed') {
           failedStage = 'setup_wait'
         }
+        throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
         throw new Error(
           wait.blockedReason
             ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
@@ -251,6 +256,9 @@ export async function startLocalWorker(args: {
       launch: launch.receipt,
       mode
     })
+    if (isWorkerStartBlockedPromptError(error)) {
+      throw error
+    }
   }
   if (
     !params.terminal &&

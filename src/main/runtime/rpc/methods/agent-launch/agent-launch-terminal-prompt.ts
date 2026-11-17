@@ -3,6 +3,13 @@
 
 import { randomUUID } from 'node:crypto'
 import type { TuiAgent } from '../../../../../shared/agent-launch/catalog/tui-agent'
+import type { AgentLaunchPromptDisposal } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
+import {
+  blockedOnPromptDisposal,
+  isStartupDialogBlockedReason,
+  startupDialogPromptLabel,
+  timedOutLaunchDisposal
+} from '../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import type { RuntimeTerminalWait } from '../../../../../shared/runtime-terminal-contracts'
 import { isAgentPromptStalledError } from '../../../terminal/input/agent-prompt-submission-verification'
 import {
@@ -67,6 +74,9 @@ async function waitThroughBlockingPrompts(
     if (!wait?.blockedReason || wait.satisfied || deadline - clock.now() <= BLOCKED_RECHECK_MS) {
       return wait
     }
+    if (isStartupDialogBlockedReason(wait.blockedReason)) {
+      return wait
+    }
     await clock.sleep(BLOCKED_RECHECK_MS)
     assertAgentPromptRequestActive(signal)
   }
@@ -91,6 +101,22 @@ export function waitForStartedAgentReady(
   )
 }
 
+export function promptDisposalFromWait(
+  wait: RuntimeTerminalWait | undefined
+): AgentLaunchPromptDisposal | null {
+  if (!wait || wait.satisfied) {
+    return null
+  }
+  if (isStartupDialogBlockedReason(wait.blockedReason)) {
+    return blockedOnPromptDisposal(wait.blockedReason, {
+      promptText: startupDialogPromptLabel(wait.blockedReason)
+    })
+  }
+  return timedOutLaunchDisposal(
+    `Agent launch did not become ready (${wait.status}${wait.blockedReason ? `; ${wait.blockedReason}` : ''}). The tab may still be opening. Check it with terminal show; if a trust or hooks dialog is on screen, open the tab in Orca and answer it yourself.`
+  )
+}
+
 /** Report whether text reached the pane without failing an already-running launch.
  * A stalled post-write verification still means delivered; reporting not-delivered invites a duplicate turn. */
 export async function deliverTerminalAgentLaunchPrompt(args: {
@@ -106,7 +132,7 @@ export async function deliverTerminalAgentLaunchPrompt(args: {
   clock?: ReadinessClock
   /** Aborting ends the readiness wait and refuses the paste; text already handed over stays so. */
   signal?: AbortSignal
-}): Promise<boolean> {
+}): Promise<boolean | AgentLaunchPromptDisposal> {
   if (args.text.trim().length === 0) {
     return false
   }
@@ -128,6 +154,10 @@ export async function deliverTerminalAgentLaunchPrompt(args: {
     )
     // An unsatisfied wait does not authorize pasting into a dialog, dead process or unready agent.
     if (wait && !wait.satisfied) {
+      const disposal = promptDisposalFromWait(wait)
+      if (disposal) {
+        return disposal
+      }
       console.warn(
         `[agent-launch] the terminal agent did not become ready (${wait.status}); its launch prompt was not delivered`
       )

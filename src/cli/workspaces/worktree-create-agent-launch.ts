@@ -14,6 +14,7 @@ import type {
   RuntimeWorktreeRecord
 } from '../../shared/runtime-worktree-contracts'
 import {
+  assertAgentLaunchPromptDelivered,
   callAgentLaunch,
   formatAgentLaunch,
   hasLaunchModelFlags,
@@ -105,6 +106,7 @@ export async function createWorktreeWithAgent(args: {
     ),
     launch.operationId !== undefined
   )
+  assertAgentLaunchPromptDelivered(launched.result)
   const worktree = await showLaunchedWorktree(client, launched.result.worktreeId)
   const setupWarning = await folderSetupUnsupportedWarning(
     client,

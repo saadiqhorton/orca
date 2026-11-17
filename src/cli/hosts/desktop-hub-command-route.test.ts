@@ -156,9 +156,10 @@ describe('bindDesktopHubHost', () => {
       'orchestration.desktopHub.call',
       expect.objectContaining({
         host: 'ubuntu-server-local',
-        method: 'agent.launch'
+        method: 'agent.launch',
+        timeoutMs: 90_000
       }),
-      undefined
+      expect.objectContaining({ timeoutMs: 100_000 })
     )
   })
 

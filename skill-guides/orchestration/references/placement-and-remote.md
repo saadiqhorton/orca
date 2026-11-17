@@ -15,11 +15,30 @@ orca host list
 status, Orca projects and folder workspaces, installed agent CLIs, and live
 tabs/sessions.
 
+Simplest path: launch without `--worktree`, then keep `--host` on every
+follow-up that touches a visible tab.
+
+```text
+orca agent launch --host <name> --agent <agent> --prompt "<task>" --json
+orca orchestration worker-start --spec "<task>" --host <name> --agent <agent>
+```
+
+Do not put secrets or tokens in `--prompt` / `--spec`; pass them via a file
+or environment variable on that host.
+
+Never answer trust, hooks, or security dialogs (Codex "Hooks need review",
+Claude workspace trust, fullscreen/startup menus) by sending keystrokes.
+If the result is `agent_blocked_on_prompt` or `desktop_hub_call_timeout`,
+stop and ask the user to open that tab in the desktop Orca window. After
+they dismiss it, re-send with `terminal send --host <name> --terminal <handle>`.
+
 `--host <name>` on `agent launch`, `terminal create`, `terminal list`,
 `terminal send`, `terminal read`, `terminal close`, `worktree create`, and
 `orchestration send` / `worker-start` talks to that machine through the
 desktop hub. The resulting tabs show up in the user's desktop Orca window
 under that host's project, exactly as if they had created them by hand.
+Unique `folder:<id>` and `term_…` handles resolve across connected hosts
+without `--host`; collisions name the owners and the exact `--host` command.
 
 ```text
 orca agent launch --host <name> --agent <agent> --prompt "<task>" --json
@@ -27,6 +46,7 @@ orca terminal create --host <name> --json
 orca terminal list --host <name> --json
 orca terminal send --host <name> --terminal <handle> --text "<message>" --enter
 orca worktree create --host <name> --name <short-name> --json
+orca worktree create --host <name> --agent <agent> --prompt "<task>" --json
 orca orchestration worker-start --spec "<task>" --host <name> --agent <agent>
 orca orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
 orca orchestration send --to dispatch:<id> --subject "<topic>" --body "<message>"

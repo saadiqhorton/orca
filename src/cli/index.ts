@@ -28,15 +28,8 @@ import {
   isLocalEnvironmentSelector,
   refuseLocalManagementSelector
 } from './hosts/local-environment-selector'
-import {
-  bindDesktopHubHost,
-  isFolderWorktreeCreateWithoutRepo,
-  needsDefaultRemoteWorktree,
-  orchestrationRunsOnCallersOrca,
-  shouldWrapDesktopHubHost
-} from './hosts/desktop-hub-command-route'
-import { printResult } from './output/command-result-output'
-import { formatScratchWorkspace } from './hosts/host-format'
+import { orchestrationRunsOnCallersOrca } from './hosts/desktop-hub-command-route'
+import { prepareDesktopHubCliClient } from './hosts/desktop-hub-cli-bind'
 
 const COMMAND_PATHS = COMMAND_SPECS.flatMap((spec) => specPaths(spec))
 
@@ -189,29 +182,16 @@ export async function main(
       )
       return client
     }
-    if (shouldWrapDesktopHubHost(parsed.commandPath, parsed.flags)) {
-      client = await bindDesktopHubHost(buildClient(), parsed.flags)
-      if (!parsed.flags.has('host')) {
-        if (needsDefaultRemoteWorktree(parsed.commandPath, parsed.flags)) {
-          const scratch = await client.call<{ worktree: string }>(
-            'orchestration.surface.ensureScratch',
-            {}
-          )
-          parsed.flags.set('worktree', scratch.result.worktree)
-        }
-        if (isFolderWorktreeCreateWithoutRepo(parsed.commandPath, parsed.flags)) {
-          const name = parsed.flags.get('name')
-          const scratch = await client.call<{
-            path: string
-            worktree: string
-            created: boolean
-            groupName?: string
-            workspaceName?: string
-          }>('orchestration.surface.ensureScratch', typeof name === 'string' ? { name } : {})
-          printResult(scratch, json, formatScratchWorkspace)
-          return
-        }
-      }
+    const hub = await prepareDesktopHubCliClient(
+      parsed.commandPath,
+      parsed.flags,
+      buildClient(),
+      json
+    )
+    client = hub.client
+    parsed.commandPath = hub.commandPath
+    if (hub.printed) {
+      return
     }
     await dispatch(parsed.commandPath, {
       flags: parsed.flags,

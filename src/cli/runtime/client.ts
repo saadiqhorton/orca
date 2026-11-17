@@ -215,7 +215,8 @@ export class RuntimeClient {
     }
     if (
       (method === 'orchestration.check' && isWaitingCheck(params)) ||
-      method === 'terminal.wait'
+      method === 'terminal.wait' ||
+      method === 'orchestration.desktopHub.call'
     ) {
       const inner = Number(getTimeoutMsParam(params))
       if (Number.isFinite(inner) && inner > 0) {

@@ -13,6 +13,7 @@ import { replaceDispatchCapabilities } from '../../terminal-authority/views/work
 import type { WorkerApprovalPayload } from '../../../../../shared/orchestration/approvals/worker-approval-payload'
 import { ORCA_SESSION_ADDRESS_PREFIX } from '../../../../../shared/orca-session-address-prefix'
 import { describeApprovalClosed, describeCoordinatorAnswer } from './worker-approval-text'
+import { isUserKeptWorkerTerminalOwner } from '../../db/worker-terminal/worker-terminal-user-keep'
 
 // One screenful: enough to show the agent's last words or error banner without flooding the inbox.
 const LAST_OUTPUT_MAX_CHARS = 2_000
@@ -195,12 +196,13 @@ export function reportWorkerTurnStop(
   deps: WorkerTurnStopReportDeps
 ): boolean {
   const dispatchId = workerTurnStopDispatchId(target)
-  // Waiting on mail, or a clean finish resting on its own question or helpers, is deliberate; going away never is.
+  // Waiting on mail, a keep-open idle, or a clean finish resting on its own question or helpers, is deliberate; going away never is.
   if (
     !isWorkerGone(stop.reason) &&
     (deps.isWaitingForMail(`dispatch:${dispatchId}`) ||
       (stop.reason === 'finished' &&
-        (db.awaitsAnswerToLatestQuestion(dispatchId) ||
+        ((target.kind === 'local' && isUserKeptWorkerTerminalOwner(db, dispatchId)) ||
+          db.awaitsAnswerToLatestQuestion(dispatchId) ||
           rejectedReportInTurn(db, dispatchId, stop.turnStartedAt) ||
           (target.kind === 'local' && db.hasOpenHelperDispatch(dispatchId)))))
   ) {

@@ -51,7 +51,10 @@ describe('desktop hub registry', () => {
       1000,
       undefined
     )
-    expect(response).toMatchObject({ ok: true, result: { forwarded: 'orchestration.federationAttachStart' } })
+    expect(response).toMatchObject({
+      ok: true,
+      result: { forwarded: 'orchestration.federationAttachStart' }
+    })
     expect(forwarded).toEqual(['orchestration.federationAttachStart'])
     await expect(registry.place('TEMPLEOFDOOM')).rejects.toMatchObject({ code: 'needs_sign_in' })
     await expect(registry.place('ARCHIT4ME')).rejects.toMatchObject({ code: 'host_unreachable' })
@@ -96,6 +99,30 @@ describe('desktop hub registry', () => {
     registry.answer(HUB.pairedDeviceId, { requestId: asked.requestId, ok: true, result: CONNECTED })
     await expect(pending).resolves.toMatchObject({ name: 'ubuntu-server-local' })
   })
+
+  it('times out a silent hub volunteer with desktop_hub_call_timeout, not host_unreachable', async () => {
+    const runtime = {}
+    const registry = getDesktopHubRegistry(runtime)
+    registry.register({
+      ...HUB,
+      emit(event) {
+        if (event.op === 'call') {
+          return
+        }
+        const body = answer(event, [], () => {
+          throw new Error('ssh was used')
+        })
+        registry.answer(HUB.pairedDeviceId, { requestId: event.requestId, ...body })
+      }
+    })
+    const placed = await registry.place('ubuntu-server-local')
+    await expect(
+      registry.call(placed.selector, 'agent.launch', { agent: 'claude' }, 20, undefined)
+    ).rejects.toMatchObject({
+      code: 'desktop_hub_call_timeout',
+      message: expect.stringContaining('never via keystrokes')
+    })
+  })
 })
 
 function answer(
@@ -139,7 +166,8 @@ function answer(
       ok: false,
       error: {
         code: 'needs_sign_in',
-        message: 'Host "TEMPLEOFDOOM" needs sign-in in the desktop app before a worker can start there.'
+        message:
+          'Host "TEMPLEOFDOOM" needs sign-in in the desktop app before a worker can start there.'
       }
     }
   }

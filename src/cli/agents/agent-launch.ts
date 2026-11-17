@@ -1,5 +1,6 @@
 import type { CommandHandler } from '../dispatch/dispatch'
 import {
+  assertAgentLaunchPromptDelivered,
   callAgentLaunch,
   formatAgentLaunch,
   getAgentLaunchCapabilities,
@@ -53,6 +54,7 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
       capabilities,
       rawArgs
     )
+    assertAgentLaunchPromptDelivered(result.result)
     printResult(result, json, formatAgentLaunch)
   }
 }

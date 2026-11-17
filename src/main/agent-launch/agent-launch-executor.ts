@@ -18,7 +18,6 @@ import {
   argvLaunchPrompt,
   launchPromptCreateInputs,
   deliverTerminalLaunchPrompt,
-  HANDED_TO_TERMINAL,
   promptReceipt,
   settledAtCreation,
   settleLaunchPromptDisposal
@@ -123,19 +122,18 @@ export async function openAgentLaunch(
       })
       surfacePublished = true
       launch?.release()
-      const { startupTerminalHandle, startupTerminalCreation, promptRodeLaunchCommand } = placed
+      const { startupTerminalCreation, promptRodeLaunchCommand } = placed
       return opening(
         startup,
         async () => ({
           ...startup,
           ...promptReceipt(
             intent,
-            promptRodeLaunchCommand
-              ? HANDED_TO_TERMINAL
-              : await deliverTerminalLaunchPrompt(execution, startupTerminalHandle, {
-                  freshLaunch: true,
-                  terminalCreation: startupTerminalCreation
-                })
+            await settleLaunchPromptDisposal(execution, {
+              outcome: startup.outcome,
+              promptRodeLaunchCommand,
+              terminalCreation: startupTerminalCreation
+            })
           )
         }),
         startupTerminalCreation
