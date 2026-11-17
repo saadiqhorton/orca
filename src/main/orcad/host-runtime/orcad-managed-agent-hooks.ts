@@ -45,9 +45,8 @@ export function startOrcadManagedAgentHooks(
   void agentView.reconcile(store.getSettings())
   const userDataPath = getAppEnvironment().getPath('userData')
   rememberOrcaInstructionFile(orcaHostInstructionPath(userDataPath))
-  // Why: hosts is empty because the preamble is fixed text; this host only knows its own machine.
   const reconcileHostInstructions = (settings: GlobalSettings): void => {
-    void installOrcaHostInstructions({ hosts: [], userDataPath, settings }).catch(() => undefined)
+    void installOrcaHostInstructions({ userDataPath, settings }).catch(() => undefined)
   }
   reconcileHostInstructions(store.getSettings())
   const removeSettingsListener = store.onSettingsChanged((updates, settings) => {
