@@ -63,6 +63,39 @@ export function markWorkerDispatchReady(
   }
 }
 
+export function markWorkerBlockedOnPrompt(
+  this: OrchestrationDb,
+  dispatchId: string,
+  blockedReason: string
+): WorkerDispatchRow {
+  this.db.exec('BEGIN IMMEDIATE')
+  try {
+    const dispatch = this.getDispatchContextById(dispatchId)
+    const worker = this.getWorkerDispatch(dispatchId)
+    if (!dispatch || dispatch.status !== 'pending' || worker?.state !== 'starting') {
+      throw new OrchestrationError('dispatch_inactive', `Dispatch ${dispatchId} is not starting.`)
+    }
+    transitionLifecycleWithDb(this.db, {
+      entity: 'dispatch',
+      id: dispatchId,
+      from: 'pending',
+      to: 'dispatched'
+    })
+    transitionLifecycleWithDb(this.db, {
+      entity: 'worker',
+      id: dispatchId,
+      from: 'starting',
+      to: 'ready',
+      projection: { blocked_reason: blockedReason, updated_at: new Date().toISOString() }
+    })
+    this.db.exec('COMMIT')
+    return this.getWorkerDispatch(dispatchId) as WorkerDispatchRow
+  } catch (error) {
+    this.db.exec('ROLLBACK')
+    throw error
+  }
+}
+
 export function failWorkerStart(
   this: OrchestrationDb,
   dispatchId: string,
@@ -185,6 +218,7 @@ export function getWorkerDispatch(
 export type WorkerDispatchOutcomeMethods = {
   retainWorkerLaunchObservation: typeof retainWorkerLaunchObservation
   markWorkerDispatchReady: typeof markWorkerDispatchReady
+  markWorkerBlockedOnPrompt: typeof markWorkerBlockedOnPrompt
   failWorkerStart: typeof failWorkerStart
   markWorkerStartUnknown: typeof markWorkerStartUnknown
   getWorkerDispatch: typeof getWorkerDispatch
@@ -194,6 +228,7 @@ export function attachWorkerDispatchOutcome(ctor: { prototype: object }): void {
   Object.assign(ctor.prototype, {
     retainWorkerLaunchObservation,
     markWorkerDispatchReady,
+    markWorkerBlockedOnPrompt,
     failWorkerStart,
     markWorkerStartUnknown,
     getWorkerDispatch
