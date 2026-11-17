@@ -161,3 +161,6 @@ ci-shards/
 /.build/windows-native-benchmark/
 
 .local/static-analysis-research/
+
+# verify-orca evidence (override with ORCA_VERIFY_EVIDENCE_DIR)
+.verify-evidence/

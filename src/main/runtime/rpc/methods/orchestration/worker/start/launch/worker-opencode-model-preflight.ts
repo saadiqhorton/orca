@@ -4,6 +4,7 @@ import {
 } from './worker-configured-agent-preflight'
 import type { prepareFederationAttachmentWorkerStart } from './worker-start-validation'
 import type { OrcaRuntimeService } from '../../../../../../orca-runtime'
+import { assertAgentCliInstalled } from './worker-agent-cli-installed'
 
 export async function probeWorkerOpenCodeModelLaunchSupport(
   runtime: OrcaRuntimeService,
@@ -32,5 +33,17 @@ export async function prepareFederationWorkerLaunchOnHost(
     (await probeWorkerOpenCodeModelLaunchSupport(args.runtime, params, {
       worktree: params.worktree
     }))
-  return prepareFederationConfiguredWorkerStart({ ...args, params, openCodeModelLaunchSupported })
+  const prepared = await prepareFederationConfiguredWorkerStart({
+    ...args,
+    params,
+    openCodeModelLaunchSupported
+  })
+  if (prepared.agent) {
+    await assertAgentCliInstalled(
+      args.runtime,
+      prepared.agent,
+      args.createsWorktree ? null : params.worktree
+    )
+  }
+  return prepared
 }

@@ -8,11 +8,15 @@ description: >-
   "Have Codex (or Claude) review this and report back" means an Orca worker of
   that agent, even when you have your own model subagents.
   Also use when you are a dispatched worker (a prompt with Task and Dispatch
-  IDs: ask, worker_done). Otherwise prefer your own subagents,
-  including for long or parallel work. Use `orca-cli` to hand work off with
-  nothing expected back ("hand off", "handover", "give this to another agent",
-  "another worktree"), and for terminal control, shell commands, worktree
-  management, and reading or waiting on terminals.
+  IDs: ask, worker_done). Use for another machine/host/server, a named host
+  (e.g. ubuntu-server-local), "on <host>", "open a terminal on", "run X on",
+  "what machines/hosts can you use", or anything ssh-like: start with
+  `orca host inventory --json`, then `orca … --host <name>`; never ssh.
+  Otherwise prefer your own subagents, including for long or parallel work.
+  Use `orca-cli` to hand work off with nothing expected back ("hand off",
+  "handover", "give this to another agent", "another worktree"), and for
+  terminal control, shell commands, worktree management, and reading or
+  waiting on terminals.
 ---
 
 # Orca orchestration
@@ -29,14 +33,69 @@ argv, not from a numeric `reasoning_effort`: that number is not on a 0–100 sca
 `ORCA` stands for the executable you used to run `skills get`; type it in its
 place and use it for every command.
 
+The simplest cross-host path (no `--worktree`):
+
 ```text
-ORCA orchestration worker-start --spec "<task>" --worktree current --agent <agent>
+ORCA host inventory --json
+ORCA agent launch --host <name> --agent <agent> --prompt "<task>" --json
+```
+
+or a hidden worker:
+
+```text
+ORCA orchestration worker-start --spec "<task>" --host <name> --agent <agent>
 ```
 
 `<agent>` is an Orca agent id: one the user named, else the agent you are
-running as when the worker shares your execution host. Otherwise, such as a
-different SSH/WSL host or `--on`, ask the user. `worker-start` does not check
-that the CLI is installed; a missing one fails as an `agent_readiness` timeout.
+running as when the worker shares your execution host. `--host <name>` is a
+row from `host inventory` whose status is `connected`. Always carry `--host`
+on follow-ups that touch a visible tab (`terminal send` / `read` / `show` /
+`close`, `agent launch`). Unique `folder:<id>` and `term_…` handles resolve
+across connected hosts without `--host`; if they are ambiguous, the error
+names the owning hosts and the exact corrected command.
+
+Do **not** put secrets or tokens in `--prompt` / `--spec`. Pass them via a
+file or environment variable on the target host.
+
+Never answer trust, hooks, or security prompts (Codex "Hooks need review",
+Claude trust/fullscreen) with keystrokes. If a launch returns
+`agent_blocked_on_prompt` or `desktop_hub_call_timeout`, stop and ask the
+user to open the tab in the desktop Orca window and choose an option. Then
+re-send the prompt with `terminal send --host <name> --terminal <handle>`.
+`--answer-dialog` is only for when the user explicitly asked you to type
+into that dialog.
+
+Those commands open or drive tabs that appear in the user's desktop Orca
+window under that host's project/group:
+
+```text
+ORCA host inventory --json
+ORCA agent launch --host <name> --agent <agent> --prompt "<task>" --json
+ORCA terminal create --host <name> --json
+ORCA terminal list --host <name> --json
+ORCA terminal send --host <name> --terminal <handle> --text "<message>" --enter
+ORCA terminal read --host <name> --terminal <handle> --screen
+ORCA worktree create --host <name> --name <short-name> --json
+ORCA worktree create --host <name> --agent <agent> --prompt "<task>" --json
+ORCA orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
+ORCA orchestration send --to dispatch:<id> --subject "<topic>" --body "<message>"
+ORCA terminal close --host <name> --terminal <handle>
+```
+
+Without `--worktree`, `agent launch`, `terminal create`, and
+`orchestration worker-start --host <name>` create or reuse `~/orca-orchestration`
+on that host (never the user's home). `worktree create --host --agent`
+launches that agent in the scratch folder; without `--agent` it only creates
+the folder and prints the `agent launch --host` command to use next.
+Message a visible tab with `send --host <name> --to <handle>`. Message a
+worker with `send --to dispatch:<id>` or a bare `ctx_…` id (you may still
+pass `--host`; Orca routes the Dispatch to the Run that owns it).
+`worker-show`, `worker-read`, `worker-stop`, and the other `--dispatch`
+verbs stay on that Run too — `--host` is ignored. Never use SSH, never open
+a port, and never copy keys. If the status is `needs_sign_in` or
+`unreachable`, say so and stop. `--on` is only a paired Orca server saved on
+this machine; load `references/placement-and-remote.md` before using it. If an
+agent CLI is missing, the error lists the agents installed on that host.
 
 - Start every independent worker, then **end your turn**. "Report back" and
   "tell me when it's done" still mean end your turn; Orca wakes you and you
@@ -84,7 +143,8 @@ Never:
 - When every worker has settled, report to the user per Task: outcome,
   evidence, open blockers.
 - Lost track? `ORCA orchestration inbox --terminal run:<run_id> --limit 50`
-  shows mail `check` already handled.
+  shows mail `check` already handled. A worker mailbox is
+  `ORCA orchestration inbox --dispatch <dispatch_id>` (or `check --dispatch`).
 
 Finished workers close on their own unless `worker-list` gives one a `next`; follow
 it. Kept-open workers, including new-workspace ones, stay open for the user.
@@ -115,10 +175,10 @@ assignment does not prove its agent stopped.
 
 `ORCA skills get orchestration --reference references/<file>.md`
 
-| Situation                                      | Reference                            |
-| ---------------------------------------------- | ------------------------------------ |
-| Task DAGs, several Runs                        | `references/coordinator-loop.md`     |
-| Child worktrees, SSH, WSL, a connected server  | `references/placement-and-remote.md` |
-| Group messages                                 | `references/messaging-and-gates.md`  |
-| A failed or unknown worker; retry, stop, reset | `references/recovery-and-cleanup.md` |
-| Custom argv or terminal layout                 | `references/low-level-topology.md`   |
+| Situation                                                  | Reference                            |
+| ---------------------------------------------------------- | ------------------------------------ |
+| Task DAGs, several Runs                                    | `references/coordinator-loop.md`     |
+| Child worktrees, a desktop-connected host, a paired server | `references/placement-and-remote.md` |
+| Group messages                                             | `references/messaging-and-gates.md`  |
+| A failed or unknown worker; retry, stop, reset             | `references/recovery-and-cleanup.md` |
+| Custom argv or terminal layout                             | `references/low-level-topology.md`   |

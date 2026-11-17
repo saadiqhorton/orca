@@ -1,0 +1,72 @@
+import { describe, expect, it } from 'vitest'
+import { collectHostSurfaceInventory } from './orchestration-surface-inventory'
+
+describe('collectHostSurfaceInventory', () => {
+  it('lists projects, folder workspaces, sessions, and detected agents', async () => {
+    const inventory = await collectHostSurfaceInventory({
+      getStatus: () => ({ machineName: 'dezignerdrugz00', hostPlatform: 'linux' }),
+      listVisibleProjectGroups: () => [
+        { id: 'grp_1', name: 'Orca orchestration', parentPath: '/home/saadiq' }
+      ],
+      listVisibleFolderWorkspaces: () => [
+        {
+          id: 'fld_1',
+          name: 'scratch',
+          folderPath: '/home/saadiq/orca-orchestration',
+          projectGroupId: 'grp_1'
+        }
+      ],
+      listVisibleRepos: () => [
+        { id: 'repo_work', path: '/home/hostb/work', displayName: 'work', kind: 'git' },
+        {
+          id: 'repo_folder',
+          path: '/home/hostb/orca-xhost-test',
+          displayName: 'orca-xhost-test',
+          kind: 'folder'
+        }
+      ],
+      listTerminals: async () => ({
+        terminals: [
+          {
+            handle: 'term_visible',
+            title: 'claude',
+            worktree: 'path:/home/saadiq/orca-orchestration',
+            agentIdentity: { agent: 'claude' }
+          }
+        ]
+      }),
+      resolveAgentDetectionHost: async () => {
+        throw new Error('skip live PATH probe in unit tests')
+      }
+    })
+    expect(inventory.machineName).toBe('dezignerdrugz00')
+    expect(inventory.platform).toBe('linux')
+    expect(inventory.projects).toEqual([
+      { id: 'grp_1', name: 'Orca orchestration', parentPath: '/home/saadiq' }
+    ])
+    expect(inventory.folderWorkspaces[0]?.path).toBe('/home/saadiq/orca-orchestration')
+    expect(inventory.repos).toEqual([
+      {
+        id: 'repo_work',
+        name: 'work',
+        path: '/home/hostb/work',
+        selector: 'path:/home/hostb/work'
+      },
+      {
+        id: 'repo_folder',
+        name: 'orca-xhost-test',
+        path: '/home/hostb/orca-xhost-test',
+        selector: 'path:/home/hostb/orca-xhost-test'
+      }
+    ])
+    expect(inventory.sessions).toEqual([
+      {
+        handle: 'term_visible',
+        title: 'claude',
+        worktree: 'path:/home/saadiq/orca-orchestration',
+        agent: 'claude'
+      }
+    ])
+    expect(inventory.agents).toEqual([])
+  })
+})

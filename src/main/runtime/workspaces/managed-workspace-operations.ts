@@ -148,18 +148,11 @@ export abstract class OrcaRuntimeWithListManagedWorktrees extends RuntimeWorkspa
   }
 
   /**
-   * The git worktree record behind a terminal workspace. Refuses the floating sentinel, which has
-   * no such record — callers that only need to address the workspace want the scope below instead.
+   * The git worktree or folder workspace behind a terminal. `path:` and `name:` match both, the
+   * same way worker-start and agent launch address a project. Refuses the floating sentinel.
    */
   async showManagedTerminalWorkspace(worktreeSelector: string, requiredHostId?: ExecutionHostId) {
-    const target = await this.resolveManagedTerminalWorkspaceTarget(
-      worktreeSelector,
-      requiredHostId
-    )
-    if (!target.managedWorktree) {
-      throw new Error('selector_not_found')
-    }
-    return target.managedWorktree
+    return this.showManagedWorktree(worktreeSelector, requiredHostId, { matchFolders: true })
   }
 
   async resolveManagedTerminalWorkspaceTarget(

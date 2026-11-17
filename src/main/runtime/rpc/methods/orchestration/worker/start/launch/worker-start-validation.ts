@@ -1,5 +1,9 @@
-import { isTuiAgent } from '../../../../../../../../shared/agent-launch/catalog/tui-agent-config'
+import {
+  isTuiAgent,
+  TUI_AGENT_CONFIG
+} from '../../../../../../../../shared/agent-launch/catalog/tui-agent-config'
 import type { TuiAgent } from '../../../../../../../../shared/agent-launch/catalog/tui-agent'
+import { isTuiAgentEnabled } from '../../../../../../../../shared/agent-launch/catalog/tui-agent-selection'
 import type { OrcaRuntimeService } from '../../../../../../orca-runtime'
 import { OrchestrationError } from '../../../../../../orchestration/orchestration-error'
 import type { FederationAttachStartInput } from '../../../../../../../../shared/rpc-contract/orchestration/orchestration-federation-start-params'
@@ -147,7 +151,18 @@ function resolveWorkerStartAgent(args: {
     throw new OrchestrationError('agent_unconfigured', args.missingAgentMessage)
   }
   if (agent) {
-    args.runtime.validateOrchestrationAgentLauncher(agent)
+    try {
+      args.runtime.validateOrchestrationAgentLauncher(agent)
+    } catch (error) {
+      const available = listEnabledOrchestrationAgents(args.runtime)
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new OrchestrationError(
+        'agent_unconfigured',
+        available.length > 0
+          ? `${detail} Available agents on this host: ${available.join(', ')}.`
+          : detail
+      )
+    }
     return {
       agent,
       launch: resolveWorkerLaunchPreferences({
@@ -165,5 +180,16 @@ function resolveWorkerStartAgent(args: {
       preferences: undefined,
       receipt: createWorkerLaunchReceipt({ agent: null })
     }
+  }
+}
+
+function listEnabledOrchestrationAgents(runtime: OrcaRuntimeService): string[] {
+  try {
+    const disabled = runtime.requireStore?.().getSettings?.().disabledTuiAgents
+    return (Object.keys(TUI_AGENT_CONFIG) as TuiAgent[]).filter((id) =>
+      isTuiAgentEnabled(id, disabled)
+    )
+  } catch {
+    return Object.keys(TUI_AGENT_CONFIG)
   }
 }

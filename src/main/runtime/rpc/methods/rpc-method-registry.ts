@@ -48,6 +48,8 @@ import { ENVIRONMENT_DOCTOR_METHODS } from './host-management/environment-doctor
 import { SPEECH_METHODS } from './speech/speech'
 import { CLIENT_UI_METHODS } from './client-state/client-ui'
 import { CLIENT_EVENT_METHODS } from './client-events/client-events'
+import { DESKTOP_HUB_METHODS } from './desktop-hub/desktop-hub-methods'
+import { ORCHESTRATION_SURFACE_METHODS } from './orchestration/surface/orchestration-surface-methods'
 import { WORKSPACE_PORT_METHODS } from './workspace-ports/workspace-ports'
 import { LINK_PREVIEW_METHODS } from './link-preview/link-preview'
 import { PLUGIN_METHODS } from './plugins/plugins'
@@ -159,6 +161,8 @@ export const ALL_RPC_METHODS = [
   ...MOBILE_WEB_BUNDLE_METHODS,
   ...RUNTIME_CLIENT_CAPABILITY_METHODS,
   ...CLIENT_EVENT_METHODS,
+  ...DESKTOP_HUB_METHODS,
+  ...ORCHESTRATION_SURFACE_METHODS,
   ...CLIENT_UI_METHODS,
   ...EMULATOR_METHODS,
   ...PAIRING_METHODS,

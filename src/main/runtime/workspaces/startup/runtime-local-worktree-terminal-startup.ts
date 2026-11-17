@@ -222,7 +222,7 @@ export async function startRuntimeLocalWorktreeTerminals(args: {
   } else if (
     ports.canSpawn &&
     shouldSeedWorktreePrimaryTerminal({
-      hasPrimarySurface: startupPaneHeld,
+      hasPrimarySurface: startupPaneHeld || args.request.skipPrimaryTerminal === true,
       callerProvidesSurface: callerProvidesInitialSurface(args)
     })
   ) {

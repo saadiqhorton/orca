@@ -44,6 +44,10 @@ export function resolveFleetWorkerOutcome(args: {
   if (workerState === 'succeeded') {
     return 'succeeded'
   }
+  // Operator stop settles the dispatch as failed, but the worker did not fail its Task.
+  if (workerState === 'stopped') {
+    return 'in_progress'
+  }
   if (workerState === 'failed' || dispatchStatus === 'failed') {
     return 'failed'
   }

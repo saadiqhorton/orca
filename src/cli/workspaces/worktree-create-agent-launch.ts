@@ -14,6 +14,7 @@ import type {
   RuntimeWorktreeRecord
 } from '../../shared/runtime-worktree-contracts'
 import {
+  assertAgentLaunchPromptDelivered,
   callAgentLaunch,
   formatAgentLaunch,
   hasLaunchModelFlags,
@@ -21,6 +22,7 @@ import {
   type CliAgentLaunch,
   SURFACE_UNSUPPORTED_MESSAGE
 } from '../agents/agent-launch-request'
+import { cliLaunchPresentation } from '../agents/cli-launch-presentation'
 import { formatWorktreeShow } from './workspace-format'
 import { printResult } from '../output/command-result-output'
 import { RuntimeClientError } from '../runtime/types'
@@ -98,13 +100,17 @@ export async function createWorktreeWithAgent(args: {
       launch,
       {
         target: { kind: 'create-worktree', create },
-        presentation: create.activate === true ? 'focused' : 'background'
+        presentation: cliLaunchPresentation({
+          focus: create.activate === true,
+          visibleRemote: client.isRemote
+        })
       },
       capabilities,
       rawArgs
     ),
     launch.operationId !== undefined
   )
+  assertAgentLaunchPromptDelivered(launched.result)
   const worktree = await showLaunchedWorktree(client, launched.result.worktreeId)
   const setupWarning = await folderSetupUnsupportedWarning(
     client,

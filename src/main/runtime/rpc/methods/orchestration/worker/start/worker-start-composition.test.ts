@@ -44,6 +44,7 @@ describe('orchestration RPC methods', () => {
       vi.spyOn(runtime, 'showManagedTerminalWorkspace').mockResolvedValue({
         id: 'repo::worktree'
       } as never)
+      vi.spyOn(runtime, 'resolveAgentDetectionHost').mockRejectedValue(new Error('skip detection'))
       vi.spyOn(runtime, 'createTerminal').mockResolvedValue({
         handle: 'term_worker',
         worktreeId: 'repo::worktree',

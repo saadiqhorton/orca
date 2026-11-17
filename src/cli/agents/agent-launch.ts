@@ -1,11 +1,13 @@
 import type { CommandHandler } from '../dispatch/dispatch'
 import {
+  assertAgentLaunchPromptDelivered,
   callAgentLaunch,
   formatAgentLaunch,
   getAgentLaunchCapabilities,
   parseCliAgent,
   readCliAgentLaunch
 } from './agent-launch-request'
+import { cliLaunchPresentation } from './cli-launch-presentation'
 import { getRequiredStringFlag } from '../arguments/flags'
 import { printResult } from '../output/command-result-output'
 import { RuntimeClientError } from '../runtime/types'
@@ -48,11 +50,15 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
       launch,
       {
         target: { kind: 'existing', worktree },
-        presentation: flags.get('focus') === true ? 'focused' : 'background'
+        presentation: cliLaunchPresentation({
+          focus: flags.get('focus') === true,
+          visibleRemote: client.isRemote
+        })
       },
       capabilities,
       rawArgs
     )
+    assertAgentLaunchPromptDelivered(result.result)
     printResult(result, json, formatAgentLaunch)
   }
 }

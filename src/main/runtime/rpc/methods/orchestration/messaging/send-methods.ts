@@ -18,7 +18,7 @@ import {
 } from './recipient-routing'
 import { replayAcceptedSend } from './send-replay'
 import { sendRemoteMessage } from '../../../../orchestration/legacy-remote/send-remote'
-import { withPeerMailSend } from './peer-mail-send'
+import { normalizeOrchestrationSendTo, withPeerMailSend } from './peer-mail-send'
 import { prepareSessionRecipient } from './session-recipient'
 import { sendPointToPointMessage } from './send-point-to-point'
 import { sendGroupMessage } from './send-group'
@@ -138,7 +138,7 @@ export const ORCHESTRATION_SEND_METHODS = [
           )
         }
 
-        let to = params.to
+        let to = normalizeOrchestrationSendTo(params.to)
         if (
           routing.run &&
           (!to ||

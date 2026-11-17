@@ -26,6 +26,8 @@ export type FolderWorkspaceCreateInput = {
   startupSessionOptions?: Record<string, string>
   startupLaunchPreferences?: AgentLaunchPreferences
   launchSource?: string
+  /** Scratch folders are a place to launch into; do not also spawn a default shell tab. */
+  skipPrimaryTerminal?: boolean
 } & Pick<CreateWorktreeArgs, 'setupDecision' | 'approvedSetupHash' | 'approvedSetupHashes'>
 
 export type FolderWorkspaceCreateResult = {

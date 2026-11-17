@@ -94,11 +94,11 @@ export function projectWorkerFleet(args: {
   return fleet
 }
 
-/** worker-list's projection of these rows; includeRemote layers on execution-host verdicts. */
+/** worker-list's projection of these rows; federated Dispatches get the worker host's verdict. */
 export async function projectWorkerListFleet(
   runtime: OrcaRuntimeService,
   rows: ReturnType<OrchestrationDb['listWorkerTerminalResources']>,
-  options: { limit: number; completeProjection?: boolean; includeRemote?: boolean }
+  options: { limit: number; completeProjection?: boolean }
 ) {
   const db = runtime.getOrchestrationDb()
   const now = Date.now()
@@ -116,15 +116,11 @@ export async function projectWorkerListFleet(
     completeProjection: options.completeProjection,
     observeSession: createSessionWorkerLivenessReader(db, statuses)
   })
-  const federated = options.includeRemote
-    ? await readFederatedFleetSnapshots({
-        runtime,
-        db,
-        dispatchIds: rows.map((row) => row.dispatchId)
-      })
-    : null
-  if (federated) {
-    applyFederatedFleetObservations(fleet, federated, fleet.durable)
-  }
-  return { ...fleet, hostErrors: federated?.errors ?? [] }
+  const federated = await readFederatedFleetSnapshots({
+    runtime,
+    db,
+    dispatchIds: rows.map((row) => row.dispatchId)
+  })
+  applyFederatedFleetObservations(fleet, federated, fleet.durable)
+  return { ...fleet, hostErrors: federated.errors }
 }

@@ -8,6 +8,7 @@ import type { RuntimeTerminalCreate } from '../../shared/runtime-terminal-create
 import type {
   AgentLaunchIntent,
   AgentLaunchPrompt,
+  AgentLaunchPromptDisposal,
   AgentLaunchMode
 } from '../../shared/agent-launch/contracts/agent-launch-intent'
 import type { StructuredAgentId } from '../../shared/agent-session/lifecycle/agent-session-provider-handle'
@@ -66,7 +67,14 @@ export type AgentLaunchSurfaceFactory = {
     prompt: AgentLaunchPrompt
     /** Abort readiness waits and refuse pending pastes. */
     signal?: AbortSignal
-  }): Promise<boolean>
+  }): Promise<boolean | AgentLaunchPromptDisposal>
+  /** Probe a just-started TUI without pasting; used when the prompt already rode argv. */
+  observeStartupPrompt?(args: {
+    handle: string
+    agent: TuiAgent
+    terminalCreation?: RuntimeTerminalCreate
+    signal?: AbortSignal
+  }): Promise<AgentLaunchPromptDisposal | null>
 }
 
 /** The created chat and its committed opening submission. */

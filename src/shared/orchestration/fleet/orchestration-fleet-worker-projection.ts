@@ -293,6 +293,7 @@ export function projectOrchestrationFleetWorker(
         worker.workerState === 'abandoned' ||
         worker.terminationReason === 'operator_close' ||
         worker.terminationReason === 'signaled',
+      operatorStopped: worker.workerState === 'stopped',
       liveness
     })
   }

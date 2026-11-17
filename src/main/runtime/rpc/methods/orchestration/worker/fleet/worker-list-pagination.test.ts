@@ -13,7 +13,11 @@ import { ORCHESTRATION_WORKER_LIST_METHOD } from '../worker-list-method'
 type WorkerListResult = {
   workers: {
     dispatchId: string
-    projection: { attention: { categories: string[] } }
+    projection: {
+      attention: { categories: string[] }
+      host?: { kind: string; id: string }
+      liveness?: { verdict: string }
+    }
   }[]
   counts: Record<string, number>
   page: { total: number; hasMore: boolean; nextCursor: string | null }
@@ -154,8 +158,14 @@ describe('orchestration worker-list pagination', () => {
         { expectedEnvironmentPairingRevision: 1 }
       )
     )
+    const other = db.createRun({
+      objective: 'Unrelated inventory',
+      coordinatorHandle: 'term-other',
+      coordinatorPaneKey: 'tab-other:cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    })
+    insertDispatch(db, other.id, 'dispatch-local-only')
     for (let call = 0; call < 32; call += 1) {
-      await callWorkerList(runtime, { run: run.id, terminalState: 'retained', limit: 1 })
+      await callWorkerList(runtime, { run: other.id, terminalState: 'retained', limit: 1 })
     }
     resolveSnapshot()
 
@@ -171,6 +181,65 @@ describe('orchestration worker-list pagination', () => {
       cursor: first.page.nextCursor
     })
     expect(second.workers.map((worker) => worker.dispatchId)).toEqual(['dispatch-a'])
+  })
+
+  it('reports the federated host name and live liveness without --include-remote', async () => {
+    db = new OrchestrationDb(':memory:')
+    const runtime = new OrcaRuntimeService()
+    runtime.setOrchestrationDb(db)
+    const run = db.createRun({
+      objective: 'Federated inventory',
+      coordinatorHandle: 'term-coordinator',
+      coordinatorPaneKey: 'tab-coordinator:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    })
+    const task = db.createTask({ runId: run.id, spec: 'federated on B' })
+    const { dispatch } = db.createStartingWorkerDispatch({
+      creator: { kind: 'system' },
+      maxDepth: Number.MAX_SAFE_INTEGER,
+      taskId: task.id,
+      startOptions: {},
+      federation: {
+        environmentId: 'environment-remote',
+        environmentName: 'ubuntu-server-local',
+        peerFingerprint: 'peer-remote',
+        protocolVersion: 3
+      }
+    })
+    db.reconcileFederatedWorkerStart({
+      dispatchId: dispatch.id,
+      state: 'ready',
+      stage: 'remote_input_accepted',
+      worktreeId: 'repo::remote',
+      terminalHandle: 'term_remote'
+    })
+    db.updateFederatedDispatchResources({
+      dispatchId: dispatch.id,
+      remoteRuntimeEpoch: 'epoch-remote',
+      worktreeId: 'repo::remote',
+      terminalHandle: 'term_remote'
+    })
+    vi.spyOn(runtime, 'resolveOrchestrationWorkerServer').mockReturnValue({
+      environmentId: 'environment-remote',
+      name: 'ubuntu-server-local',
+      peerFingerprint: 'peer-remote',
+      pairingRevision: 1
+    })
+    vi.spyOn(runtime, 'callOrchestrationWorkerServer').mockResolvedValue({
+      runtimeEpoch: 'epoch-remote',
+      items: [{ dispatchId: dispatch.id, observation: { status: 'live', exactWorker: true } }]
+    })
+
+    const listed = await callWorkerList(runtime, { run: run.id, paginate: true })
+
+    expect(listed.workers).toMatchObject([
+      {
+        dispatchId: dispatch.id,
+        projection: {
+          host: { kind: 'remote', id: 'ubuntu-server-local' },
+          liveness: { verdict: 'live' }
+        }
+      }
+    ])
   })
 
   it('never re-emits a row whose worker registers between pages', async () => {
@@ -274,11 +343,11 @@ function sqliteFor(db: OrchestrationDb): Database.Database {
   return (db as unknown as { db: Database.Database }).db
 }
 
-function federatedDispatch(dispatchId: string): FederatedDispatchRow {
+function federatedDispatch(dispatchId: string, environmentName = 'remote'): FederatedDispatchRow {
   return {
     dispatch_id: dispatchId,
     environment_id: 'environment-remote',
-    environment_name: 'remote',
+    environment_name: environmentName,
     peer_fingerprint: 'peer-remote',
     remote_runtime_epoch: 'epoch-remote',
     protocol_version: 3,

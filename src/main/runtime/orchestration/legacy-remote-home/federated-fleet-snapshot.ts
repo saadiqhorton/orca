@@ -154,7 +154,7 @@ export async function readFederatedFleetSnapshots(args: {
   const homeAutoReleases = new Map<string, string>()
   for (const group of groups) {
     for (const dispatch of group.dispatches) {
-      hosts.set(dispatch.dispatch_id, group.environmentId)
+      hosts.set(dispatch.dispatch_id, group.name || group.environmentId)
       const homeAutoReleaseAt = liveFederatedHomeAutoReleaseAt(dispatch)
       if (homeAutoReleaseAt) {
         homeAutoReleases.set(dispatch.dispatch_id, homeAutoReleaseAt)

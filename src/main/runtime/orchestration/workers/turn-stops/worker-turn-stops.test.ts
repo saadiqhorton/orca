@@ -221,6 +221,32 @@ describe('terminal worker turn stops', () => {
     stop('turn-3', after)
     expect(ctx.mail()).toHaveLength(2)
   })
+
+  it('does not escalate an intentional keep-open idle finish as Worker stopped without reporting', () => {
+    const ctx = setup()
+    ctx.db.createWorkerTerminalResourceStatement({
+      dispatchId: ctx.dispatch.id,
+      worktreeId: 'repo::/tmp/wt',
+      terminalHandle: HANDLE,
+      paneKey: PANE,
+      processIncarnation: null,
+      ownership: 'owned'
+    })
+    ctx.db.db
+      .prepare(
+        `UPDATE worker_terminal_resources
+           SET release_state = 'retained', retained_reason = 'user_kept'
+         WHERE owner_dispatch_id = ?`
+      )
+      .run(ctx.dispatch.id)
+    reportWorkerTurnStop(
+      ctx.db,
+      { kind: 'local', dispatch: ctx.dispatch },
+      { from: HANDLE, stopKey: 'idle-keep-open', reason: 'finished', lastOutput: undefined },
+      ctx.deps
+    )
+    expect(ctx.mail()).toEqual([])
+  })
 })
 
 describe('chat worker turn stops', () => {

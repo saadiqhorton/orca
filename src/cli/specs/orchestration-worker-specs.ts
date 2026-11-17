@@ -6,7 +6,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     path: ['orchestration', 'worker-start'],
     summary: 'Start one supervised worker on the Run home or a connected Orca server',
     usage:
-      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment>] [--worktree <current|selector|new-child|new-top-level>] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--retry-request <id>] [--json]',
+      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment> | --host <desktop-connected-host>] [--worktree <current|selector|new-child|new-top-level>] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--retry-request <id>] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'task',
@@ -17,6 +17,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'deps',
       'parent',
       'on',
+      'host',
       'worktree',
       'name',
       'repo',
@@ -50,8 +51,9 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       "How the worker runs follows the user's own setting for new agent tabs; there is no flag for it and no caller needs to ask. A dispatch the setting cannot apply to still starts, so the placement, agent, and launch options passed here are always the ones honoured.",
       'Drive every worker the same way whichever way it was started: the same orchestration verbs, the same handle. Mail, dispatch, worker-show, worker-read and the whole lifecycle behave identically. The start receipt records which one ran, for operators and telemetry.',
       'Not every worker has a terminal. Read output with worker-read --source auto or --source transcript, which always work; --source terminal is refused when there is none, and orca terminal verbs do not accept every worker handle. Nothing above needs you to know which kind you have — the orchestration verbs cover all of them.',
-      '--on selects only the worker server; the Run and this command remain on the current Orca server.',
-      'With --on, use an exact remote selector, new-child or new-top-level (new-child and new-top-level need a remote --repo); new-child nests the server worktree under your workspace, or starts it top-level with a warning when that server is too old to nest across machines. Remote current is invalid.',
+      '--host <name> starts the worker on a machine the desktop app is connected to. `orca host inventory` prints those names, their projects, installed agent CLIs, and live tabs. The desktop app routes the call. Do not use SSH. To open a visible tab instead of a hidden worker, use `orca agent launch --host <name>`.',
+      '--on selects only a paired Orca server saved on this machine; the Run and this command remain on the current Orca. Use either --host or --on, not both.',
+      'With --host, omitted --worktree (or current) creates or reuses ~/orca-orchestration on that host. With --on, use an exact remote selector, new-child or new-top-level (new-child and new-top-level need a remote --repo); new-child nests the server worktree under your workspace, or starts it top-level with a warning when that server is too old to nest across machines.',
       '--retry-of needs --task naming the failed Task (--spec creates a new one) and does not inherit placement; repeat the intended --on/worktree and --agent/terminal choices.',
       '--spec-file reads the spec from a file (relative to the current directory) or stdin (-) on this machine, so quotes and backticks need no shell escaping.',
       '--keep-open keeps the worker open after it finishes, as worker-keep-open does right after start.',
@@ -64,6 +66,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     usage: 'orca orchestration worker-show --dispatch <dispatch_id> [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'A Dispatch created by orchestration dispatch is shown as unsupervised and reports the exact adopted terminal when its identity is still provable.',
       'observation.agentWait names a worker parked on a prompt only a human can answer, with the evidence that proved it (hook, prompt-text, or title). Null means Orca looked and found no wait. An absent field means it never looked — an older host, an unverifiable worker identity, an unreadable pane, or an agent probe that did not answer in time — and never means the worker is not waiting. A waiting worker is healthy, not failed.'
     ]
@@ -75,6 +78,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-read --dispatch <dispatch_id> [--source <auto|transcript|terminal>] [--cursor <cursor>] [--limit <n>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'source', 'cursor', 'limit'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'The default auto source uses an exact hook-reported transcript when available and otherwise returns labeled terminal output.',
       'A Dispatch created by orchestration dispatch reads from its adopted terminal with worker status unsupervised.',
       'Output stays readable after the terminal is released, including an automatic release after worker_done.',
@@ -89,6 +93,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-stop --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca, which already federates stop to the worker host.',
       'A Dispatch created by orchestration dispatch is fenced without closing its unsupervised terminal process.',
       'processAction closed_agent_terminal means Orca issued the close (do not also run terminal close); stop_unknown exits 1 and may still report it when the agent exit was not proven.',
       'Also stops every helper it started and theirs, listed in helpers; a helper the user kept open is listed and keeps running.',
@@ -106,6 +111,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'prompt', 'reason', 'from', 'retry-request'],
     identityFlagRoles: { from: 'caller' },
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       "Refused unless the user turned on Let coordinators approve worker permission prompts in Orca's settings on the machine running the worker; the escalation shows this command only then.",
       "The user still sees Allow and Deny; the first answer wins. A prompt the worker's agent lets only a person approve is refused and stays with the user.",
       "Orca picks the prompt's own allow-once option, never a standing rule."
@@ -119,6 +125,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'prompt', 'reason', 'from', 'retry-request'],
     identityFlagRoles: { from: 'caller' },
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'The approval id is in the escalation that reported the prompt. Agents can allow one only with orchestration approve, when the user allows it.',
       "Orca picks the prompt's own refuse-once option, never a standing rule or a stop, and refuses when there is none.",
       "When the agent's prompt takes no message, the reason reaches the worker as its next mail."
@@ -130,7 +137,10 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     usage:
       'orca orchestration worker-abandon --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
-    notes: ['Retains all possibly-live resources and performs no process or filesystem action.']
+    notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
+      'Retains all possibly-live resources and performs no process or filesystem action.'
+    ]
   },
   {
     path: ['orchestration', 'worker-release'],
@@ -140,6 +150,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-release --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'Post-completion cleanup for a settled (succeeded or failed) worker; closes only the exact coordinator-owned agent terminal of that worker.',
       'A settled Dispatch created by orchestration dispatch has no owned terminal resource and is reported retained without process action.',
       "worker-read afterwards reads the worker's own transcript or chat history while it still exists; a worker with none, or whose original is gone, reads as no longer available.",
@@ -155,6 +166,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-keep-open --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'Records a durable user-requested exception; a later explicit worker-release clears it and releases the terminal.',
       'Cancels the automatic release an accepted worker_done schedules; it also works on an active worker, before it reports.',
       'For a worker on a connected server, the retain is recorded on that server when it supports automatic release.',
@@ -189,7 +201,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'Terminal state is process accounting and is reported separately from Task status; a completed Task can still own a live terminal.',
       'A reclaimable worker with resource.autoReleaseAt is released automatically at that time unless it is reused with worker-start --terminal or kept open (worker-keep-open, worker-start --keep-open, or the user).',
       'Context-only Dispatches created by orchestration dispatch are included as unsupervised with terminal state retained.',
-      'Returns at most 100 local rows, newest first, by default; --include-remote adds connected-server observations when the host supports fleet listing. Continue with the opaque nextCursor value unchanged.',
+      'Returns at most 100 local rows, newest first, by default. Workers on a connected host report that host and its liveness without --include-remote; the flag is still accepted. Continue with the opaque nextCursor value unchanged.',
       'Without --run the list is scoped to the Run bound to the calling terminal, and to every Run when there is no binding; the receipt reports which in scope.source (flag, bound, or all).',
       "--on <server> lists that paired server's own workers for your Run there (or all of them without a Run), paged with its own cursor."
     ]

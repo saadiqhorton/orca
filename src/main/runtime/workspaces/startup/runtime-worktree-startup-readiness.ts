@@ -13,6 +13,7 @@ import type {
   WorktreeStartupDraftPaste,
   WorktreeStartupFollowup
 } from './runtime-worktree-agent-startup'
+import type { AgentLaunchPromptDisposal } from '../../../../shared/agent-launch/contracts/agent-launch-intent'
 import {
   deliverTerminalAgentLaunchPrompt,
   type TerminalPromptRuntime
@@ -64,7 +65,7 @@ export async function deliverStartupFollowupPrompt(
   handle: string,
   { agent, prompt }: WorktreeStartupFollowup,
   options: StartupFollowupPromptOptions = {}
-): Promise<boolean> {
+): Promise<boolean | AgentLaunchPromptDisposal> {
   const { signal } = options
   try {
     const ptyId = host.getPtyId(handle)

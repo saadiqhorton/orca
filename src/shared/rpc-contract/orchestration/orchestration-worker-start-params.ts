@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { OptionalFiniteNumber, OptionalString, requiredString } from '../rpc-param-primitives'
+import { normalizeDispatchId } from '../../orchestration/orchestration-dispatch-id'
 
 export const OptionalWorkerLaunchPreference = z
   .string()
@@ -16,6 +17,7 @@ export const WorkerStartParams = z
     deps: OptionalString,
     parent: OptionalString,
     on: OptionalString,
+    host: OptionalString,
     run: OptionalString,
     from: requiredString('Missing --from'),
     worktree: OptionalString,
@@ -29,7 +31,9 @@ export const WorkerStartParams = z
     agent: OptionalString,
     model: OptionalWorkerLaunchPreference,
     effort: OptionalWorkerLaunchPreference,
-    retryOf: OptionalString,
+    retryOf: OptionalString.transform((value) =>
+      value === undefined ? undefined : normalizeDispatchId(value)
+    ).optional(),
     timeoutMs: OptionalFiniteNumber,
     devMode: z.boolean().optional(),
     /** Only from the paired Orca coordinating this Run: its own ID for the Task this start creates or reopens. */

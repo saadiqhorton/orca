@@ -13,6 +13,7 @@ import {
 import type { RpcContext } from '../../../core'
 import { recordReceiptBeforeNudge } from './mutation-replay-nudge'
 import type { SendParams } from './send-params'
+import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 
 const NOTHING_SENT = { effectsApplied: false } as const
 
@@ -109,18 +110,52 @@ export async function sendPeerMail(args: {
 
 type SendInput = z.infer<typeof SendParams>
 
+type HomeRunLookup = {
+  getOrchestrationDb?: () => {
+    getDispatchContextById?: (id: string) => unknown
+    getTask?: (id: string) => unknown
+    getRun?: (id: string) => unknown
+  }
+}
+
+/** Bare Dispatch ids from worker-start receipts are mailboxes, not live terminal handles. */
+export function normalizeOrchestrationSendTo(to: string | undefined): string | undefined {
+  return to && /^ctx_/i.test(to) ? `dispatch:${to}` : to
+}
+
+/** A Dispatch/Run/task on this Orca stays here even when `--host` named another machine. */
+export function sendStaysOnHomeRun(to: string | undefined, runtime: HomeRunLookup): boolean {
+  if (!to) {
+    return false
+  }
+  const normalized = normalizeOrchestrationSendTo(to) ?? to
+  if (/^(run|dispatch|task):/i.test(normalized) || /^ctx_/i.test(to)) {
+    return true
+  }
+  const db = runtime.getOrchestrationDb?.()
+  if (!db) {
+    return false
+  }
+  return Boolean(db.getDispatchContextById?.(to) || db.getTask?.(to) || db.getRun?.(to))
+}
+
 /** `send --on` goes to the paired server; every other send, and every replay, runs `send`. */
 export function withPeerMailSend<R>(
   send: (params: SendInput, ctx: RpcContext) => Promise<R>
 ): (params: SendInput, ctx: RpcContext) => Promise<unknown> {
   return async (params, ctx) => {
-    const on = params.on
-    if (on === undefined || ctx.replayedMutationReceipt !== undefined) {
+    if (ctx.replayedMutationReceipt !== undefined) {
       return await send(params, ctx)
+    }
+    const routed = await routeDesktopHubCommand(ctx.runtime, params)
+    const to = normalizeOrchestrationSendTo(routed.to)
+    const on = routed.on
+    if (on === undefined || sendStaysOnHomeRun(to, ctx.runtime)) {
+      return await send({ ...routed, to, on: undefined, host: undefined }, ctx)
     }
     const attested = ctx.orchestrationCompatibilityCallerAuthority
     return await sendPeerMail({
-      params: { ...params, on },
+      params: { ...routed, on },
       runtime: ctx.runtime,
       orchestrationCaller: ctx.orchestrationCaller,
       attestedCaller: attested?.terminalHandle === params.from ? attested : undefined,

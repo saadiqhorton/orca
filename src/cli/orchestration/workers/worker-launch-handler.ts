@@ -21,11 +21,25 @@ import { explainOlderRuntimeRunRequired } from '../recovery/older-runtime-run-bi
 import { withResolvedNextCommands } from '../recovery/orchestration-mutation-recovery'
 import { readTextOrFileFlag } from '../../arguments/command-body-input'
 import { refuseAgentServerRoute } from '../identity/agent-server-route'
+import { isDesktopHubHostValue } from '../../hosts/desktop-hub-host-flag'
+import { resolveDesktopHubHost, throwDesktopHubHostResolution } from '../../hosts/desktop-hub-bind'
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async (ctx) => {
     const { flags, client, cwd, json } = ctx
     await refuseAgentServerRoute('worker-start', ctx)
+    const host = getOptionalStringFlag(flags, 'host')
+    const on = getOptionalStringFlag(flags, 'on')
+    if (host && on) {
+      throw new RuntimeClientError('invalid_argument', 'Use either --host or --on, not both.')
+    }
+    if (isDesktopHubHostValue(host)) {
+      await assertDesktopHubRuntime(client)
+      const resolved = await resolveDesktopHubHost(client, host)
+      if (resolved.status !== 'matched') {
+        throwDesktopHubHostResolution(host, resolved)
+      }
+    }
     const terminal = getPresentStringFlag(flags, 'terminal')
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
@@ -66,7 +80,8 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       ...(taskTitle ? { taskTitle } : {}),
       ...(deps ? { deps } : {}),
       ...(parent ? { parent } : {}),
-      on: getOptionalStringFlag(flags, 'on'),
+      on,
+      ...(host ? { host } : {}),
       worktree: getOptionalStringFlag(flags, 'worktree'),
       name: getOptionalStringFlag(flags, 'name'),
       repo: getOptionalStringFlag(flags, 'repo'),
@@ -126,6 +141,21 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
         message: `${dispatchId} started but was not kept open (${keepOpenState}). Run ${renderOrchestrationArgv(['orchestration', verb, '--dispatch', dispatchId])}.`
       })
     }
+  }
+}
+
+/** An older runtime would ignore `--host` and start the worker on this machine. */
+async function assertDesktopHubRuntime(client: RuntimeClient): Promise<void> {
+  try {
+    await client.call('orchestration.desktopHub.list', {})
+  } catch (error) {
+    if (error instanceof RuntimeClientError && error.code === 'method_not_found') {
+      throw new RuntimeClientError(
+        'incompatible_runtime',
+        'This Orca runtime cannot start a worker on a desktop-connected host. Update Orca on this machine and try again. Orca will not use SSH.'
+      )
+    }
+    throw error
   }
 }
 

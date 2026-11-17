@@ -47,6 +47,7 @@ export function projectWorkerAttentionContext(args: {
     interrupted:
       args.facts.terminationReason === 'operator_close' ||
       args.facts.terminationReason === 'signaled',
+    operatorStopped: args.facts.workerState === 'stopped',
     liveness: projectLiveness(
       {
         workerState: args.facts.workerState,

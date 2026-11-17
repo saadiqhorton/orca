@@ -39,6 +39,7 @@ beforeEach(() => {
     id: selector.replace(/^id:/, ''),
     repoId: 'repo'
   }))
+  vi.spyOn(runtime, 'resolveAgentDetectionHost').mockRejectedValue(new Error('skip detection'))
 })
 
 /** A person's turn in the worker chat, started and still running; resolves to its end. */

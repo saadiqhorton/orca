@@ -1,5 +1,3 @@
-import type { RuntimeAccountController } from '../../agent-session/environment/runtime-account-controller'
-import { applyRemoteViewerLaunchEnv } from './remote-viewer-launch-env'
 import type { SessionOptionValue } from '../../../../shared/native-chat/input/native-chat-session-options'
 import type { TuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent'
 import type { AgentLaunchPreferences } from '../../../../shared/agent-session/agent-session-host-authority'
@@ -35,6 +33,7 @@ import {
   resolveAgentLaunchRuntime
 } from './agent-launch-scope-runtime'
 import { resolveQoderTerminalCommand } from './qoder-terminal-command-resolution'
+import { orcaOwnedHostInstructionArgs } from '../../orchestration/desktop-hub/orca-host-name-cache'
 import { resolveStartupShell } from '../../../../shared/agent-launch/startup/tui-agent-startup-shell'
 import { resolveWslSessionContext } from '../../../daemon/pty-subprocess/wsl-session-context'
 import { isTuiAgentEnabled } from '../../../../shared/agent-launch/catalog/tui-agent-selection'
@@ -172,6 +171,8 @@ async function buildRuntimeAgentTerminalStartupOptions(
 ): Promise<TerminalCreateOptions> {
   // Repo display metadata may belong to another host; use the already-resolved PTY route for launch.
   const isRemote = Boolean(workspace.connectionId)
+  const extraAgentArgs = opts.extraAgentArgs
+  const orcaOwnedAgentArgs = orcaOwnedHostInstructionArgs(agent)
   const forceLine = opts.startupPromptCarry === 'force-line'
   // Create has no live PTY for later prompt delivery; refuse uncarryable text. force-line preserves createAgentSession's clean launch.
   if (opts.startupPrompt && !forceLine && !agentPromptRidesLaunchCommand(agent)) {
@@ -185,7 +186,8 @@ async function buildRuntimeAgentTerminalStartupOptions(
         platform: runtime.platform,
         isRemote,
         ...(opts.agentArgs !== undefined ? { agentArgs: opts.agentArgs } : {}),
-        ...(opts.extraAgentArgs !== undefined ? { extraAgentArgs: opts.extraAgentArgs } : {}),
+        ...(extraAgentArgs !== undefined ? { extraAgentArgs } : {}),
+        ...(orcaOwnedAgentArgs !== undefined ? { orcaOwnedAgentArgs } : {}),
         shell: agentLaunchQuotingShell(runtime),
         sessionOptions: sessionOptions ?? host.toSessionOptions(opts.launchPreferences),
         ...(opts.suppressStartupUpdatePrompt ? { suppressStartupUpdatePrompt: true } : {})
@@ -285,22 +287,4 @@ function resolveQoderLaunchCommand(
     context: wsl ? { wslDistro: wsl.distro } : {},
     shell: agentLaunchQuotingShell(fact)
   })
-}
-
-export async function prepareHostAgentTerminalLaunch(
-  workspace: TerminalWorkspaceLaunchScope,
-  opts: TerminalCreateOptions,
-  resolvedLaunch: TerminalCreateOptions,
-  accounts: Pick<RuntimeAccountController, 'prepareHostAgentLaunch' | 'hostLaunchEnvFor'>
-): Promise<TerminalCreateOptions> {
-  const launch = applyRemoteViewerLaunchEnv(resolvedLaunch, opts.terminalImageViewerSupported)
-  // An SSH workspace's shell runs on that machine, where this distro's account paths mean nothing.
-  if (workspace.connectionId) {
-    return launch
-  }
-  if (launch.launchAgent) {
-    await accounts.prepareHostAgentLaunch(launch.launchAgent)
-  }
-  const hostLaunchEnv = accounts.hostLaunchEnvFor(launch.launchAgent)
-  return withHostAccountLaunchEnv(opts, launch, hostLaunchEnv)
 }

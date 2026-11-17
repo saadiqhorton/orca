@@ -69,6 +69,8 @@ export function autoUpdateManagedOrcadEnvironment(
     let lockedSkip: ManagedOrcadAutoUpdateSkip | null = null
     try {
       const result = await runManagedOrcadUpdate(userDataPath, managed, context, {
+        // Pick up new hub RPCs without closing live tabs; the daemon is preserved.
+        force: 'live-terminals',
         // Another desktop may activate or stop a newer build during upload; recheck under the fence.
         admitRecord: (record) => {
           const locked = planManagedOrcadAutoUpdate({

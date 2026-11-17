@@ -5,6 +5,15 @@ import type { RuntimeNotifier } from '../../client/events/runtime-notifier-contr
 import type { TerminalWorkspaceLaunchScope } from '../../orchestration/terminal-authority/structured-sessions/runtime-legacy-worker-terminal-recovery-types'
 import type { RuntimeTerminalPresentation } from '../../../../shared/runtime-terminal-contracts'
 
+export function requirePtyControllerSpawn<T extends { spawn?: unknown }>(
+  controller: T | null | undefined
+): T & { spawn: NonNullable<T['spawn']> } {
+  if (!controller?.spawn) {
+    throw new Error('runtime_unavailable')
+  }
+  return controller as T & { spawn: NonNullable<T['spawn']> }
+}
+
 function terminalRevealViewerOptions(
   opts: Pick<TerminalCreateOptions, 'surfaceOwner' | 'agentLaunchViewer'>
 ) {
@@ -26,6 +35,8 @@ export function revealCreatedTerminal(args: {
   /** An adopted pane already ran; its recipe and spent launch token must not be re-registered. */
   adoptedStablePane: boolean
   presentation: RuntimeTerminalPresentation | undefined
+  /** Headless hosts publish into the session graph; that is enough to be discoverable. */
+  hasPty?: boolean
   opts: TerminalCreateOptions
   tabId: string
   leafId: string
@@ -43,6 +54,7 @@ export function revealCreatedTerminal(args: {
     launchToken,
     adoptedStablePane,
     presentation,
+    hasPty,
     opts,
     tabId,
     leafId
@@ -88,6 +100,11 @@ export function revealCreatedTerminal(args: {
     })()
   }
   rememberLaunchRecipe()
+  const publishedMobileSession =
+    Boolean(hasPty) && !adoptedStablePane && launchOpts.deferMobileSessionPublish !== true
+  if (publishedMobileSession && presentation !== 'background') {
+    return { surface: 'visible' as const }
+  }
   return {
     surface: 'background',
     warning: presentation !== 'background' ? createTerminalRevealWarning(handle) : undefined

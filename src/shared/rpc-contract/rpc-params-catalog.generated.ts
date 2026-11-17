@@ -42,6 +42,7 @@ import {
   OrcadPeerDesktopsParamsSchema
 } from '../orcad-peer-desktops-contract'
 import { OrcadTerminalCensusParamsSchema } from '../orcad-terminal-census'
+import { DesktopHubAnswerParams } from '../orchestration/desktop-hub-contract'
 import {
   CrewSubscribeParams,
   WorkerApprovalsSubscribeParams
@@ -429,6 +430,10 @@ import {
   NotificationUnsubscribeParams,
   NotificationsSubscribeParams
 } from './notifications/notifications-params'
+import {
+  DesktopHubCallParams,
+  OrchestrationSurfaceEnsureScratchParams
+} from './orchestration/desktop-hub-call-params'
 import { ApprovalAnswerParams } from './orchestration/orchestration-approval-answer-params'
 import {
   FederationDispatchParams,
@@ -1392,6 +1397,10 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.callerShow': null,
   'orchestration.check': CheckParams,
   'orchestration.crewSubscribe': CrewSubscribeParams,
+  'orchestration.desktopHub.answer': DesktopHubAnswerParams,
+  'orchestration.desktopHub.call': DesktopHubCallParams,
+  'orchestration.desktopHub.inventory': null,
+  'orchestration.desktopHub.list': null,
   'orchestration.dispatch': DispatchParams,
   'orchestration.dispatchShow': DispatchShowParams,
   'orchestration.federationAck': FederationAckParams,
@@ -1426,6 +1435,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.runStop': RunStopParams,
   'orchestration.runUse': RunUseParams,
   'orchestration.sessionAddress': SessionAddressParams,
+  'orchestration.surface.ensureScratch': OrchestrationSurfaceEnsureScratchParams,
+  'orchestration.surface.inventory': null,
   'orchestration.taskCreate': TaskCreateParams,
   'orchestration.taskList': TaskListParams,
   'orchestration.workerAbandon': WorkerDispatchParams,

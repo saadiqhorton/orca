@@ -121,23 +121,25 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     path: ['terminal', 'list'],
     summary: 'List live Orca-managed terminals',
     usage:
-      'orca terminal list [--worktree <selector>] [--limit <n>] [--include-visual-layouts] [--json]',
+      'orca terminal list [--host <desktop-connected-host>] [--worktree <selector>] [--limit <n>] [--include-visual-layouts] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'worktree', 'limit', 'include-visual-layouts'],
     notes: [
-      'JSON omits visualLayouts by default; pass --include-visual-layouts when machine-readable tab and pane topology is required.'
-    ]
+      'JSON omits visualLayouts by default; pass --include-visual-layouts when machine-readable tab and pane topology is required.',
+      '--host <name> lists tabs on a machine the desktop app is connected to. Those tabs are the same ones in the desktop Orca window.'
+    ],
+    examples: ['orca terminal list --json', 'orca terminal list --host ubuntu-server-local --json']
   },
   {
     path: ['terminal', 'show'],
     summary: 'Show terminal metadata and preview',
-    usage: 'orca terminal show [--terminal <handle>] [--json]',
+    usage: 'orca terminal show [--host <desktop-connected-host>] [--terminal <handle>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'terminal']
   },
   {
     path: ['terminal', 'read'],
     summary: 'Read bounded terminal output',
     usage:
-      'orca terminal read [--terminal <handle>] [--cursor <n>] [--limit <n>] [--screen] [--json]',
+      'orca terminal read [--host <desktop-connected-host>] [--terminal <handle>] [--cursor <n>] [--limit <n>] [--screen] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'cursor', 'limit', 'screen'],
     notes: [
       'Omit --terminal to target the active terminal in the current worktree.',
@@ -156,7 +158,8 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     examples: [
       'orca terminal read --json',
       'orca terminal read --terminal term_abc123 --cursor 42 --limit 1000 --json',
-      'orca terminal read --terminal term_abc123 --screen --json'
+      'orca terminal read --terminal term_abc123 --screen --json',
+      'orca terminal read --host ubuntu-server-local --terminal term_abc123 --screen --json'
     ]
   },
   TERMINAL_SEND_COMMAND_SPEC,
@@ -181,16 +184,18 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     path: ['terminal', 'create'],
     summary: 'Create a terminal session in the current worktree',
     usage:
-      'orca terminal create [--worktree <selector>] [--title <name>] [--command <text>] [--shell <shell>] [--focus] [--json]',
+      'orca terminal create [--host <desktop-connected-host>] [--worktree <selector>] [--title <name>] [--command <text>] [--shell <shell>] [--focus] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'worktree', 'command', 'shell', 'title', 'focus'],
     notes: [
       'Creates a visible terminal tab without switching focus when possible; falls back to a background handle if the UI cannot adopt it. Pass --focus to switch to it.',
+      '--host <name> creates the tab on a machine the desktop app is connected to. It shows up in the desktop Orca window. Without --worktree, Orca creates or reuses ~/orca-orchestration on that host. Do not use SSH.',
       'This creates a terminal and runs --command in it. To start an agent, use `orca agent launch` (or `orca worktree create --agent` for a new checkout), which follows your Chat | CLI choice.',
       '--shell picks the shell the terminal IS on a Windows host (cmd.exe, powershell.exe, pwsh.exe, wsl.exe, bash.exe, git-bash); --command is typed into whatever shell the host started, so `--command cmd.exe` leaves a cmd running INSIDE the default shell and exiting it drops back to that shell.',
       'A host that cannot apply --shell refuses the create rather than quietly spawning its default shell: macOS and Linux execution hosts spawn the login shell, terminals routed over SSH resolve their shell on the SSH host, a --shell that contradicts the project execution runtime (WSL vs Windows host) is refused, and an Orca host older than --shell is refused by the CLI.'
     ],
     examples: [
       'orca terminal create --json',
+      'orca terminal create --host ubuntu-server-local --json',
       'orca terminal create --worktree active --command "pnpm dev" --json',
       'orca terminal create --worktree path:/projects/myapp --title "RUNNER" --command "npm test"',
       'orca terminal create --worktree path:/projects/myapp --command "pnpm dev" --focus',

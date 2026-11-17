@@ -9,7 +9,7 @@ import { OrcaRuntimeRpcServer } from '../../runtime/rpc/server/runtime-rpc'
 import { resolveServePinnedBindHost } from '../serve-launch/serve-pinned-bind-host'
 import { isOrcadSidecarLaunch } from '../../window/activation/foreground-activation-policy'
 import { registerMobileHandlers } from '../../ipc/mobile'
-import { createRuntimeEnvironmentMobileRelayHosts } from '../../ipc/runtime-environments/mobile-relay/runtime-environment-mobile-relay-hosts'
+import { installDesktopConnectedSurfaces } from '../../ipc/runtime-environments/desktop-hub/desktop-hub-client'
 import { getLocalPtyProvider } from '../../ipc/pty/provider/registry'
 import { registerHeadlessPtyRuntime } from '../../ipc/pty/register-headless-runtime'
 import { LocalPtyProvider } from '../../providers/local-pty/local-pty-provider'
@@ -133,7 +133,7 @@ function installRuntimeRpc(
   })
   state.runtimeRpc = runtimeRpc
   runtime.setAgentSenderPeerKey(() => runtimeRpc.getE2EEPublicKey())
-  runtimeRpc.setMobileDesktopRelayHosts(createRuntimeEnvironmentMobileRelayHosts())
+  installDesktopConnectedSurfaces(runtime, runtimeRpc)
   registerMobileHandlers(runtimeRpc, {
     getRelayStatus: getDesktopRelayStatus,
     consumePendingUnpairedDeviceAuthFailure: (webContentsId) => {

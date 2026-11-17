@@ -61,6 +61,33 @@ describe('orchestration RPC methods', () => {
       await expect(waiting).resolves.toBeInstanceOf(MessageWake)
     })
 
+    it('delivers a bare ctx_ id to the worker as dispatch mail', async () => {
+      setup()
+      const task = db.createTask({ spec: 'bare ctx worker' })
+      const dispatch = createRootDispatch(db, task.id, 'term_worker')
+      expect(dispatch.id).toMatch(/^ctx_/)
+
+      const result = (await call('orchestration.send', {
+        from: 'term_coord',
+        to: dispatch.id,
+        subject: 'bare ctx ping',
+        body: 'please print this'
+      })) as { message: { to_handle: string; run_id: string } }
+
+      expect(result.message).toMatchObject({
+        to_handle: `dispatch:${dispatch.id}`,
+        run_id: activeRunId
+      })
+
+      const workerCheck = (await call('orchestration.check', {
+        terminal: 'term_worker'
+      })) as { dispatchId: string; messages: { subject: string; body: string | null }[] }
+      expect(workerCheck).toMatchObject({
+        dispatchId: dispatch.id,
+        messages: [{ subject: 'bare ctx ping', body: 'please print this' }]
+      })
+    })
+
     it('routes exact Dispatch mail independently of terminal handles', async () => {
       setup()
       const task = db.createTask({ spec: 'controlled worker' })

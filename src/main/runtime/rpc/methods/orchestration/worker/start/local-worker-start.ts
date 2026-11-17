@@ -1,10 +1,13 @@
 import { createLocalWorkerStartDispatch } from './local-worker-start-dispatch'
 import { refuseClaimedWorkerTerminal } from '../../../../../orchestration/db/worker-dispatch/worker-terminal-claim'
-import { probeWorkerOpenCodeModelLaunchSupport } from './launch/worker-opencode-model-preflight'
-import { resolveWorkerConfiguredAgentParams } from './launch/worker-configured-agent-preflight'
+import { resolveLocalWorkerLaunchPlan } from './local-worker-launch-plan'
 import { waitForWorkerAgentReady } from '../../../../../terminal/wait/launched-agent-composer-readiness'
 import type { OrcaRuntimeService } from '../../../../../orca-runtime'
 import { describeTerminalWaitBlockedReason } from '../../../../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
+import {
+  isWorkerStartBlockedPromptError,
+  throwIfWorkerStartBlockedOnPrompt
+} from './worker-start-blocked-prompt'
 import type { OrchestrationDb } from '../../../../../orchestration/db/orchestration-db'
 import type {
   DispatchContextRow,
@@ -19,7 +22,6 @@ import type { AgentLaunchModeReceipt as WorkerStartModeReceipt } from '../../../
 import { EXISTING_WORKTREE_SETUP, placeWorkerAgent } from './placement/worker-start-agent-placement'
 import { awaitStructuredWorkerSetupGate } from './readiness/worker-start-structured-setup-gate'
 import { assertOrchestrationWorktreeCreationSupported } from './placement/folder-worktree-placement'
-import { resolveWorkerWorktreeCreationTarget } from './placement/worker-worktree-creation'
 import type { WorkerStartInput } from './worker-start-input'
 import {
   persistGatedSetupSpawnFailure,
@@ -33,7 +35,6 @@ import { chatAssigneeOf, chatWorkerMode } from '../../chat-assignee-admission'
 import { recordCreatedWorkerTerminalCustody } from './placement/created-worker-terminal-custody'
 import { releaseRetriedWorkerTerminal } from '../release/retried-worker-terminal-release'
 import { requireWorkerAuthority, type WorkerEffect } from './placement/worker-placement-topology'
-import { prepareLocalWorkerStart } from './launch/worker-start-validation'
 import { deliverAndSettleWorkerStartReadiness } from './readiness/worker-start-readiness-settlement'
 import type { WorkerStartMutation } from './worker-start-mutation'
 import { prepareWorkerStartCard } from '../../../../../orchestration/workers/launch/worker-start-card'
@@ -63,47 +64,8 @@ export async function startLocalWorker(args: {
   const terminal = args.params.terminal && resolveDispatchAssigneeParty(args.params.terminal, db)
   const params = terminal ? { ...args.params, terminal: terminal.address } : args.params
   const chat = terminal ? chatAssigneeOf(terminal) : null
-  const requestedWorktree = params.worktree ?? 'current'
-  const createsWorktree = requestedWorktree === 'new-child' || requestedWorktree === 'new-top-level'
-  const creationTargetFor = (callerWorktreeId: string) =>
-    resolveWorkerWorktreeCreationTarget({
-      runtime,
-      requestedWorktree,
-      repo: params.repo,
-      callerWorktreeId
-    })
-  const launchParams = await resolveWorkerConfiguredAgentParams(runtime, params, async () => {
-    const callerWorkspaceId = await resolveDispatchCallerWorktreeId(
-      runtime,
-      params.from,
-      callerSession
-    )
-    return createsWorktree
-      ? { repo: (await creationTargetFor(callerWorkspaceId)).repoSelector }
-      : {
-          worktree: requestedWorktree === 'current' ? `id:${callerWorkspaceId}` : requestedWorktree
-        }
-  })
-  let openCodeModelLaunchSupported = false
-  if (!createsWorktree && launchParams.agent === 'opencode' && launchParams.model) {
-    const callerWorkspaceId = await resolveDispatchCallerWorktreeId(
-      runtime,
-      params.from,
-      callerSession
-    )
-    openCodeModelLaunchSupported = await probeWorkerOpenCodeModelLaunchSupport(
-      runtime,
-      launchParams,
-      { worktree: requestedWorktree === 'current' ? `id:${callerWorkspaceId}` : requestedWorktree }
-    )
-  }
-
-  const { agent, launch } = prepareLocalWorkerStart({
-    params: launchParams,
-    createsWorktree,
-    runtime,
-    openCodeModelLaunchSupported
-  })
+  const { requestedWorktree, createsWorktree, creationTargetFor, agent, launch } =
+    await resolveLocalWorkerLaunchPlan({ runtime, params, callerSession })
 
   const coordinatorWorktreeId = await resolveDispatchCallerWorktreeId(
     runtime,
@@ -233,6 +195,7 @@ export async function startLocalWorker(args: {
         if (setupReceipt.state === 'failed') {
           failedStage = 'setup_wait'
         }
+        throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
         throw new Error(
           wait.blockedReason
             ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
@@ -293,6 +256,9 @@ export async function startLocalWorker(args: {
       launch: launch.receipt,
       mode
     })
+    if (isWorkerStartBlockedPromptError(error)) {
+      throw error
+    }
   }
   if (
     !params.terminal &&

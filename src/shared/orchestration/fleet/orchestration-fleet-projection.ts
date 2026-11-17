@@ -150,6 +150,7 @@ export function refreshOrchestrationFleetLivenessAttention(worker: Orchestration
     pendingGuidance: had('guidance'),
     pendingApproval: had('approval'),
     interrupted: had('interruption'),
+    operatorStopped: worker.stage.worker === 'stopped',
     liveness: worker.liveness
   })
 }

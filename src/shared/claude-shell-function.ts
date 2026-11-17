@@ -1,9 +1,20 @@
 /** Re-read account selection on every launch in Orca-routed panes with a real claude binary. Missing/empty pointer restores the user’s config; another pane override wins. Create account homes without a login silently and preserve Anthropic auth. Refuse nonabsolute pointers rather than run under the wrong account. */
+function posixClaudeInstructionArgs(): string {
+  return `    if [[ -n "\${ORCA_INSTRUCTIONS_FILE:-}" && -f "\${ORCA_INSTRUCTIONS_FILE}" ]]; then
+      case " $* " in
+        *" --append-system-prompt-file "*) ;;
+        *) set -- --append-system-prompt-file "$ORCA_INSTRUCTIONS_FILE" "$@" ;;
+      esac
+    fi
+`
+}
+
 export function getPosixClaudeShellFunction(): string {
   return `__orca_claude_binary="$(unalias claude 2>/dev/null || :; command -v claude 2>/dev/null || :)"
 # Why typeset -f: a user's own claude function wins; command -v prints its bare name, which -x tests against the cwd.
-if ! typeset -f claude >/dev/null 2>&1 && [[ -n "\${ORCA_CLAUDE_PROFILE_POINTER:-}" && -n "\${__orca_claude_binary:-}" && -x "\${__orca_claude_binary}" ]]; then
+if ! typeset -f claude >/dev/null 2>&1 && [[ -n "\${__orca_claude_binary:-}" && -x "\${__orca_claude_binary}" ]]; then
   function claude {
+${posixClaudeInstructionArgs()}
     local __orca_claude_home __orca_claude_pointer="\${ORCA_CLAUDE_PROFILE_POINTER:-}"
     # Why: a WSL pane's pointer is relative to the guest home, which the host cannot know at spawn.
     case "$__orca_claude_pointer" in '~/'*) __orca_claude_pointer="\${HOME:-}/\${__orca_claude_pointer#??}" ;; esac
@@ -34,8 +45,13 @@ unset __orca_claude_binary
 export function getFishClaudeShellFunction(): string {
   return `
 set -l __orca_claude_type (type -t claude 2>/dev/null)
-if test -n "$ORCA_CLAUDE_PROFILE_POINTER"; and test "$__orca_claude_type" = file
+if test "$__orca_claude_type" = file
   function claude
+    if test -n "$ORCA_INSTRUCTIONS_FILE"; and test -f "$ORCA_INSTRUCTIONS_FILE"
+      if not contains -- --append-system-prompt-file $argv
+        set argv --append-system-prompt-file "$ORCA_INSTRUCTIONS_FILE" $argv
+      end
+    end
     # Why: a WSL pane's pointer is relative to the guest home, which the host cannot know at spawn.
     set -l pointer (string replace -r '^~/' "$HOME/" -- "$ORCA_CLAUDE_PROFILE_POINTER")
     set -l profile (cat "$pointer" 2>/dev/null)
@@ -66,8 +82,7 @@ set -e __orca_claude_type
 
 export function getPowerShellClaudeShellFunction(): string {
   return `$orcaClaudeCommand = Get-Command claude -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($env:ORCA_CLAUDE_PROFILE_POINTER -and $orcaClaudeCommand -and
-    $orcaClaudeCommand.CommandType -in @("Application", "ExternalScript")) {
+if ($orcaClaudeCommand -and $orcaClaudeCommand.CommandType -in @("Application", "ExternalScript")) {
 function Global:claude {
     $names = @('CLAUDE_CONFIG_DIR', 'ORCA_CLAUDE_INJECTED_CONFIG_DIR')
     $saved = @{}
@@ -95,7 +110,11 @@ function Global:claude {
             $env:ORCA_CLAUDE_INJECTED_CONFIG_DIR = $orcaClaudeHome
         }
         $binary = Get-Command claude -CommandType Application,ExternalScript -ErrorAction Stop | Select-Object -First 1
-        $claudeArgs = @(__OrcaEscapeNativeArgs $binary.Source $args)
+        $forward = @($args)
+        if ($env:ORCA_INSTRUCTIONS_FILE -and (Test-Path -LiteralPath $env:ORCA_INSTRUCTIONS_FILE -PathType Leaf) -and -not ($forward -contains '--append-system-prompt-file')) {
+            $forward = @('--append-system-prompt-file', $env:ORCA_INSTRUCTIONS_FILE) + $forward
+        }
+        $claudeArgs = @(__OrcaEscapeNativeArgs $binary.Source $forward)
         if ($MyInvocation.ExpectingInput) { $input | & $binary.Source @claudeArgs } else { & $binary.Source @claudeArgs }
         $global:LASTEXITCODE = $LASTEXITCODE
     } catch { $global:LASTEXITCODE = 1; Write-Error $_ -ErrorAction Continue }

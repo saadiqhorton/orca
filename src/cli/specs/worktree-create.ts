@@ -44,7 +44,7 @@ export const WORKTREE_CREATE_COMMAND_SPEC: CommandSpec = {
     'If --repo is omitted, Orca infers the repo from the current Orca-managed worktree.',
     'Use --project to create on a ready project host setup without spelling the backing repo id. --project takes the project id or the display name from `orca project list`.',
     '--host is only needed when the project is set up on more than one host; with a single setup Orca uses it. When it is ambiguous the error names every host the project is set up on.',
-    '--host takes local, ssh:<target-id>, runtime:<environment-id>, or the bare host name `orca host list` prints for any of them.',
+    '--host takes local, ssh:<target-id>, runtime:<environment-id>, or the bare host name `orca host list` prints for any of them. A desktop-connected name creates the worktree on that machine through the desktop hub (visible in the desktop Orca sidebar). Without --repo/--project, Orca creates a folder workspace under ~/orca-orchestration on that host. Pass --agent on that path to launch the agent there (same as `orca agent launch --host <name> --worktree folder:<id>`); omitting --agent prints that command instead of dropping the flag.',
     'For related work, use the inferred parent or pass --parent-worktree active, folder:<id>, or worktree:<worktreeId> to make the relationship explicit. Worktree ids are the full <repo-id>::<path> values returned by `orca worktree list --json`.',
     "--parent-worktree is looked up in the new worktree's environment. For a parent in another environment, add --parent-environment with local or a saved environment id or name, such as a row's address.environment from `orca worktree ps --json`. No other environment is searched.",
     'Use --no-parent when the new worktree should be independent of the current context.',
@@ -61,6 +61,8 @@ export const WORKTREE_CREATE_COMMAND_SPEC: CommandSpec = {
   ],
   examples: [
     'orca worktree create --name agent-task --agent codex --prompt "hi" --json',
+    'orca worktree create --host ubuntu-server-local --name scratch --json',
+    'orca worktree create --host ubuntu-server-local --agent claude --prompt "Review the deploy" --json',
     'orca worktree create --name design --no-parent --agent codex --model gpt-6-astra --effort high --prompt "Write the design doc" --json',
     'orca worktree create --repo id:<repoId> --name related-task --json',
     'orca worktree create --project github:stablyai/orca --host runtime:03ef704c-b180-4b10-998d-e28fbd5de9a3 --name benchmark --json',

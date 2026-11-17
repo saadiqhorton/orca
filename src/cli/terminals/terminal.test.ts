@@ -83,4 +83,45 @@ describe('terminal send CLI', () => {
     })
     expect(log).not.toHaveBeenCalled()
   })
+
+  it('returns success for terminal send --enter through a desktop-hub host wrap', async () => {
+    const { wrapDesktopHubClient } = await import('../hosts/desktop-hub-forwarding-client.js')
+    const call = vi.fn(async (method: string) => {
+      if (method === 'orchestration.desktopHub.call') {
+        return {
+          id: 'hub',
+          ok: true as const,
+          result: {
+            runtimeId: 'host-b',
+            graphStatus: 'ready',
+            capabilities: [TERMINAL_PROMPT_DELIVERY_RUNTIME_CAPABILITY],
+            send: {
+              handle: 'term-b',
+              accepted: true,
+              bytesWritten: 2,
+              prompt: { requestId: 'prompt-b', stages: ['input_accepted'] }
+            }
+          },
+          _meta: { runtimeId: 'host-b' }
+        }
+      }
+      throw new Error(method)
+    })
+    const inner = terminalClient(call as unknown as RuntimeClient['call'])
+    const client = wrapDesktopHubClient(inner, 'ubuntu-server-local')
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    process.exitCode = 0
+    await TERMINAL_HANDLERS['terminal send']({
+      flags: new Map<string, string | true>([
+        ['terminal', 'term-b'],
+        ['text', 'hello'],
+        ['enter', true]
+      ]),
+      client,
+      cwd: '/tmp/worktree',
+      json: true
+    })
+    expect(process.exitCode ?? 0).toBe(0)
+    expect(log).toHaveBeenCalled()
+  })
 })
