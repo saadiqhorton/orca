@@ -16,6 +16,7 @@ import { resolveOrchestrationTerminalHandle } from '../identity/terminal-identit
 import { withReceiptNext } from '../receipt-next-text'
 import { printOrchestrationResult } from '../agent-view'
 import { formatMessageViewText, toMessageView, type MessageView } from './message-agent-views'
+import { applyDispatchMailboxFlag } from './dispatch-mailbox-flag'
 
 export const ORCHESTRATION_INBOX_HANDLERS: Record<string, CommandHandler> = {
   'orchestration reply': async (ctx) => {
@@ -57,6 +58,7 @@ export const ORCHESTRATION_INBOX_HANDLERS: Record<string, CommandHandler> = {
   },
 
   'orchestration inbox': async ({ flags, client, json }) => {
+    applyDispatchMailboxFlag(flags)
     const full = flags.has('full')
     const result = await client.call<{
       messages: MessageSummary[]

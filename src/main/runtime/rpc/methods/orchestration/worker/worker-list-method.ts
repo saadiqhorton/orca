@@ -205,8 +205,7 @@ async function projectWorkerListPageWithFilteredSnapshot(
   const pageRows = hasMore ? rows.slice(0, limit) : rows
   const fleet = await projectWorkerListFleet(runtime, pageRows, {
     limit,
-    completeProjection: args.completeProjection,
-    includeRemote: params.includeRemote
+    completeProjection: args.completeProjection
   })
   // Derive totals and counts from the same pinned membership; live filter scans can count rows the cursor cannot reach.
   const pinnedCount = filteredSnapshot?.dispatchIds.length

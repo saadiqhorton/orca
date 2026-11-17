@@ -46,6 +46,10 @@ caller's Run, so `--host` is optional and is ignored if present. After start,
 `worker-keep-open`, `approve`, and `deny` take the same Dispatch id (bare `ctx_…`
 or `dispatch:<id>`) and stay on the Run that owns it. `--host` is ignored if
 present; do not retarget those verbs at the worker's machine.
+`worker-list --run <run_id>` reports each worker's real host and liveness,
+including workers on a connected machine. To read a worker mailbox, use
+`check --dispatch <id>` or `inbox --dispatch <id>` (bare `ctx_…` or
+`dispatch:<id>`), not `--terminal` for a live tab.
 
 `--host` is a name `orca host list` / `orca host inventory` prints with status
 `connected`. That list includes every machine the desktop app is connected to,

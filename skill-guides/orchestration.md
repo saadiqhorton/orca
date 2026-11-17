@@ -120,7 +120,8 @@ Never:
 - When every worker has settled, report to the user per Task: outcome,
   evidence, open blockers.
 - Lost track? `ORCA orchestration inbox --terminal run:<run_id> --limit 50`
-  shows mail `check` already handled.
+  shows mail `check` already handled. A worker mailbox is
+  `ORCA orchestration inbox --dispatch <dispatch_id>` (or `check --dispatch`).
 
 Finished workers close on their own unless `worker-list` gives one a `next`; follow
 it. Kept-open workers, including new-workspace ones, stay open for the user.

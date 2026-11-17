@@ -201,7 +201,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'Terminal state is process accounting and is reported separately from Task status; a completed Task can still own a live terminal.',
       'A reclaimable worker with resource.autoReleaseAt is released automatically at that time unless it is reused with worker-start --terminal or kept open (worker-keep-open, worker-start --keep-open, or the user).',
       'Context-only Dispatches created by orchestration dispatch are included as unsupervised with terminal state retained.',
-      'Returns at most 100 local rows, newest first, by default; --include-remote adds connected-server observations when the host supports fleet listing. Continue with the opaque nextCursor value unchanged.',
+      'Returns at most 100 local rows, newest first, by default. Workers on a connected host report that host and its liveness without --include-remote; the flag is still accepted. Continue with the opaque nextCursor value unchanged.',
       'Without --run the list is scoped to the Run bound to the calling terminal, and to every Run when there is no binding; the receipt reports which in scope.source (flag, bound, or all).',
       "--on <server> lists that paired server's own workers for your Run there (or all of them without a Run), paged with its own cursor."
     ]

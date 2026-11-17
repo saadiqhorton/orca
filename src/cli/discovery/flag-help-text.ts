@@ -83,6 +83,7 @@ export const FLAG_HELP_TEXT: Record<string, string> = {
   'text-stdin': '--text-stdin          Read text payload from stdin',
   'task-id': '--task-id <id>        Task id to include in orchestration payload JSON',
   'task-title': '--task-title <text>    Concise title for an orchestration task',
+  dispatch: '--dispatch <id>        Worker dispatch id (ctx_… or dispatch:ctx_…)',
   'dispatch-id': '--dispatch-id <id>    Dispatch id to include in orchestration payload JSON',
   'files-modified': '--files-modified <csv> Comma-separated files for orchestration payload JSON',
   'report-path': '--report-path <path>  Report path to include in orchestration payload JSON',

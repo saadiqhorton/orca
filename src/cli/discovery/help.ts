@@ -132,6 +132,12 @@ function formatCommandFlagHelp(flag: string, commandPath: string[]): string {
   if (command === 'orchestration worker-list' && flag === 'terminal-state') {
     return '--terminal-state <state> Terminal accounting filter: active, reclaimable, retained, release_pending, release_unknown, or released'
   }
+  if (
+    (command === 'orchestration check' || command === 'orchestration inbox') &&
+    flag === 'dispatch'
+  ) {
+    return '--dispatch <id>        Worker mailbox (ctx_… or dispatch:ctx_…); same as --terminal dispatch:<id>'
+  }
   if (command.startsWith('orchestration ') && flag === 'full') {
     return '--full                 Print the full record Orca returned instead of the concise view'
   }
@@ -139,7 +145,7 @@ function formatCommandFlagHelp(flag: string, commandPath: string[]): string {
     return '--full                 Print the full guide with bundled references'
   }
   if (command === 'orchestration worker-list' && flag === 'include-remote') {
-    return '--include-remote      Include connected-server worker observations'
+    return '--include-remote      Accepted for compatibility; federated host and liveness are included by default'
   }
   if (command === 'linear list-issues' && flag === 'workspace') {
     return '--workspace <id|all>  Connected Linear workspace id, or all'

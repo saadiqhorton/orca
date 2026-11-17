@@ -63,6 +63,15 @@ describe('desktop hub CLI --host routing', () => {
     expect(shouldWrapDesktopHubHost(['orchestration', 'inbox'], dispatchMailbox)).toBe(false)
     expect(
       shouldWrapDesktopHubHost(
+        ['orchestration', 'check'],
+        new Map([
+          ['host', 'ubuntu-server-local'],
+          ['dispatch', 'ctx_793e1b7ab138']
+        ])
+      )
+    ).toBe(false)
+    expect(
+      shouldWrapDesktopHubHost(
         ['orchestration', 'worker-list'],
         new Map([
           ['host', 'ubuntu-server-local'],

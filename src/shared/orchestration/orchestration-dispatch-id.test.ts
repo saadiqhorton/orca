@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { isHomeRunMailboxSelector, normalizeDispatchId } from './orchestration-dispatch-id'
+import {
+  dispatchMailboxAddress,
+  isHomeRunMailboxSelector,
+  normalizeDispatchId
+} from './orchestration-dispatch-id'
 
 describe('normalizeDispatchId', () => {
   it('strips a dispatch: mailbox prefix and leaves a bare ctx_ id', () => {
     expect(normalizeDispatchId('dispatch:ctx_793e1b7ab138')).toBe('ctx_793e1b7ab138')
     expect(normalizeDispatchId('DISPATCH:ctx_793e1b7ab138')).toBe('ctx_793e1b7ab138')
     expect(normalizeDispatchId('ctx_793e1b7ab138')).toBe('ctx_793e1b7ab138')
+  })
+})
+
+describe('dispatchMailboxAddress', () => {
+  it('names the Dispatch mailbox for a bare or prefixed id', () => {
+    expect(dispatchMailboxAddress('ctx_793e1b7ab138')).toBe('dispatch:ctx_793e1b7ab138')
+    expect(dispatchMailboxAddress('dispatch:ctx_793e1b7ab138')).toBe('dispatch:ctx_793e1b7ab138')
   })
 })
 

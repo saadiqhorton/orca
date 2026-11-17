@@ -93,7 +93,7 @@ export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
     path: ['orchestration', 'check'],
     summary: "Check this agent's messages",
     usage:
-      'orca orchestration check [--terminal <handle>] [--run <run_id>] [--ack <delivery_id>] [--unread | --peek | --all] [--types <type,...>] [--format] [--wait] [--timeout-ms <n>] [--retry-request <id>] [--json]\n' +
+      'orca orchestration check [--terminal <handle> | --dispatch <dispatch_id>] [--run <run_id>] [--ack <delivery_id>] [--unread | --peek | --all] [--types <type,...>] [--format] [--wait] [--timeout-ms <n>] [--retry-request <id>] [--json]\n' +
       "  default: return the bound Run's oldest unread FIFO batch and mark it handled.\n" +
       '  --ack: optional; acknowledges a batch from an older Orca that does not mark it.\n' +
       '  --peek: return only unread messages without marking them read.\n' +
@@ -106,6 +106,7 @@ export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'terminal',
+      'dispatch',
       'run',
       'ack',
       'unread',
@@ -122,7 +123,7 @@ export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
       'On Windows PowerShell, quote comma-separated type filters, e.g. --types "worker_done,escalation".',
       '--types is the wake condition for --wait; a returned Delivery is always the whole FIFO batch, so it is never filtered by type. Without --wait it has no effect on consuming checks. Only --peek and --all filter their rows.',
       '--format renders the returned rows as local text only; it never writes to another terminal.',
-      "A consuming check marks the batch it returns as handled, so the next check returns newer mail; no --ack is needed. Several --wait calls may wait on one inbox; waiting reserves nothing, listeners woken by the same arrival get the same Delivery, and --ack of a handled Delivery is a no-op. Consuming checks belong to the agent itself. A script that only watches the inbox must use --peek (including --peek --wait) and must never --ack, or it takes mail the agent never sees. If a check response was lost, rerun it with the --retry-request it printed to get the same batch. To find mail after losing context, run orca orchestration inbox --terminal <mailbox> --limit <n> --full and name the mailbox: run:<run_id> for a coordinator's bound Run, or dispatch:<dispatch_id> for a worker, including mail it read before it bound a helper Run."
+      "A consuming check marks the batch it returns as handled, so the next check returns newer mail; no --ack is needed. Several --wait calls may wait on one inbox; waiting reserves nothing, listeners woken by the same arrival get the same Delivery, and --ack of a handled Delivery is a no-op. Consuming checks belong to the agent itself. A script that only watches the inbox must use --peek (including --peek --wait) and must never --ack, or it takes mail the agent never sees. If a check response was lost, rerun it with the --retry-request it printed to get the same batch. To find mail after losing context, run orca orchestration inbox --terminal <mailbox> --limit <n> --full and name the mailbox: run:<run_id> for a coordinator's bound Run, or --dispatch <dispatch_id> (bare ctx_… or dispatch:ctx_…) for a worker, including mail it read before it bound a helper Run. --dispatch is the same mailbox as --terminal dispatch:<id>; do not pass both."
     ]
   },
   {
@@ -140,11 +141,13 @@ export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
   {
     path: ['orchestration', 'inbox'],
     summary: 'Show messages across (or for) recipients',
-    usage: 'orca orchestration inbox [--limit <n>] [--terminal <handle>] [--full] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'limit', 'terminal', 'full'],
+    usage:
+      'orca orchestration inbox [--limit <n>] [--terminal <handle> | --dispatch <dispatch_id>] [--full] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'limit', 'terminal', 'dispatch', 'full'],
     identityFlagRoles: { terminal: 'target' },
     notes: [
-      'Rows preview each body in 200 characters and keep only payload ids; --full prints them whole.'
+      'Rows preview each body in 200 characters and keep only payload ids; --full prints them whole.',
+      '--dispatch <id> names a worker mailbox (bare ctx_… or dispatch:ctx_…), the same as --terminal dispatch:<id>. Do not pass both.'
     ]
   },
   {
