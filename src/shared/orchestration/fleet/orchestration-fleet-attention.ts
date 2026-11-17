@@ -24,6 +24,8 @@ export type OrchestrationFleetAttentionFacts = {
   pendingGuidance?: boolean
   pendingApproval?: boolean
   interrupted?: boolean
+  /** True when the operator stopped the worker; that is not a Task failure. */
+  operatorStopped?: boolean
   liveness: {
     verdict: 'live' | 'unverifiable' | 'exited'
     reason?: string
@@ -56,7 +58,7 @@ export function projectOrchestrationFleetAttention(
   if (facts.pendingApproval) {
     categories.push('approval')
   }
-  if (facts.outcome === 'failed') {
+  if (facts.outcome === 'failed' && !facts.operatorStopped) {
     categories.push('failure')
   }
   if (facts.interrupted) {

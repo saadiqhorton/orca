@@ -20,6 +20,8 @@ import {
 import { parseTaskDeps } from './start/admission/task-deps-argument'
 import { WorkerStartParams } from '../../../../../../shared/rpc-contract/orchestration/orchestration-worker-start-params'
 import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
+import { remoteWorktreeRequiredMessage } from '../../../../../../shared/orchestration/desktop-hub-placement-flag'
+import { ensureOrchestrationScratchWorkspace } from '../surface/ensure-orchestration-scratch'
 import {
   isWorkerStartTimeoutWithinTimerLimit,
   resolveWorkerStartReadinessTimeoutMs
@@ -139,18 +141,38 @@ export async function prepareWorkerStart(
       { effectsApplied: false }
     )
   }
-  const placement = params.worktree ?? 'current'
+  let placement = params.worktree ?? 'current'
   if (
     orchestrationCaller?.kind === 'peer' &&
     !followUp &&
     !params.terminal &&
     /^(current|new-child)$/.test(placement)
   ) {
-    throw new OrchestrationError(
-      'invalid_argument',
-      `--on requires an exact remote worktree selector or new-top-level: ${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree ${placement}. No effects were applied.`,
-      { effectsApplied: false }
-    )
+    if (placement === 'current') {
+      try {
+        const scratch = await ensureOrchestrationScratchWorkspace(runtime, {})
+        placement = scratch.worktree
+        params = { ...params, worktree: scratch.worktree }
+      } catch {
+        throw new OrchestrationError(
+          'invalid_argument',
+          remoteWorktreeRequiredMessage(
+            params,
+            `${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree current, and a scratch project could not be created. No effects were applied.`
+          ),
+          { effectsApplied: false }
+        )
+      }
+    } else {
+      throw new OrchestrationError(
+        'invalid_argument',
+        remoteWorktreeRequiredMessage(
+          params,
+          `${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree ${placement}. No effects were applied.`
+        ),
+        { effectsApplied: false }
+      )
+    }
   }
   const db = runtime.getOrchestrationDb()
   const coordinator = resolveOrchestrationCaller(runtime, {

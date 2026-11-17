@@ -34,19 +34,39 @@ ORCA orchestration worker-start --spec "<task>" --worktree current --agent <agen
 ```
 
 `<agent>` is an Orca agent id: one the user named, else the agent you are
-running as when the worker shares your execution host. To run on another
-machine the desktop app is connected to, run `orca host list` and start with
-`--host <name>` using a row whose status is `connected` (the machine name in
-that list, such as `ubuntu-server-local`) and `--worktree path:<path>` naming an
-existing Orca project folder on that machine (`current` names this machine).
-Only `orchestration worker-start` and `orchestration send` accept such a
-`--host`; `worktree create`, `terminal create` and `agent launch` do not, so
-never create the workspace first. Never use SSH, never open a port,
-and never copy keys. If the status is `needs_sign_in` or `unreachable`, say so
-and stop. `--on` is only a paired Orca server saved on this machine; load
-`references/placement-and-remote.md` before using it. `worker-start` does not
-check that the CLI is installed; a missing one fails as an `agent_readiness`
-timeout.
+running as when the worker shares your execution host.
+
+To see every machine the desktop app is connected to, plus each host's
+projects, installed agent CLIs, and live tabs, run one command:
+
+```text
+ORCA host inventory --json
+```
+
+`--host <name>` works on the real Orca app, not only hidden workers. Use a row
+whose status is `connected` (for example `ubuntu-server-local`). Those commands
+open or drive tabs that appear in the user's desktop Orca window under that
+host's project/group, the same as if they had created them by hand:
+
+```text
+ORCA host inventory --json
+ORCA agent launch --host <name> --agent <agent> --prompt "<task>" --json
+ORCA terminal create --host <name> --json
+ORCA terminal list --host <name> --json
+ORCA terminal send --host <name> --terminal <handle> --text "<message>" --enter
+ORCA terminal read --host <name> --terminal <handle> --screen
+ORCA worktree create --host <name> --name <short-name> --json
+ORCA orchestration send --host <name> --to <handle-or-dispatch> --subject "<topic>" --body "<message>"
+ORCA terminal close --host <name> --terminal <handle>
+```
+
+Without `--worktree`, `agent launch` and `terminal create` create or reuse
+`~/orca-orchestration` on that host (never the user's home). Hidden background
+workers still use `ORCA orchestration worker-start --host <name>`. Never use
+SSH, never open a port, and never copy keys. If the status is `needs_sign_in`
+or `unreachable`, say so and stop. `--on` is only a paired Orca server saved on
+this machine; load `references/placement-and-remote.md` before using it. If an
+agent CLI is missing, the error lists the agents installed on that host.
 
 - Start every independent worker, then **end your turn**. "Report back" and
   "tell me when it's done" still mean end your turn; Orca wakes you and you

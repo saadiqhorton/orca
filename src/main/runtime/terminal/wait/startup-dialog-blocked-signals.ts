@@ -74,10 +74,7 @@ export function findStartupDialogBlockedSignals(
     candidates.push({ reason: 'agent-hooks-review-prompt', index: hooksIndex })
   }
   const claudeMenuIndex = lastMatchIndex(normalized, CLAUDE_STARTUP_MENU_HEADING_RE)
-  if (
-    claudeMenuIndex !== -1 &&
-    CLAUDE_STARTUP_MENU_KEY_ROW_RE.test(normalized.slice(claudeMenuIndex))
-  ) {
+  if (claudeMenuIndex !== -1 && CLAUDE_STARTUP_MENU_KEY_ROW_RE.test(normalized.slice(claudeMenuIndex))) {
     candidates.push({ reason: 'agent-startup-menu-prompt', index: claudeMenuIndex })
   }
   return candidates

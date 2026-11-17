@@ -25,7 +25,7 @@ function client(result: unknown, fail?: Error) {
 }
 
 describe('refuseDesktopHubHostAlias', () => {
-  it('explains that worktree create --host cannot use a desktop-connected machine', async () => {
+  it('points worktree create --host at visible-tab commands on a desktop-connected machine', async () => {
     const error = await refuseDesktopHubHostAlias(
       client({ hub: 'remote', hosts: hubHosts }),
       'ubuntu-server-local',
@@ -34,9 +34,7 @@ describe('refuseDesktopHubHostAlias', () => {
     expect(error).toBeInstanceOf(RuntimeClientError)
     expect((error as RuntimeClientError).code).toBe('invalid_argument')
     expect((error as Error).message).toContain('a machine the desktop app is connected to')
-    expect((error as Error).message).toContain(
-      'orca orchestration worker-start --host ubuntu-server-local'
-    )
+    expect((error as Error).message).toContain('orca agent launch --host ubuntu-server-local')
   })
 
   it('matches the machine name too', async () => {
@@ -46,7 +44,7 @@ describe('refuseDesktopHubHostAlias', () => {
         'dezignerdrugz00',
         '--host dezignerdrugz00'
       )
-    ).rejects.toThrow('worker-start --host ubuntu-server-local')
+    ).rejects.toThrow('agent launch --host ubuntu-server-local')
   })
 
   it('stays silent for names the hub does not know, and for runtimes without a hub', async () => {

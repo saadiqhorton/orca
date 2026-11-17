@@ -23,5 +23,12 @@ export function describeTerminalWaitBlockedReason(
   reason: RuntimeTerminalWaitBlockedReason
 ): string {
   const neutral = agentNeutralTerminalWaitBlockedReason(reason)
-  return neutral ? `${reason} (${neutral})` : reason
+  const token = neutral ? `${reason} (${neutral})` : reason
+  if (reason === 'agent-hooks-review-prompt' || reason === 'codex-hooks-review-prompt') {
+    return `${token}: the agent is waiting for a human to review hooks in its terminal. send cannot pass this. Open the tab in the desktop Orca window and confirm, or stop the worker.`
+  }
+  if (reason === 'agent-startup-menu-prompt' || reason === 'agent-trust-workspace') {
+    return `${token}: the agent is blocked on a first-run trust or menu prompt. Open the tab in the desktop Orca window.`
+  }
+  return token
 }

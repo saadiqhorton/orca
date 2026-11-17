@@ -36,6 +36,81 @@ export function formatHostName(result: HostNameResult): string {
   return `${result.machineName ?? 'unknown'}${result.platform ? ` (${result.platform})` : ''}`
 }
 
+export function formatScratchWorkspace(result: {
+  path: string
+  worktree: string
+  created: boolean
+  groupName?: string
+  workspaceName?: string
+}): string {
+  const action = result.created ? 'Created' : 'Using'
+  return `${action} ${result.groupName ?? 'Orca orchestration'} / ${result.workspaceName ?? 'scratch'} at ${result.path} (${result.worktree}). Visible in the desktop Orca sidebar.`
+}
+
+type HostInventorySession = {
+  handle: string
+  title?: string | null
+  worktree?: string
+  agent?: string
+}
+
+type HostInventory = {
+  machineName?: string
+  platform?: string
+  projects: { id: string; name: string; parentPath: string | null }[]
+  folderWorkspaces: { id: string; name: string; path: string; projectGroupId: string }[]
+  agents: string[]
+  sessions: HostInventorySession[]
+}
+
+export type HostInventoryRow = {
+  name: string
+  machineName?: string
+  status: string
+  selector?: string
+  error?: string
+  inventory?: HostInventory
+}
+
+export function formatHostInventory(result: { hosts: HostInventoryRow[]; message?: string }): string {
+  const blocks = result.hosts.map((host) => {
+    const title = `${host.name}${host.machineName && host.machineName !== host.name ? ` (${host.machineName})` : ''}  ${host.status}${host.selector ? `  ${host.selector}` : ''}`
+    if (host.error && !host.inventory) {
+      return `${title}\n  error: ${host.error}`
+    }
+    const inventory = host.inventory
+    if (!inventory) {
+      return title
+    }
+    const agents = inventory.agents.length > 0 ? inventory.agents.join(', ') : '(none detected)'
+    const projects =
+      inventory.projects.length === 0
+        ? '  projects: (none)'
+        : inventory.projects
+            .map((project) => `  project: ${project.name}${project.parentPath ? `  ${project.parentPath}` : ''}`)
+            .join('\n')
+    const folders =
+      inventory.folderWorkspaces.length === 0
+        ? '  folders: (none)'
+        : inventory.folderWorkspaces
+            .map((folder) => `  folder: ${folder.name}  path:${folder.path}`)
+            .join('\n')
+    const sessions =
+      inventory.sessions.length === 0
+        ? '  sessions: (none)'
+        : inventory.sessions
+            .map((session) => {
+              const agent = session.agent ? `  ${session.agent}` : ''
+              const titleText = session.title ? `  ${session.title}` : ''
+              return `  session: ${session.handle}${agent}${titleText}`
+            })
+            .join('\n')
+    return `${title}\n  agents: ${agents}\n${projects}\n${folders}\n${sessions}`
+  })
+  const body = blocks.join('\n\n')
+  return result.message ? `${body}\n${result.message}` : body
+}
+
 function formatHostConnection(host: HostListEntry): string {
   if (host.kind === 'execution') {
     return host.connectionStatus ?? 'connection unknown'

@@ -157,6 +157,16 @@ describe('detectTerminalWaitBlockedReason live prompts', () => {
 
     expect(detectTerminalWaitBlockedReason(waitText)).toBe('agent-hooks-review-prompt')
   })
+
+  it('blocks on a Claude folder-trust dialog before the first prompt', () => {
+    const waitText = waitTextFor([
+      'Do you trust this folder?',
+      '/home/saadiq/orca-orchestration',
+      'Claude Code will be able to read, edit, and execute files here.',
+      'Enter to confirm · Esc to cancel'
+    ])
+    expect(detectTerminalWaitBlockedReason(waitText)).toBe('agent-trust-workspace')
+  })
 })
 
 // Matchers lack agent identity; provider-specific reason text reaches unrelated agents' CLI/worker receipts verbatim.

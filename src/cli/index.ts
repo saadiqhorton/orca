@@ -29,6 +29,14 @@ import {
   refuseLocalManagementSelector
 } from './hosts/local-environment-selector'
 import { isDesktopHubHostValue } from './hosts/desktop-hub-host-flag'
+import {
+  bindDesktopHubHost,
+  isFolderWorktreeCreateWithoutRepo,
+  needsDefaultRemoteWorktree,
+  shouldWrapDesktopHubHost
+} from './hosts/desktop-hub-command-route'
+import { printResult } from './output/command-result-output'
+import { formatScratchWorkspace } from './hosts/host-format'
 
 const COMMAND_PATHS = COMMAND_SPECS.flatMap((spec) => specPaths(spec))
 
@@ -170,19 +178,49 @@ export async function main(
       hostEnvironmentId !== null ? null : typeof pairingCode === 'string' ? pairingCode : suppressed
     const remoteEnvironment = hostEnvironmentId ?? storeEnvironmentSelector ?? suppressed
     let client: RuntimeClient | undefined
+    const buildClient = (): RuntimeClient => {
+      client ??= new RuntimeClientClass(
+        undefined,
+        undefined,
+        remotePairingCode,
+        remoteEnvironment,
+        resolveOrchestrationCliExecutable(),
+        argv
+      )
+      return client
+    }
+    if (shouldWrapDesktopHubHost(parsed.commandPath, parsed.flags)) {
+      client = await bindDesktopHubHost(buildClient(), parsed.flags)
+      if (!parsed.flags.has('host')) {
+        if (needsDefaultRemoteWorktree(parsed.commandPath, parsed.flags)) {
+          const scratch = await client.call<{ worktree: string }>(
+            'orchestration.surface.ensureScratch',
+            {}
+          )
+          parsed.flags.set('worktree', scratch.result.worktree)
+        }
+        if (isFolderWorktreeCreateWithoutRepo(parsed.commandPath, parsed.flags)) {
+          const name = parsed.flags.get('name')
+          const scratch = await client.call<{
+            path: string
+            worktree: string
+            created: boolean
+            groupName?: string
+            workspaceName?: string
+          }>(
+            'orchestration.surface.ensureScratch',
+            typeof name === 'string' ? { name } : {}
+          )
+          printResult(scratch, json, formatScratchWorkspace)
+          return
+        }
+      }
+    }
     await dispatch(parsed.commandPath, {
       flags: parsed.flags,
       // Why: local-only handlers must not resolve runtime metadata just to dispatch.
       get client() {
-        client ??= new RuntimeClientClass(
-          undefined,
-          undefined,
-          remotePairingCode,
-          remoteEnvironment,
-          resolveOrchestrationCliExecutable(),
-          argv
-        )
-        return client
+        return buildClient()
       },
       cwd,
       json,

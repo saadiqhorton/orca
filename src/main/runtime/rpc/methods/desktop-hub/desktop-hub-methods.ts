@@ -1,14 +1,18 @@
 import {
   DESKTOP_HUB_SESSION_REFUSED_MESSAGE,
   DesktopHubAnswerParams,
-  DesktopHubError
+  DesktopHubError,
+  type DesktopHubHostRow
 } from '../../../../../shared/orchestration/desktop-hub-contract'
+import { DesktopHubCallParams } from '../../../../../shared/rpc-contract/orchestration/desktop-hub-call-params'
 import { getDesktopHubRegistry } from '../../../orchestration/desktop-hub/desktop-hub-registry'
 import { readDesktopHubCatalogProvider } from '../../../orchestration/desktop-hub/desktop-hub-provider'
 import { defineOrchestrationMethod } from '../orchestration/access/orchestration-method-access'
+import { callDesktopHubHost } from './desktop-hub-call'
+import { collectHostSurfaceInventory } from '../orchestration/surface/orchestration-surface-inventory'
 
 /**
- * Routing control plane, not a Run mutation. A local CLI session may list and place.
+ * Routing control plane, not a Run mutation. A local CLI session may list, place, and forward.
  * Only the paired desktop that registered as the hub may answer.
  */
 export const DESKTOP_HUB_METHODS = [
@@ -17,15 +21,47 @@ export const DESKTOP_HUB_METHODS = [
     permission: 'workspace',
     params: null,
     access: { kind: 'localOnly', targets: {} },
+    handler: async (_params, ctx) => listDesktopHub(ctx)
+  }),
+  defineOrchestrationMethod({
+    name: 'orchestration.desktopHub.call',
+    permission: 'workspace',
+    params: DesktopHubCallParams,
+    access: { kind: 'localOnly', targets: {} },
+    handler: async (params, ctx) => callDesktopHubHost(ctx.runtime, params)
+  }),
+  defineOrchestrationMethod({
+    name: 'orchestration.desktopHub.inventory',
+    permission: 'workspace',
+    params: null,
+    access: { kind: 'localOnly', targets: {} },
     handler: async (_params, ctx) => {
-      const registry = getDesktopHubRegistry(ctx.runtime)
-      registry.assertCaller({ pairedDeviceId: ctx.pairedDeviceId })
-      const provider = readDesktopHubCatalogProvider()
-      if (provider && !registry.hasVolunteer()) {
-        const catalog = await provider()
-        return { hub: 'desktop' as const, hosts: catalog.hosts }
+      const listed = await listDesktopHub(ctx)
+      const hosts = []
+      for (const row of listed.hosts) {
+        const base = snapshotHost(row)
+        if (row.status !== 'connected') {
+          hosts.push({ ...base, error: row.status })
+          continue
+        }
+        try {
+          const inventory =
+            row.hostKey === 'desktop'
+              ? await collectHostSurfaceInventory(ctx.runtime)
+              : await callDesktopHubHost(ctx.runtime, {
+                  host: row.name,
+                  method: 'orchestration.surface.inventory',
+                  timeoutMs: 20_000
+                })
+          hosts.push({ ...base, inventory })
+        } catch (error) {
+          hosts.push({
+            ...base,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
       }
-      return registry.list()
+      return { hub: listed.hub, hosts, ...(listed.message ? { message: listed.message } : {}) }
     }
   }),
   defineOrchestrationMethod({
@@ -41,3 +77,29 @@ export const DESKTOP_HUB_METHODS = [
     }
   })
 ]
+
+async function listDesktopHub(ctx: { runtime: object; pairedDeviceId?: string }): Promise<{
+  hub: 'desktop' | 'remote' | 'unavailable'
+  hosts: DesktopHubHostRow[]
+  message?: string
+}> {
+  const registry = getDesktopHubRegistry(ctx.runtime)
+  registry.assertCaller({ pairedDeviceId: ctx.pairedDeviceId })
+  const provider = readDesktopHubCatalogProvider()
+  if (provider && !registry.hasVolunteer()) {
+    const catalog = await provider()
+    return { hub: 'desktop', hosts: catalog.hosts }
+  }
+  return registry.list()
+}
+
+function snapshotHost(row: DesktopHubHostRow) {
+  return {
+    name: row.name,
+    machineName: row.machineName,
+    id: row.id,
+    hostKey: row.hostKey,
+    selector: row.selector,
+    status: row.status
+  }
+}

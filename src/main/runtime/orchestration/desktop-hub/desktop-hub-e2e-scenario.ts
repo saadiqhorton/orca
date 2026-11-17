@@ -39,6 +39,8 @@ export type CrossHostE2eTranscript = {
   needsSignIn: string
   unreachable: string
   answerPath: 'shared-control'
+  launchedTab: string
+  inventoryAgents: string[]
 }
 
 /** Two runtimes plus a desktop hub on the shared-control socket production uses. */
@@ -114,6 +116,33 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
             if (method === 'orchestration.federationStop') {
               return rpcOk({ state: 'stopped', dispatchId: 'disp_e2e' })
             }
+            if (method === 'agent.launch') {
+              return rpcOk({
+                outcome: { kind: 'terminal', handle: 'term_visible_e2e' },
+                worktree: `path:${worktree}`
+              })
+            }
+            if (method === 'terminal.create') {
+              return rpcOk({ terminal: { handle: 'term_shell_e2e', worktree: `path:${worktree}` } })
+            }
+            if (method === 'orchestration.surface.ensureScratch') {
+              return rpcOk({
+                path: worktree,
+                worktree: `path:${worktree}`,
+                created: false
+              })
+            }
+            if (method === 'orchestration.surface.inventory') {
+              return rpcOk({
+                machineName: 'dezignerdrugz00',
+                agents: ['claude', 'codex'],
+                projects: [{ id: 'grp_e2e', name: 'Orca orchestration', parentPath: worktree }],
+                folderWorkspaces: [
+                  { id: 'fld_e2e', name: 'scratch', path: worktree, projectGroupId: 'grp_e2e' }
+                ],
+                sessions: [{ handle: 'term_visible_e2e', agent: 'claude' }]
+              })
+            }
             return rpcOk({ method })
           }
         })
@@ -187,6 +216,32 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     say(`hostname in host B worktree: ${oneLine(startResult.output)}`)
     say(`worker-read: ${oneLine(readResult.output)}`)
     say(`worker-stop: ${stopResult.state}`)
+    say('$ orca agent launch --host ubuntu-server-local --agent claude')
+    const launched = await registry.call(
+      placed.selector,
+      'agent.launch',
+      { agent: 'claude' },
+      8_000,
+      undefined
+    )
+    const launchedOutcome = resultOf(launched).outcome
+    const launchedTab =
+      launchedOutcome && typeof launchedOutcome === 'object' && 'handle' in launchedOutcome
+        ? String(launchedOutcome.handle)
+        : ''
+    say(`visible tab on host B: ${launchedTab}`)
+    say('$ orca host inventory --json')
+    const inventory = await registry.call(
+      placed.selector,
+      'orchestration.surface.inventory',
+      {},
+      8_000,
+      undefined
+    )
+    const inventoryAgents = Array.isArray(resultOf(inventory).agents)
+      ? (resultOf(inventory).agents as string[])
+      : []
+    say(`host B agents: ${inventoryAgents.join(', ')}`)
     say('$ orca orchestration worker-status  stopped')
     other = new RemoteRuntimeRequestConnection(
       pairedRuntimeConnectionFromOffer(pairingOf(serverA, 'other-app'))
@@ -208,7 +263,9 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       otherSession,
       needsSignIn,
       unreachable,
-      answerPath: hub.answerPath
+      answerPath: hub.answerPath,
+      launchedTab,
+      inventoryAgents
     }
   } finally {
     hub?.close()

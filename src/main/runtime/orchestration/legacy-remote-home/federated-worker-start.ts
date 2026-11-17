@@ -12,6 +12,7 @@ import {
 } from '../../../../shared/orchestration/orchestration-runtime-capabilities'
 import { orchestrationMigrationData } from '../../../../shared/orchestration/orchestration-rpc-contract'
 import { OrchestrationError } from '../orchestration-error'
+import { resolveFederatedWorkerWorktree } from './federated-remote-default-worktree'
 import {
   assertWorkerLaunchPreferencesRuntimeSupported,
   assertWorkerLaunchPreferencesCreateTerminal,
@@ -57,22 +58,16 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       'Remote worker-start requires a durable retry request.'
     )
   }
-  const worktree = params.worktree ?? 'current'
-  if (worktree === 'current') {
-    throw new OrchestrationError(
-      'invalid_argument',
-      '--on requires an exact remote worktree selector, new-child or new-top-level.'
-    )
-  }
-  const createsWorktree = worktree === 'new-top-level' || worktree === 'new-child'
-  assertWorkerLaunchPreferencesCreateTerminal(params)
-  validateFederatedWorkerStartPlacement(params, createsWorktree)
   const requestedLaunch = createPendingWorkerLaunchReceipt({
     agent: isTuiAgent(params.agent) ? params.agent : null,
     model: params.model,
     effort: params.effort
   })
   const server = runtime.resolveOrchestrationWorkerServer(params.on as string)
+  const worktree = await resolveFederatedWorkerWorktree(runtime, server.environmentId, params)
+  const createsWorktree = worktree === 'new-top-level' || worktree === 'new-child'
+  assertWorkerLaunchPreferencesCreateTerminal(params)
+  validateFederatedWorkerStartPlacement({ ...params, worktree }, createsWorktree)
   const pairingFence = { expectedEnvironmentPairingRevision: server.pairingRevision }
   const budgets = resolveFederatedWorkerStartBudgets(params.timeoutMs)
   const status = (await runtime.callOrchestrationWorkerServer(

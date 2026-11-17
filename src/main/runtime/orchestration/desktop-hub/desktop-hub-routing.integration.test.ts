@@ -24,8 +24,12 @@ describe('cross-host orchestration through the desktop hub', () => {
       expect(transcript.forwardedMethods).toEqual([
         'orchestration.federationAttachStart',
         'orchestration.federationShow',
-        'orchestration.federationStop'
+        'orchestration.federationStop',
+        'agent.launch',
+        'orchestration.surface.inventory'
       ])
+      expect(transcript.launchedTab).toBe('term_visible_e2e')
+      expect(transcript.inventoryAgents).toEqual(['claude', 'codex'])
       expect(transcript.hostname).toContain(transcript.marker)
       expect(transcript.readOutput).toBe(transcript.hostname)
       expect(transcript.stopped).toBe(true)
