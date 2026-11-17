@@ -120,6 +120,7 @@ describe('a worker cannot tell which mode it is running in', () => {
       id: WORKTREE,
       repoId: 'repo'
     } as never)
+    vi.spyOn(runtime, 'resolveAgentDetectionHost').mockRejectedValue(new Error('skip detection'))
     vi.spyOn(runtime, 'getStructuredAgentSessionCreateSupport').mockResolvedValue({
       supported: true
     })

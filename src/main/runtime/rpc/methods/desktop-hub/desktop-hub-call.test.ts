@@ -40,6 +40,7 @@ describe('callDesktopHubHost', () => {
       desktopHubSelector('env-ubuntu'),
       'agent.launch',
       { agent: 'claude' },
+      undefined,
       undefined
     )
   })

@@ -28,14 +28,22 @@ orca terminal list --host <name> --json
 orca terminal send --host <name> --terminal <handle> --text "<message>" --enter
 orca worktree create --host <name> --name <short-name> --json
 orca orchestration worker-start --spec "<task>" --host <name> --agent <agent>
-orca orchestration send --host <name> --to <handle-or-dispatch> --subject "<topic>" --body "<message>"
+orca orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
+orca orchestration send --to dispatch:<id> --subject "<topic>" --body "<message>"
 orca terminal close --host <name> --terminal <handle>
 ```
 
 Without `--worktree`, Orca creates or reuses `~/orca-orchestration` on that
 host (a folder project in an "Orca orchestration" sidebar group, never the
-user's home). Pass `--worktree path:<path>` to use an existing project folder
-instead. `current` names this machine's workspace, not the remote one.
+user's home). Pass `--worktree path:<path>` or `--worktree folder:<id>` to use
+an existing project folder (including one `worktree create --host` made).
+`current` names this machine's workspace, not the remote one.
+
+Message a visible tab with `send --host <name> --to <handle>`. Message a worker
+with `send --to dispatch:<id>` — that Dispatch lives on the caller's Run, so
+`--host` is optional and is ignored if present. After start, `worker-show`,
+`worker-read`, and `worker-stop` take the Dispatch id from the receipt and do
+not need `--host` again.
 
 `--host` is a name `orca host list` / `orca host inventory` prints with status
 `connected`. That list includes every machine the desktop app is connected to,
@@ -43,10 +51,8 @@ not only this machine. `needs_sign_in` means the user must sign in or re-pair
 in the desktop app. `unreachable` means the desktop cannot reach that host.
 Say which one, and stop. Orca will not try SSH.
 
-After start, `worker-show`, `worker-read`, and `worker-stop` take the Dispatch
-id from the receipt and do not need `--host` again. Replies come back to this
-session's `check`. For a visible tab, keep using `--host` with `terminal send`
-/ `terminal read` / `agent launch` as above.
+Replies come back to this session's `check`. For a visible tab, keep using
+`--host` with `terminal send` / `terminal read` / `agent launch` as above.
 
 `--on` is different: a paired Orca server saved on the machine running the
 command. Use `--host` for a desktop-connected execution host.

@@ -8,13 +8,20 @@ type HubCallRuntime = {
     selector: string,
     method: string,
     params: unknown,
-    timeoutMs?: number
+    timeoutMs?: number,
+    envelope?: unknown
   ) => Promise<unknown>
 }
 
 export async function callDesktopHubHost(
   runtime: HubCallRuntime,
-  params: { host: string; method: string; params?: unknown; timeoutMs?: number }
+  params: {
+    host: string
+    method: string
+    params?: unknown
+    timeoutMs?: number
+    envelope?: unknown
+  }
 ): Promise<unknown> {
   if (params.method.startsWith(HUB_CONTROL_PREFIX)) {
     throw new DesktopHubError(
@@ -26,5 +33,11 @@ export async function callDesktopHubHost(
   if (!on) {
     throw new DesktopHubError('invalid_argument', 'Missing host for desktop hub call.')
   }
-  return runtime.callOrchestrationWorkerServer(on, params.method, params.params ?? {}, params.timeoutMs)
+  return runtime.callOrchestrationWorkerServer(
+    on,
+    params.method,
+    params.params ?? {},
+    params.timeoutMs,
+    params.envelope
+  )
 }

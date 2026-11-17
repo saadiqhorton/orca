@@ -41,6 +41,8 @@ export type CrossHostE2eTranscript = {
   answerPath: 'shared-control'
   launchedTab: string
   inventoryAgents: string[]
+  scratchWorktree: string
+  desktopInventoryMachine: string
 }
 
 /** Two runtimes plus a desktop hub on the shared-control socket production uses. */
@@ -93,6 +95,20 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
         answerDesktopHubRequest({
           request: event,
           catalog: () => catalog,
+          callLocal: async (_placement, method) => {
+            forwardedMethods.push(`local:${method}`)
+            if (method === 'orchestration.surface.inventory') {
+              return rpcOk({
+                machineName: 'windows-desktop',
+                agents: ['claude'],
+                projects: [],
+                folderWorkspaces: [],
+                repos: [],
+                sessions: []
+              })
+            }
+            return rpcOk({ method })
+          },
           callHost: async (placement, method) => {
             forwardedMethods.push(method)
             if (placement.hostKey !== 'env-ubuntu') {
@@ -128,7 +144,8 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
             if (method === 'orchestration.surface.ensureScratch') {
               return rpcOk({
                 path: worktree,
-                worktree: `path:${worktree}`,
+                worktree: 'folder:fld_e2e',
+                folderWorkspaceId: 'fld_e2e',
                 created: false
               })
             }
@@ -140,6 +157,14 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
                 folderWorkspaces: [
                   { id: 'fld_e2e', name: 'scratch', path: worktree, projectGroupId: 'grp_e2e' }
                 ],
+                repos: [
+                  {
+                    id: 'repo_work',
+                    name: 'work',
+                    path: `${worktree}-git`,
+                    selector: `path:${worktree}-git`
+                  }
+                ],
                 sessions: [{ handle: 'term_visible_e2e', agent: 'claude' }]
               })
             }
@@ -147,7 +172,9 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
           }
         })
     })
-    say(`hub answer path: ${hub.answerPath} (no sendRequest; one-shot ${'orchestration.desktopHub.answer'})`)
+    say(
+      `hub answer path: ${hub.answerPath} (no sendRequest; one-shot ${'orchestration.desktopHub.answer'})`
+    )
     await waitFor(() => getDesktopHubRegistry(runtimeA).hasVolunteer())
     const listed = await serverA.dispatchLocal({
       method: 'orchestration.desktopHub.list',
@@ -185,10 +212,19 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     say('$ orca orchestration worker-start --host ubuntu-server-local --spec hostname')
     const placed = await registry.place('ubuntu-server-local')
     say(`placed -> ${placed.selector}`)
+    const scratch = await registry.call(
+      placed.selector,
+      'orchestration.surface.ensureScratch',
+      {},
+      8_000,
+      undefined
+    )
+    const scratchWorktree = String(resultOf(scratch).worktree ?? '')
+    say(`scratch worktree: ${scratchWorktree}`)
     const started = await registry.call(
       placed.selector,
       'orchestration.federationAttachStart',
-      { task: 'hostname' },
+      { task: 'hostname', worktree: scratchWorktree },
       8_000,
       undefined
     )
@@ -242,6 +278,16 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       ? (resultOf(inventory).agents as string[])
       : []
     say(`host B agents: ${inventoryAgents.join(', ')}`)
+    const desktopPlaced = await registry.place('windows-desktop')
+    const desktopInventory = await registry.call(
+      desktopPlaced.selector,
+      'orchestration.surface.inventory',
+      {},
+      8_000,
+      undefined
+    )
+    const desktopInventoryMachine = String(resultOf(desktopInventory).machineName ?? '')
+    say(`desktop inventory machine: ${desktopInventoryMachine}`)
     say('$ orca orchestration worker-status  stopped')
     other = new RemoteRuntimeRequestConnection(
       pairedRuntimeConnectionFromOffer(pairingOf(serverA, 'other-app'))
@@ -265,7 +311,9 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       unreachable,
       answerPath: hub.answerPath,
       launchedTab,
-      inventoryAgents
+      inventoryAgents,
+      scratchWorktree,
+      desktopInventoryMachine
     }
   } finally {
     hub?.close()
@@ -279,10 +327,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
 function runHostBHostname(worktree: string): string {
   const hostname = runProcessSync({
     program: 'sh',
-    args: [
-      '-c',
-      'echo "B_CWD=$(pwd)"; hostname; cat MARKER'
-    ],
+    args: ['-c', 'echo "B_CWD=$(pwd)"; hostname; cat MARKER'],
     cwd: worktree,
     timeoutMs: 5_000
   })

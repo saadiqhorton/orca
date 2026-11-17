@@ -37,7 +37,11 @@ export const DESKTOP_HUB_METHODS = [
     access: { kind: 'localOnly', targets: {} },
     handler: async (_params, ctx) => {
       const listed = await listDesktopHub(ctx)
-      const hosts = []
+      const hosts: (ReturnType<typeof snapshotHost> & {
+        inventory?: unknown
+        error?: string
+      })[] = []
+      const onDesktop = inventoryUsesLocalDesktopRuntime(ctx.runtime)
       for (const row of listed.hosts) {
         const base = snapshotHost(row)
         if (row.status !== 'connected') {
@@ -46,7 +50,7 @@ export const DESKTOP_HUB_METHODS = [
         }
         try {
           const inventory =
-            row.hostKey === 'desktop'
+            row.hostKey === 'desktop' && onDesktop
               ? await collectHostSurfaceInventory(ctx.runtime)
               : await callDesktopHubHost(ctx.runtime, {
                   host: row.name,
@@ -91,6 +95,11 @@ async function listDesktopHub(ctx: { runtime: object; pairedDeviceId?: string })
     return { hub: 'desktop', hosts: catalog.hosts }
   }
   return registry.list()
+}
+
+/** The desktop process holds the catalog; a remote asks the hub instead of reading its own store. */
+export function inventoryUsesLocalDesktopRuntime(runtime: object): boolean {
+  return Boolean(readDesktopHubCatalogProvider()) && !getDesktopHubRegistry(runtime).hasVolunteer()
 }
 
 function snapshotHost(row: DesktopHubHostRow) {

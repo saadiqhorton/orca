@@ -110,6 +110,29 @@ export async function sendPeerMail(args: {
 
 type SendInput = z.infer<typeof SendParams>
 
+type HomeRunLookup = {
+  getOrchestrationDb?: () => {
+    getDispatchContextById?: (id: string) => unknown
+    getTask?: (id: string) => unknown
+    getRun?: (id: string) => unknown
+  }
+}
+
+/** A Dispatch/Run/task on this Orca stays here even when `--host` named another machine. */
+export function sendStaysOnHomeRun(to: string | undefined, runtime: HomeRunLookup): boolean {
+  if (!to) {
+    return false
+  }
+  if (/^(run|dispatch|task):/i.test(to)) {
+    return true
+  }
+  const db = runtime.getOrchestrationDb?.()
+  if (!db) {
+    return false
+  }
+  return Boolean(db.getDispatchContextById?.(to) || db.getTask?.(to) || db.getRun?.(to))
+}
+
 /** `send --on` goes to the paired server; every other send, and every replay, runs `send`. */
 export function withPeerMailSend<R>(
   send: (params: SendInput, ctx: RpcContext) => Promise<R>
@@ -120,8 +143,8 @@ export function withPeerMailSend<R>(
     }
     const routed = await routeDesktopHubCommand(ctx.runtime, params)
     const on = routed.on
-    if (on === undefined) {
-      return await send(routed, ctx)
+    if (on === undefined || sendStaysOnHomeRun(routed.to, ctx.runtime)) {
+      return await send({ ...routed, on: undefined, host: undefined }, ctx)
     }
     const attested = ctx.orchestrationCompatibilityCallerAuthority
     return await sendPeerMail({

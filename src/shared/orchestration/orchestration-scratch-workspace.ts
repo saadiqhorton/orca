@@ -38,12 +38,14 @@ export function orchestrationScratchPaths(
   const root = path.join(homedir, ORCHESTRATION_SCRATCH_ROOT_DIR)
   return {
     root,
-    workspacePath: workspaceName === ORCHESTRATION_SCRATCH_DEFAULT_NAME ? root : path.join(root, workspaceName),
+    workspacePath:
+      workspaceName === ORCHESTRATION_SCRATCH_DEFAULT_NAME ? root : path.join(root, workspaceName),
     groupName: ORCHESTRATION_SCRATCH_GROUP_NAME,
     workspaceName
   }
 }
 
-export function orchestrationScratchWorktreeSelector(workspacePath: string): string {
-  return `path:${workspacePath}`
+/** Worker-start accepts `folder:<id>` for these workspaces; `path:` also matches once folders are in the matcher. */
+export function orchestrationScratchWorktreeSelector(folderWorkspaceId: string): string {
+  return `folder:${folderWorkspaceId}`
 }

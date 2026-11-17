@@ -7,16 +7,20 @@ import type { TuiAgent } from '../../../../../../../../shared/agent-launch/catal
 /** Refuse a start when this host has other agent CLIs installed but not the requested one. */
 export async function assertAgentCliInstalled(
   runtime: OrcaRuntimeService,
-  agent: TuiAgent
+  agent: TuiAgent,
+  worktreeId?: string | null
 ): Promise<void> {
   if (typeof runtime.resolveAgentDetectionHost !== 'function') {
     return
   }
   let installed: string[]
   try {
-    const host = await runtime.resolveAgentDetectionHost()
+    const host = await runtime.resolveAgentDetectionHost(worktreeId, undefined)
     const overrides = runtime.requireStore?.().getSettings?.().agentCmdOverrides
-    installed = await detectAgentsOnHost(host, agentCommandOverrideDetectionOptions(overrides ?? null))
+    installed = await detectAgentsOnHost(
+      host,
+      agentCommandOverrideDetectionOptions(overrides ?? null)
+    )
   } catch {
     return
   }

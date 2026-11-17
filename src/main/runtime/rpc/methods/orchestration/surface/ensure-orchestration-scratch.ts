@@ -63,7 +63,7 @@ export async function ensureOrchestrationScratchWorkspace(
   if (existing) {
     return {
       path: existing.folderPath,
-      worktree: orchestrationScratchWorktreeSelector(existing.folderPath),
+      worktree: orchestrationScratchWorktreeSelector(existing.id),
       projectGroupId: existing.projectGroupId,
       folderWorkspaceId: existing.id,
       created: false,
@@ -78,7 +78,7 @@ export async function ensureOrchestrationScratchWorkspace(
   })
   return {
     path: folderWorkspace.folderPath,
-    worktree: orchestrationScratchWorktreeSelector(folderWorkspace.folderPath),
+    worktree: orchestrationScratchWorktreeSelector(folderWorkspace.id),
     projectGroupId: folderWorkspace.projectGroupId,
     folderWorkspaceId: folderWorkspace.id,
     created: true,

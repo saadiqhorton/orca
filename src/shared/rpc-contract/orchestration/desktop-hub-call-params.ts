@@ -4,7 +4,20 @@ export const DesktopHubCallParams = z.object({
   host: z.string().min(1).max(256),
   method: z.string().min(1).max(200),
   params: z.unknown().optional(),
-  timeoutMs: z.number().int().positive().max(30 * 60 * 1000).optional()
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(30 * 60 * 1000)
+    .optional(),
+  envelope: z
+    .object({
+      orchestrationRequestId: z.string().min(1).max(200).optional(),
+      orchestrationContractVersion: z.number().int().nonnegative().optional(),
+      orchestrationCapability: z.string().min(1).max(200).optional()
+    })
+    .passthrough()
+    .optional()
 })
 
 export const OrchestrationSurfaceEnsureScratchParams = z.object({

@@ -16,6 +16,9 @@ describe('collectHostSurfaceInventory', () => {
           projectGroupId: 'grp_1'
         }
       ],
+      listVisibleRepos: () => [
+        { id: 'repo_work', path: '/home/hostb/work', displayName: 'work', kind: 'git' }
+      ],
       listTerminals: async () => ({
         terminals: [
           {
@@ -36,6 +39,14 @@ describe('collectHostSurfaceInventory', () => {
       { id: 'grp_1', name: 'Orca orchestration', parentPath: '/home/saadiq' }
     ])
     expect(inventory.folderWorkspaces[0]?.path).toBe('/home/saadiq/orca-orchestration')
+    expect(inventory.repos).toEqual([
+      {
+        id: 'repo_work',
+        name: 'work',
+        path: '/home/hostb/work',
+        selector: 'path:/home/hostb/work'
+      }
+    ])
     expect(inventory.sessions).toEqual([
       {
         handle: 'term_visible',

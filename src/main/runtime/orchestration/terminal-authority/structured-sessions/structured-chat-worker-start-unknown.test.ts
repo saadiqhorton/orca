@@ -24,6 +24,7 @@ it('keeps a minted worker start unknown after one preamble handover without an e
     id: 'workspace-1',
     repoId: 'repo'
   } as never)
+  vi.spyOn(runtime, 'resolveAgentDetectionHost').mockRejectedValue(new Error('skip detection'))
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: launch-mode selection reads only getSettings on this store double.
   vi.spyOn(runtime, 'requireStore').mockReturnValue({
     getSettings: () => ({

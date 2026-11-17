@@ -59,6 +59,7 @@ type HostInventory = {
   platform?: string
   projects: { id: string; name: string; parentPath: string | null }[]
   folderWorkspaces: { id: string; name: string; path: string; projectGroupId: string }[]
+  repos?: { id: string; name: string; path: string; selector: string }[]
   agents: string[]
   sessions: HostInventorySession[]
 }
@@ -72,7 +73,10 @@ export type HostInventoryRow = {
   inventory?: HostInventory
 }
 
-export function formatHostInventory(result: { hosts: HostInventoryRow[]; message?: string }): string {
+export function formatHostInventory(result: {
+  hosts: HostInventoryRow[]
+  message?: string
+}): string {
   const blocks = result.hosts.map((host) => {
     const title = `${host.name}${host.machineName && host.machineName !== host.name ? ` (${host.machineName})` : ''}  ${host.status}${host.selector ? `  ${host.selector}` : ''}`
     if (host.error && !host.inventory) {
@@ -87,14 +91,21 @@ export function formatHostInventory(result: { hosts: HostInventoryRow[]; message
       inventory.projects.length === 0
         ? '  projects: (none)'
         : inventory.projects
-            .map((project) => `  project: ${project.name}${project.parentPath ? `  ${project.parentPath}` : ''}`)
+            .map(
+              (project) =>
+                `  project: ${project.name}${project.parentPath ? `  ${project.parentPath}` : ''}`
+            )
             .join('\n')
     const folders =
       inventory.folderWorkspaces.length === 0
         ? '  folders: (none)'
         : inventory.folderWorkspaces
-            .map((folder) => `  folder: ${folder.name}  path:${folder.path}`)
+            .map((folder) => `  folder: ${folder.name}  folder:${folder.id}  path:${folder.path}`)
             .join('\n')
+    const repos =
+      !inventory.repos || inventory.repos.length === 0
+        ? '  repos: (none)'
+        : inventory.repos.map((repo) => `  repo: ${repo.name}  ${repo.selector}`).join('\n')
     const sessions =
       inventory.sessions.length === 0
         ? '  sessions: (none)'
@@ -105,7 +116,7 @@ export function formatHostInventory(result: { hosts: HostInventoryRow[]; message
               return `  session: ${session.handle}${agent}${titleText}`
             })
             .join('\n')
-    return `${title}\n  agents: ${agents}\n${projects}\n${folders}\n${sessions}`
+    return `${title}\n  agents: ${agents}\n${projects}\n${folders}\n${repos}\n${sessions}`
   })
   const body = blocks.join('\n\n')
   return result.message ? `${body}\n${result.message}` : body

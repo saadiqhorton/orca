@@ -56,13 +56,17 @@ ORCA terminal list --host <name> --json
 ORCA terminal send --host <name> --terminal <handle> --text "<message>" --enter
 ORCA terminal read --host <name> --terminal <handle> --screen
 ORCA worktree create --host <name> --name <short-name> --json
-ORCA orchestration send --host <name> --to <handle-or-dispatch> --subject "<topic>" --body "<message>"
+ORCA orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
+ORCA orchestration send --to dispatch:<id> --subject "<topic>" --body "<message>"
 ORCA terminal close --host <name> --terminal <handle>
 ```
 
-Without `--worktree`, `agent launch` and `terminal create` create or reuse
-`~/orca-orchestration` on that host (never the user's home). Hidden background
-workers still use `ORCA orchestration worker-start --host <name>`. Never use
+Without `--worktree`, `agent launch`, `terminal create`, and
+`orchestration worker-start --host <name>` create or reuse `~/orca-orchestration`
+on that host (never the user's home). Message a visible tab with
+`send --host <name> --to <handle>`. Message a worker with
+`send --to dispatch:<id>` (you may still pass `--host`; Orca routes the Dispatch
+to the Run that owns it). Never use
 SSH, never open a port, and never copy keys. If the status is `needs_sign_in`
 or `unreachable`, say so and stop. `--on` is only a paired Orca server saved on
 this machine; load `references/placement-and-remote.md` before using it. If an

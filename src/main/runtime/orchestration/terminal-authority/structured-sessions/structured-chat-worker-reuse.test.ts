@@ -72,6 +72,7 @@ beforeEach(() => {
     id: selector.replace(/^id:/, ''),
     repoId: 'repo'
   }))
+  vi.spyOn(runtime, 'resolveAgentDetectionHost').mockRejectedValue(new Error('skip detection'))
 })
 
 function reportDone(sessionId: string, taskId: string, dispatchId: string) {

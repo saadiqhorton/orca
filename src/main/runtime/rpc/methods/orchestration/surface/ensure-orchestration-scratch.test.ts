@@ -42,7 +42,7 @@ describe('ensureOrchestrationScratchWorkspace', () => {
     const first = await ensureOrchestrationScratchWorkspace(runtime, undefined, home)
     expect(first.created).toBe(true)
     expect(first.path).toBe(path.join(home, 'orca-orchestration'))
-    expect(first.worktree).toBe(`path:${first.path}`)
+    expect(first.worktree).toBe(`folder:${first.folderWorkspaceId}`)
     const second = await ensureOrchestrationScratchWorkspace(runtime, undefined, home)
     expect(second.created).toBe(false)
     expect(second.folderWorkspaceId).toBe(first.folderWorkspaceId)

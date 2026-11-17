@@ -63,7 +63,8 @@ export async function resolveLocalWorkerLaunchPlan(args: {
     openCodeModelLaunchSupported
   })
   if (agent) {
-    await assertAgentCliInstalled(runtime, agent)
+    const worktreeId = requestedWorktree === 'current' || createsWorktree ? null : requestedWorktree
+    await assertAgentCliInstalled(runtime, agent, worktreeId)
   }
   return { requestedWorktree, createsWorktree, creationTargetFor, agent, launch }
 }

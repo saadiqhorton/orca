@@ -12,6 +12,12 @@ type InventoryRuntime = {
     folderPath: string
     projectGroupId: string
   }[]
+  listVisibleRepos?: () => {
+    id: string
+    path: string
+    displayName?: string
+    kind?: string
+  }[]
   listTerminals?: () => Promise<{
     terminals: {
       handle: string
@@ -21,10 +27,12 @@ type InventoryRuntime = {
     }[]
   }>
   resolveAgentDetectionHost?: (
-    worktreeId?: string,
+    worktreeId?: string | null,
     repoId?: string
   ) => AgentDetectionHost | Promise<AgentDetectionHost>
-  requireStore?: () => { getSettings?: () => { agentCmdOverrides?: Partial<Record<string, string>> } }
+  requireStore?: () => {
+    getSettings?: () => { agentCmdOverrides?: Partial<Record<string, string>> }
+  }
   getStatus?: () => { machineName?: string; hostPlatform?: string }
 }
 
@@ -33,6 +41,7 @@ export type HostSurfaceInventory = {
   platform?: string
   projects: { id: string; name: string; parentPath: string | null }[]
   folderWorkspaces: { id: string; name: string; path: string; projectGroupId: string }[]
+  repos: { id: string; name: string; path: string; selector: string }[]
   agents: string[]
   sessions: {
     handle: string
@@ -57,6 +66,7 @@ export async function collectHostSurfaceInventory(
     path: folder.folderPath,
     projectGroupId: folder.projectGroupId
   }))
+  const repos = listHostRepos(runtime)
   const agents = await listHostAgents(runtime)
   const sessions = await listHostSessions(runtime)
   return {
@@ -64,15 +74,27 @@ export async function collectHostSurfaceInventory(
     ...(status?.hostPlatform ? { platform: status.hostPlatform } : {}),
     projects,
     folderWorkspaces,
+    repos,
     agents,
     sessions
   }
 }
 
+function listHostRepos(runtime: InventoryRuntime): HostSurfaceInventory['repos'] {
+  return (runtime.listVisibleRepos?.() ?? [])
+    .filter((repo) => repo.kind !== 'folder')
+    .map((repo) => ({
+      id: repo.id,
+      name: repo.displayName || repo.id,
+      path: repo.path,
+      selector: `path:${repo.path}`
+    }))
+}
+
 async function listHostAgents(runtime: InventoryRuntime): Promise<string[]> {
   try {
     const host = runtime.resolveAgentDetectionHost
-      ? await runtime.resolveAgentDetectionHost()
+      ? await runtime.resolveAgentDetectionHost(null)
       : ({ kind: 'local' } satisfies AgentDetectionHost)
     const overrides = runtime.requireStore?.().getSettings?.().agentCmdOverrides
     return await detectAgentsOnHost(host, agentCommandOverrideDetectionOptions(overrides ?? null))

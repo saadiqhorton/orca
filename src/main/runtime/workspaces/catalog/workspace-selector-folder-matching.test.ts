@@ -80,6 +80,12 @@ describe('path: and name: selectors on folder workspaces', () => {
     )
   })
 
+  it('lets worker-start path: selectors resolve folder workspaces', async () => {
+    const runtime = createRuntime([folder({ id: 'hub-a' })])
+    expect((await runtime.showManagedTerminalWorkspace('path:/work/hub')).id).toBe('folder:hub-a')
+    expect((await runtime.showManagedTerminalWorkspace('folder:hub-a')).id).toBe('folder:hub-a')
+  })
+
   it('keeps different folder ids at one path apart, each with its own selector', async () => {
     const runtime = createRuntime([folder({ id: 'hub-a' }), folder({ id: 'hub-b' })])
 

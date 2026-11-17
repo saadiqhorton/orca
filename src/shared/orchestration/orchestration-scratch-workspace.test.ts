@@ -13,9 +13,7 @@ describe('orchestration scratch workspace', () => {
     expect(paths.workspacePath).toBe(path.join('/home/saadiq', 'orca-orchestration'))
     expect(paths.workspacePath).not.toBe('/home/saadiq')
     expect(paths.groupName).toBe(ORCHESTRATION_SCRATCH_GROUP_NAME)
-    expect(orchestrationScratchWorktreeSelector(paths.workspacePath)).toBe(
-      'path:/home/saadiq/orca-orchestration'
-    )
+    expect(orchestrationScratchWorktreeSelector('fld_scratch')).toBe('folder:fld_scratch')
   })
 
   it('nests a named workspace under the scratch root', () => {

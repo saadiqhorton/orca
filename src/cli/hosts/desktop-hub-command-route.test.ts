@@ -30,21 +30,13 @@ describe('desktop hub CLI --host routing', () => {
   })
 
   it('does not wrap ssh: or runtime: values', () => {
+    expect(shouldWrapDesktopHubHost(['agent', 'launch'], new Map([['host', 'ssh:abc']]))).toBe(
+      false
+    )
     expect(
-      shouldWrapDesktopHubHost(
-        ['agent', 'launch'],
-        new Map([['host', 'ssh:abc']])
-      )
+      shouldWrapDesktopHubHost(['agent', 'launch'], new Map([['host', 'runtime:env-1']]))
     ).toBe(false)
-    expect(
-      shouldWrapDesktopHubHost(
-        ['agent', 'launch'],
-        new Map([['host', 'runtime:env-1']])
-      )
-    ).toBe(false)
-    expect(
-      shouldWrapDesktopHubHost(['agent', 'launch'], new Map([['host', 'local']]))
-    ).toBe(false)
+    expect(shouldWrapDesktopHubHost(['agent', 'launch'], new Map([['host', 'local']]))).toBe(false)
   })
 
   it('injects a scratch worktree only when agent launch or terminal create omit --worktree', () => {
@@ -116,7 +108,9 @@ describe('bindDesktopHubHost', () => {
         _meta: { runtimeId: 'local' }
       }))
     }
-    await expect(bindDesktopHubHost(inner as never, flags)).rejects.toBeInstanceOf(RuntimeClientError)
+    await expect(bindDesktopHubHost(inner as never, flags)).rejects.toBeInstanceOf(
+      RuntimeClientError
+    )
     expect(flags.get('host')).toBe('TEMPLEOFDOOM')
   })
 
@@ -156,6 +150,14 @@ describe('formatHostInventory', () => {
                 projectGroupId: 'grp_1'
               }
             ],
+            repos: [
+              {
+                id: 'repo_work',
+                name: 'work',
+                path: '/home/hostb/work',
+                selector: 'path:/home/hostb/work'
+              }
+            ],
             sessions: [{ handle: 'term_visible', agent: 'claude', title: 'review' }]
           }
         }
@@ -164,6 +166,8 @@ describe('formatHostInventory', () => {
     expect(text).toContain('ubuntu-server-local (dezignerdrugz00)  connected')
     expect(text).toContain('agents: claude, codex')
     expect(text).toContain('project: Orca orchestration')
+    expect(text).toContain('folder: scratch  folder:fld_1  path:/home/saadiq/orca-orchestration')
+    expect(text).toContain('repo: work  path:/home/hostb/work')
     expect(text).toContain('session: term_visible  claude  review')
   })
 })
