@@ -118,20 +118,18 @@ def detect_template_version(root: Path) -> str:
     env = os.environ.get("ORCA_TEMPLATE_VERSION")
     if env:
         return env
-    report = Path("/cursor/stores/self/orca-deploy/1ff11f1b-report.md")
-    if report.exists():
-        m = re.search(r"0\.1\.0\+[0-9a-f]+", report.read_text())
-        if m:
-            return m.group(0)
-    pkg = root / "src/packages/process-host/package.json"
-    # Template version is stamped at orcad build time, not package.json.
     marker = root / "out/orcad-template"
     if marker.is_dir():
+        for path in [marker / ".version", *marker.rglob(".version")]:
+            if path.is_file():
+                text = path.read_text().strip().split()[0]
+                if text.startswith("0.1.0+"):
+                    return text
         for child in marker.iterdir():
             m = re.search(r"orcad-(0\.1\.0\+[0-9a-f]+)", child.name)
             if m:
                 return m.group(1)
-    return "0.1.0+c05ff1997397"  # last shipped template for 1ff11f1b product; skill-only commits keep it
+    return "unknown"
 
 
 def bun_doctor(root: Path, env: dict[str, str]) -> dict[str, Any]:
