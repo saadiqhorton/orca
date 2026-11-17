@@ -353,65 +353,118 @@ BOX_SSH_HOSTS = {
     DEFAULT_B: "hosta@10.77.0.2",
 }
 SEEDED_HOME_MARKER = ".orca-verify-s03"
+LS_SENTINEL = "ORCA_S03_LS_DONE"
+_LISTING_META = re.compile(
+    r"^(handle|title|group|scope|cwd|worktree|tab|id|status|exit|ok)\s*:",
+    re.I,
+)
+
+
+def listing_lines(text: str) -> list[str]:
+    """Real `ls -A ~` names only. Drop terminal headers, prompts, echo, and the sentinel."""
+    names: list[str] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip().rstrip("/")
+        if not line or line in (".", ".."):
+            continue
+        if line == LS_SENTINEL or line.startswith("EXIT_LS"):
+            continue
+        if line.startswith("ls -A") or "ls -A" in line or LS_SENTINEL in line:
+            continue
+        if _LISTING_META.match(line):
+            continue
+        if line.startswith("* ") or line.startswith("group "):
+            continue
+        if re.fullmatch(r"term_[0-9a-f-]+", line):
+            continue
+        if line.startswith("{") or line.startswith("["):
+            continue
+        if re.search(r"[@~].*[#$]\s*$", line) or (line.endswith("$") and ("@" in line or "~" in line)):
+            continue
+        names.append(line)
+    return names
 
 
 def pick_home_marker(listing: str) -> str | None:
     """A real `ls -A ~` entry. Never the magic word 'home' unless that name exists."""
-    names: list[str] = []
-    for raw in (listing or "").splitlines():
-        name = raw.strip().rstrip("/")
-        if not name or name in (".", ".."):
-            continue
-        names.append(name)
+    names = listing_lines(listing)
     for preferred in ("gitproj", ".orca", ".orca-remote"):
         if preferred in names:
             return preferred
     return names[0] if names else None
 
 
-def list_target_home(host: str) -> str:
-    """`ls -A ~` on the target host. Desktop uses orca; box-rig uses the same ssh path as the drive."""
-    forced = os.environ.get("ORCA_VERIFY_HOME_LISTING")
-    if forced is not None:
-        return forced
-    chunks: list[str] = []
+def _ssh_list_home(host: str) -> str:
+    remote = BOX_SSH_HOSTS.get(host, "hostb@10.77.0.3")
+    try:
+        r = run([*ssh_base(), remote, "ls -A ~"], timeout=20)
+        return r.get("out") or ""
+    except OSError:
+        return ""
+
+
+def _wait_terminal_sentinel(host: str, handle: str, sentinel: str, timeout: float = 15.0) -> str:
+    deadline = time.time() + timeout
+    last = ""
+    while time.time() < deadline:
+        read = orca(["terminal", "read", "--host", host, "--terminal", handle], timeout=20)
+        last = read.get("out") or ""
+        if sentinel in last:
+            return last
+        time.sleep(0.4)
+    return last
+
+
+def _close_terminal(host: str, handle: str | None) -> None:
+    if not handle:
+        return
+    try:
+        orca(["terminal", "close", "--host", host, "--terminal", handle], timeout=30)
+    except OSError:
+        pass
+
+
+def _desktop_list_home(host: str) -> str:
+    handle = None
     try:
         create = orca(
             ["terminal", "create", "--host", host, "--title", "verify-s03-ls", "--json"],
             timeout=40,
         )
         handle = extract_term_handle(create.get("out") or "")
-        if handle:
-            orca(
-                [
-                    "terminal",
-                    "send",
-                    "--host",
-                    host,
-                    "--terminal",
-                    handle,
-                    "--text",
-                    "ls -A ~",
-                    "--enter",
-                ],
-                timeout=30,
-            )
-            time.sleep(1.5)
-            read = orca(["terminal", "read", "--host", host, "--terminal", handle], timeout=30)
-            chunks.append(read.get("out") or "")
+        if not handle:
+            return ""
+        orca(
+            [
+                "terminal",
+                "send",
+                "--host",
+                host,
+                "--terminal",
+                handle,
+                "--text",
+                f"ls -A ~; echo {LS_SENTINEL}",
+                "--enter",
+            ],
+            timeout=30,
+        )
+        return _wait_terminal_sentinel(host, handle, LS_SENTINEL)
     except OSError:
-        pass
-    listing = "\n".join(chunks)
-    if pick_home_marker(listing):
-        return listing
+        return ""
+    finally:
+        _close_terminal(host, handle)
+
+
+def list_target_home(host: str) -> str:
+    """`ls -A ~` on the target. Box-rig prefers ssh; desktop waits for a sentinel then closes the tab."""
+    forced = os.environ.get("ORCA_VERIFY_HOME_LISTING")
+    if forced is not None:
+        return forced
     if box_rig_available():
-        remote = BOX_SSH_HOSTS.get(host, "hostb@10.77.0.3")
-        try:
-            r = run([*ssh_base(), remote, "ls -A ~"], timeout=20)
-            chunks.append(r.get("out") or "")
-        except OSError:
-            pass
-    return "\n".join(chunks)
+        listing = _ssh_list_home(host)
+        if listing_lines(listing):
+            return listing
+    return _desktop_list_home(host)
 
 
 def seed_home_marker(host: str, name: str = SEEDED_HOME_MARKER) -> str:
@@ -441,6 +494,7 @@ def seed_home_marker(host: str, name: str = SEEDED_HOME_MARKER) -> str:
                     ],
                     timeout=30,
                 )
+                _close_terminal(host, handle)
     except OSError:
         pass
     return name

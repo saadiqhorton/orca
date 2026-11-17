@@ -24,7 +24,21 @@ import run_scenario as harness  # noqa: E402
 import verify_orca  # noqa: E402
 
 
-class OrcaBinEacces(unittest.TestCase):
+class IsolatedEnv(unittest.TestCase):
+    """Clear ORCA_TEMPLATE_VERSION and ORCA_VERIFY_* so the suite does not depend on the caller env."""
+
+    def setUp(self):
+        keys = [k for k in os.environ if k == "ORCA_TEMPLATE_VERSION" or k.startswith("ORCA_VERIFY_")]
+        self._env = patch.dict(os.environ, {k: "" for k in keys}, clear=False)
+        self._env.start()
+        for k in keys:
+            os.environ.pop(k, None)
+
+    def tearDown(self):
+        self._env.stop()
+
+
+class OrcaBinEacces(IsolatedEnv):
     def test_root_stat_permission_error_falls_back_to_path(self):
         def exists(path):
             if str(path).startswith("/root"):
@@ -42,7 +56,7 @@ class OrcaBinEacces(unittest.TestCase):
             self.assertFalse(live_drive.path_exists("/root/.orca/cli/bin/orca"))
 
 
-class S08RefusalIsPass(unittest.TestCase):
+class S08RefusalIsPass(IsolatedEnv):
     def test_harness_judge_unknown_host_no_tab(self):
         spec = {
             "expect_tab": False,
@@ -103,7 +117,7 @@ class S08RefusalIsPass(unittest.TestCase):
         self.assertTrue(result["bar"]["zero_wrong_host"])
 
 
-class TemplateAndMode(unittest.TestCase):
+class TemplateAndMode(IsolatedEnv):
     def test_template_version_from_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -153,7 +167,7 @@ class TemplateAndMode(unittest.TestCase):
         self.assertEqual(desktop["live_mode"], "desktop-cli")
 
 
-class RemoteOrca(unittest.TestCase):
+class RemoteOrca(IsolatedEnv):
     def test_box_r07_uses_absolute_or_login_path(self):
         script = live_drive.remote_orca_script(["host inventory --json"])
         self.assertIn("$HOME/.orca/cli/bin/orca", script)
@@ -161,7 +175,7 @@ class RemoteOrca(unittest.TestCase):
         self.assertNotEqual(script.strip().split()[0], "orca")
 
 
-class DesktopFactsAndR07(unittest.TestCase):
+class DesktopFactsAndR07(IsolatedEnv):
     def test_hostname_comes_from_inventory_machine_name(self):
         mapping = live_drive.machine_names_from_inventory(
             {
@@ -220,7 +234,7 @@ class DesktopFactsAndR07(unittest.TestCase):
         self.assertTrue(judged["pass"], judged["reasons"])
 
 
-class PathProbesNeverCrash(unittest.TestCase):
+class PathProbesNeverCrash(IsolatedEnv):
     def test_template_version_swallows_permission_error_on_unreadable_homes(self):
         real_is_file = Path.is_file
 
@@ -246,7 +260,7 @@ class PathProbesNeverCrash(unittest.TestCase):
             self.assertFalse(verify_orca.path_is_file(bogus))
 
 
-class TemplateVersionFromRuntime(unittest.TestCase):
+class TemplateVersionFromRuntime(IsolatedEnv):
     def test_schema4_manifest_falls_back_to_runtime_active(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -274,7 +288,7 @@ class TemplateVersionFromRuntime(unittest.TestCase):
                     self.assertEqual(live_drive.runtime_orcad_version(), "0.1.0+a46e76b8b300")
 
 
-class S03HomeMarker(unittest.TestCase):
+class S03HomeMarker(IsolatedEnv):
     S03 = {
         "target": "ubuntu-server-local",
         "success": {"final_contains_any": ["{target_home_marker}"]},
@@ -301,8 +315,97 @@ class S03HomeMarker(unittest.TestCase):
                 seed.assert_called()
                 self.assertEqual(facts["target_home_marker"], ".orca-verify-s03")
 
+    def test_pick_home_marker_drops_terminal_headers_prompts_and_echo(self):
+        raw = (
+            "handle: term_ab12cd34\n"
+            "title: verify-s03-ls\n"
+            "group orca-orchestration:folder:fld\n"
+            "ls -A ~; echo ORCA_S03_LS_DONE\n"
+            "hostB-ubuntu:~$ ls -A ~\n"
+            ".gitconfig\n"
+            "gitproj\n"
+            "ORCA_S03_LS_DONE\n"
+            "hostB-ubuntu:~$ \n"
+        )
+        self.assertEqual(live_drive.pick_home_marker(raw), "gitproj")
+        self.assertNotEqual(live_drive.pick_home_marker(raw), "handle: term_ab12cd34")
+        lines = live_drive.listing_lines(raw)
+        self.assertNotIn("handle: term_ab12cd34", lines)
+        self.assertNotIn("ls -A ~", lines)
+        self.assertIn("gitproj", lines)
 
-class BoxR07Workspace(unittest.TestCase):
+    def test_box_rig_prefers_ssh_ls_over_desktop_terminal(self):
+        with patch.object(live_drive, "box_rig_available", return_value=True):
+            with patch.object(live_drive, "ssh_base", return_value=["ssh"]):
+                with patch.object(
+                    live_drive, "run", return_value={"exit": 0, "out": ".orca\ngitproj\n"}
+                ) as run:
+                    with patch.object(live_drive, "orca") as orca_mock:
+                        listing = live_drive.list_target_home("ubuntu-server-local")
+        self.assertEqual(live_drive.pick_home_marker(listing), "gitproj")
+        run.assert_called()
+        self.assertTrue(any("ls -A ~" in str(c) for c in run.call_args_list))
+        for call in orca_mock.call_args_list:
+            self.assertNotIn("terminal", str(call))
+
+    def test_desktop_ls_waits_for_sentinel_and_closes_terminal(self):
+        calls: list[list[str]] = []
+
+        def orca(args, **_kw):
+            calls.append(list(args))
+            if args[:2] == ["terminal", "create"]:
+                return {"exit": 0, "out": '{"result":{"terminal":{"handle":"term_abc"}}}'}
+            if args[:2] == ["terminal", "read"]:
+                return {
+                    "exit": 0,
+                    "out": "handle: term_abc\n.gitconfig\ngitproj\nORCA_S03_LS_DONE\n",
+                }
+            return {"exit": 0, "out": "ok"}
+
+        with patch.object(live_drive, "box_rig_available", return_value=False):
+            with patch.object(live_drive.time, "sleep"):
+                with patch.object(live_drive, "orca", side_effect=orca):
+                    listing = live_drive.list_target_home("ubuntu-server-local")
+        self.assertEqual(live_drive.pick_home_marker(listing), "gitproj")
+        self.assertTrue(any(c[:2] == ["terminal", "close"] for c in calls))
+        send = next(c for c in calls if c[:2] == ["terminal", "send"])
+        self.assertTrue(any(live_drive.LS_SENTINEL in a for a in send))
+
+
+class EnvIsolation(unittest.TestCase):
+    def test_setup_clears_exported_template_version_and_verify_star(self):
+        with patch.dict(
+            os.environ,
+            {"ORCA_TEMPLATE_VERSION": "0.1.0+deadbeefc0de", "ORCA_VERIFY_LIVE": "1"},
+            clear=False,
+        ):
+            inner = IsolatedEnv(methodName="run")
+            inner.setUp()
+            try:
+                self.assertFalse(os.environ.get("ORCA_TEMPLATE_VERSION"))
+                self.assertFalse(os.environ.get("ORCA_VERIFY_LIVE"))
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    marker = root / "out/orcad-template"
+                    marker.mkdir(parents=True)
+                    (marker / "orcad-template.json").write_text(
+                        json.dumps(
+                            {
+                                "schemaVersion": 3,
+                                "artifactVersion": "0.1.0+04f2ee16f6e3",
+                                "commonSha256": {},
+                                "targets": {},
+                            }
+                        )
+                    )
+                    self.assertEqual(verify_orca.detect_template_version(root), "0.1.0+04f2ee16f6e3")
+            finally:
+                inner.tearDown()
+            self.assertEqual(os.environ.get("ORCA_TEMPLATE_VERSION"), "0.1.0+deadbeefc0de")
+            self.assertEqual(os.environ.get("ORCA_VERIFY_LIVE"), "1")
+
+
+class BoxR07Workspace(IsolatedEnv):
     def test_box_r07_cds_into_work_before_terminal_create(self):
         script = live_drive.box_r07_remote_script()
         self.assertRegex(script, r'cd\s+"?\$HOME/work"?')
