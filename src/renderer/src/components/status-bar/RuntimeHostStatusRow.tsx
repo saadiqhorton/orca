@@ -149,6 +149,7 @@ export function RuntimeHostStatusRow({
   state,
   detail,
   diagnostics,
+  appVersion,
   blocked,
   onConnect,
   onDisconnect,
@@ -158,6 +159,8 @@ export function RuntimeHostStatusRow({
   state: RuntimeHostConnectionState
   detail?: string
   diagnostics?: RemoteRuntimeSharedConnectionDiagnostics | null
+  /** The host's Orca version; absent until its status is verified. */
+  appVersion?: string | null
   /** Set when the host refused this client; its copy replaces the transport state. */
   blocked?: (RuntimeHostBlockedCopy & { recovery: RuntimeHostBlockedRecovery | null }) | null
   onConnect?: () => Promise<void>
@@ -240,6 +243,12 @@ export function RuntimeHostStatusRow({
           <span>
             {t('auto.components.status.bar.SshStatusSegment.remote_server', 'Remote Server')}
           </span>
+          {appVersion ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="truncate">v{appVersion}</span>
+            </>
+          ) : null}
           <span aria-hidden="true">·</span>
           <span className={`inline-flex min-w-0 items-center gap-1 ${statusTone}`}>
             {showSpinner ? <Loader2 className="size-2.5 shrink-0 animate-spin" /> : null}
