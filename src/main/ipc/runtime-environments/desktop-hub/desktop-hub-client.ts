@@ -198,7 +198,6 @@ function currentCatalog(
   rememberOrcaHostNames(names)
   rememberOrcaInstructionFile(orcaHostInstructionPath(options.userDataPath))
   void installOrcaHostInstructions({
-    hosts: names,
     userDataPath: options.userDataPath,
     settings: settingsWriteGlobalSlice(options.settingsHost)
   }).catch(() => undefined)
