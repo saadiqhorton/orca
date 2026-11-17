@@ -29,4 +29,15 @@ describe('desktop hub host status', () => {
     expect(desktopHubRowMatches(row, 'ubuntu-server-local')).toBe(true)
     expect(desktopHubRowMatches(row, 'dezignerdrugz00')).toBe(true)
   })
+
+  it('matches the environment id that orca host list --json prints', () => {
+    const row = {
+      name: 'ubuntu-server-local',
+      machineName: 'dezignerdrugz00',
+      label: 'ubuntu-server-local',
+      id: 'f12a5fc4-a853-4aa2-8b76-b0b6977b45c5'
+    }
+    expect(desktopHubRowMatches(row, 'f12a5fc4-a853-4aa2-8b76-b0b6977b45c5')).toBe(true)
+    expect(desktopHubRowMatches(row, 'f12a5fc4')).toBe(false)
+  })
 })

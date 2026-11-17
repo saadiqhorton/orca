@@ -90,11 +90,12 @@ export function desktopHubHostKey(selector: string): string {
 }
 
 export function desktopHubRowMatches(
-  row: { name: string; machineName?: string; label?: string },
+  row: { name: string; machineName?: string; label?: string; id?: string },
   query: string
 ): boolean {
   const wanted = query.trim()
-  return [row.name, row.machineName, row.label].some((value) => value === wanted)
+  // `orca host list --json` prints the environment id too; accept it as a selector.
+  return [row.name, row.machineName, row.label, row.id].some((value) => value === wanted)
 }
 
 /** Sidebar health, as the desktop already computed it, in the three statuses an agent can act on. */

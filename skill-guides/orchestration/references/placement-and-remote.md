@@ -8,8 +8,18 @@ there. Do not use SSH.
 
 ```text
 orca host list
+orca orchestration worker-start --spec "<task>" --host <name> --worktree path:<existing_project_path_on_that_host> --agent <agent>
 orca orchestration worker-start --spec "<task>" --host <name> --worktree new-top-level --repo <exact_remote_repo_selector> --agent <agent>
 ```
+
+`--worktree` must name that host's workspace: `path:<path>` of a folder already
+added as an Orca project there, or `new-top-level`/`new-child` with `--repo`.
+`current` and paths on this machine do not exist there. Only `worker-start` and
+`send` take a desktop-connected `--host`; `worktree create --host`,
+`terminal create` and `agent launch` cannot reach it, so do not create the
+workspace first. Claude asks again on every launch to trust a home folder, so a
+worker in the user's home folder stops at `agent_readiness`; use a project
+folder inside it.
 
 `--host` is a name `orca host list` prints with status `connected`. That list
 includes every machine the desktop app is connected to, not only this machine.

@@ -21,6 +21,7 @@ import { normalizeTypedName, stripWrappingQuotes } from '../../shared/typed-name
 import type { RuntimeClient } from '../runtime/client'
 import { RuntimeClientError } from '../runtime/types'
 import { isLocalEnvironmentSelector } from './local-environment-selector'
+import { refuseDesktopHubHostAlias } from './desktop-hub-host-refusal'
 
 export type HostFlagRoutingSelection = {
   // Enumerating SSH targets needs the running host; defer lookup until error recovery.
@@ -231,13 +232,13 @@ export async function resolveHostFlagTarget(
   // Server lookup already missed; SSH is the remaining alias scope.
   const wanted = host.kind === 'ssh' ? host.targetId : host.alias
   const flagSpelling = host.kind === 'ssh' ? `--host ${host.id}` : `--host ${host.alias}`
-  const targetId = await resolveSshHostTargetId(
-    client,
-    wanted,
-    environments,
-    flagSpelling,
-    host.kind === 'alias'
-  )
+  const alias = host.kind === 'alias'
+  const targetId = await resolveSshHostTargetId(client, wanted, environments, flagSpelling, alias)
+    // Desktop-hub hosts are listed too, but only worker-start and send route there.
+    .catch(async (error: unknown) => {
+      await (alias ? refuseDesktopHubHostAlias(client, wanted, flagSpelling) : undefined)
+      throw error
+    })
   const sshHostId = toSshExecutionHostId(targetId)
   return parseExecutionHostId(sshHostId) ?? { kind: 'ssh', id: sshHostId, targetId }
 }

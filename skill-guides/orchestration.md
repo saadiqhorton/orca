@@ -37,7 +37,11 @@ ORCA orchestration worker-start --spec "<task>" --worktree current --agent <agen
 running as when the worker shares your execution host. To run on another
 machine the desktop app is connected to, run `orca host list` and start with
 `--host <name>` using a row whose status is `connected` (the machine name in
-that list, such as `ubuntu-server-local`). Never use SSH, never open a port,
+that list, such as `ubuntu-server-local`) and `--worktree path:<path>` naming an
+existing Orca project folder on that machine (`current` names this machine).
+Only `orchestration worker-start` and `orchestration send` accept such a
+`--host`; `worktree create`, `terminal create` and `agent launch` do not, so
+never create the workspace first. Never use SSH, never open a port,
 and never copy keys. If the status is `needs_sign_in` or `unreachable`, say so
 and stop. `--on` is only a paired Orca server saved on this machine; load
 `references/placement-and-remote.md` before using it. `worker-start` does not
@@ -121,10 +125,10 @@ assignment does not prove its agent stopped.
 
 `ORCA skills get orchestration --reference references/<file>.md`
 
-| Situation                                      | Reference                            |
-| ---------------------------------------------- | ------------------------------------ |
-| Task DAGs, several Runs                        | `references/coordinator-loop.md`     |
+| Situation                                                  | Reference                            |
+| ---------------------------------------------------------- | ------------------------------------ |
+| Task DAGs, several Runs                                    | `references/coordinator-loop.md`     |
 | Child worktrees, a desktop-connected host, a paired server | `references/placement-and-remote.md` |
-| Group messages                                 | `references/messaging-and-gates.md`  |
-| A failed or unknown worker; retry, stop, reset | `references/recovery-and-cleanup.md` |
-| Custom argv or terminal layout                 | `references/low-level-topology.md`   |
+| Group messages                                             | `references/messaging-and-gates.md`  |
+| A failed or unknown worker; retry, stop, reset             | `references/recovery-and-cleanup.md` |
+| Custom argv or terminal layout                             | `references/low-level-topology.md`   |
