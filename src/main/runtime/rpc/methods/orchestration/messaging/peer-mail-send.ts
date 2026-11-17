@@ -118,12 +118,18 @@ type HomeRunLookup = {
   }
 }
 
+/** Bare Dispatch ids from worker-start receipts are mailboxes, not live terminal handles. */
+export function normalizeOrchestrationSendTo(to: string | undefined): string | undefined {
+  return to && /^ctx_/i.test(to) ? `dispatch:${to}` : to
+}
+
 /** A Dispatch/Run/task on this Orca stays here even when `--host` named another machine. */
 export function sendStaysOnHomeRun(to: string | undefined, runtime: HomeRunLookup): boolean {
   if (!to) {
     return false
   }
-  if (/^(run|dispatch|task):/i.test(to) || /^ctx_/i.test(to)) {
+  const normalized = normalizeOrchestrationSendTo(to) ?? to
+  if (/^(run|dispatch|task):/i.test(normalized) || /^ctx_/i.test(to)) {
     return true
   }
   const db = runtime.getOrchestrationDb?.()
@@ -142,9 +148,10 @@ export function withPeerMailSend<R>(
       return await send(params, ctx)
     }
     const routed = await routeDesktopHubCommand(ctx.runtime, params)
+    const to = normalizeOrchestrationSendTo(routed.to)
     const on = routed.on
-    if (on === undefined || sendStaysOnHomeRun(routed.to, ctx.runtime)) {
-      return await send({ ...routed, on: undefined, host: undefined }, ctx)
+    if (on === undefined || sendStaysOnHomeRun(to, ctx.runtime)) {
+      return await send({ ...routed, to, on: undefined, host: undefined }, ctx)
     }
     const attested = ctx.orchestrationCompatibilityCallerAuthority
     return await sendPeerMail({

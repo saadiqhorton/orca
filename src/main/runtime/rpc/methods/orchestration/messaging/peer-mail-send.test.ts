@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sendStaysOnHomeRun, withPeerMailSend } from './peer-mail-send'
+import {
+  normalizeOrchestrationSendTo,
+  sendStaysOnHomeRun,
+  withPeerMailSend
+} from './peer-mail-send'
 
 vi.mock('../../../../orchestration/desktop-hub/desktop-hub-route', () => ({
   routeDesktopHubCommand: async (_runtime: unknown, params: { host?: string; on?: string }) => ({
@@ -8,6 +12,16 @@ vi.mock('../../../../orchestration/desktop-hub/desktop-hub-route', () => ({
     host: undefined
   })
 }))
+
+describe('normalizeOrchestrationSendTo', () => {
+  it('prefixes a bare ctx_ id as a Dispatch mailbox', () => {
+    expect(normalizeOrchestrationSendTo('ctx_6098b1871ad2')).toBe('dispatch:ctx_6098b1871ad2')
+    expect(normalizeOrchestrationSendTo('dispatch:ctx_6098b1871ad2')).toBe(
+      'dispatch:ctx_6098b1871ad2'
+    )
+    expect(normalizeOrchestrationSendTo('term_visible')).toBe('term_visible')
+  })
+})
 
 describe('sendStaysOnHomeRun', () => {
   it('keeps dispatch, run, and task addresses on the caller even with --host', () => {
@@ -39,7 +53,7 @@ describe('withPeerMailSend', () => {
       { runtime: {}, replayedMutationReceipt: undefined } as never
     )
     expect(send).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'ctx_home', on: undefined, host: undefined }),
+      expect.objectContaining({ to: 'dispatch:ctx_home', on: undefined, host: undefined }),
       expect.anything()
     )
   })
