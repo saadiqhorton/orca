@@ -33,16 +33,24 @@ def which(name: str) -> str | None:
     return shutil.which(name)
 
 
+def path_exists(path: str) -> bool:
+    """True if path is visible. EACCES on /root/.orca must not crash a non-root run."""
+    try:
+        return os.path.exists(path)
+    except OSError:
+        return False
+
+
 def orca_bin() -> str | None:
     env = os.environ.get("ORCA_BIN")
-    if env and Path(env).exists():
+    if env:
         return env
     for p in (
         os.path.expanduser("~/.orca/cli/bin/orca"),
         os.path.expanduser("~/.local/bin/orca"),
         "/root/.orca/cli/bin/orca",
     ):
-        if Path(p).exists():
+        if path_exists(p):
             return p
     return which("orca")
 
@@ -226,8 +234,43 @@ def extra_args_violation(text: str) -> bool:
     return any(s.lower() in low for s in ERROR_ALLOWLIST)
 
 
+def extract_term_handle(text: str) -> str | None:
+    found = re.findall(r"term_[0-9a-f-]+", text or "")
+    return found[0] if found else None
+
+
+def from_flags(handle: str | None) -> list[str]:
+    return ["--from", handle] if handle else []
+
+
+def ensure_caller_terminal(title: str = "verify-orca-caller") -> str | None:
+    """Desktop-driven worker-start needs a live Orca terminal as the caller.
+
+    Create one (or reuse ORCA_TERMINAL_HANDLE) before driving S01/S03/S05.
+    """
+    existing = os.environ.get("ORCA_TERMINAL_HANDLE")
+    if existing:
+        return existing
+    tries: list[list[str]] = []
+    wt = os.environ.get("ORCA_VERIFY_WORKTREE", "").strip()
+    if wt:
+        tries.append(["terminal", "create", "--worktree", wt, "--title", title, "--json"])
+    tries.append(["terminal", "create", "--title", title, "--json"])
+    tries.append(
+        ["terminal", "create", "--worktree", f"path:{os.getcwd()}", "--title", title, "--json"]
+    )
+    for args in tries:
+        r = orca(args, timeout=60)
+        handle = extract_term_handle(r["out"])
+        if handle:
+            os.environ["ORCA_TERMINAL_HANDLE"] = handle
+            return handle
+    return None
+
+
 def claude_after_inventory(ev: Path, host_a: str) -> dict[str, Any]:
     """R07: after a host list has been served, Claude worker-start and agent launch must not hit the extras allowlist."""
+    caller = ensure_caller_terminal("verify-r07-caller")
     inv = orca(["host", "inventory", "--json"], timeout=40)
     steps = [inv]
     ws = orca(
@@ -240,6 +283,7 @@ def claude_after_inventory(ev: Path, host_a: str) -> dict[str, Any]:
             "claude",
             "--spec",
             "Run hostname and report its exact output in worker_done. Do nothing else.",
+            *from_flags(caller),
         ],
         timeout=90,
     )
@@ -344,6 +388,9 @@ def run_scripted(
     ]
     for k, v in facts.items():
         args.extend(["--fact", f"{k}={v}"])
+    wt = os.environ.get("ORCA_VERIFY_WORKTREE", "").strip()
+    if wt:
+        args.extend(["--worktree", wt])
     env = os.environ.copy()
     bin_path = orca_bin()
     if bin_path:
@@ -356,30 +403,68 @@ def run_scripted(
             payload = json.loads(json_path.read_text())
         except json.JSONDecodeError:
             payload = {}
+    return overlay_from_harness(
+        payload,
+        spec,
+        r,
+        evidence=[str(json_path), str(out) + ".md"],
+        extra_out=r["out"] + json.dumps(payload),
+    )
+
+
+def overlay_from_harness(
+    payload: dict[str, Any],
+    spec: dict[str, Any],
+    r: dict[str, Any],
+    *,
+    evidence: list[str],
+    extra_out: str = "",
+    via: str | None = None,
+) -> dict[str, Any]:
+    """Map harness JSON onto verify-orca. S08 unknown_host + no tab follows harness bar.zero_wrong_host."""
     bar = payload.get("bar") or {}
-    visible_ok = True
-    if spec.get("expect_tab"):
-        visible_ok = bar.get("visible_tab") is True
+    visible_ok = True if not spec.get("expect_tab") else bar.get("visible_tab") is True
     passed = bool(payload.get("pass")) and visible_ok
     reasons = list(payload.get("fail_reasons") or [])
     if spec.get("expect_tab") and not visible_ok:
         reasons.append("target tab group is missing or starts with headless-terminals:")
-    if extra_args_violation(r["out"] + json.dumps(payload)):
+    if extra_args_violation(extra_out + json.dumps(payload)):
         passed = False
         reasons.append("Claude extra-args allowlist / agent_session_operation_unknown")
-    return {
+    metrics = payload.get("metrics") or {}
+    zero_wrong = bar.get("zero_wrong_host")
+    if zero_wrong is None:
+        zero_wrong = not metrics.get("wrong_host_errors")
+    wrong_host = [] if zero_wrong else (metrics.get("wrong_host_errors") or [])
+    result = {
         "pass": passed,
         "payload": payload,
         "runner": r,
         "reasons": reasons,
-        "orca_cmds": (payload.get("metrics") or {}).get("orca_invocations") or len(payload.get("commands") or []),
+        "orca_cmds": metrics.get("orca_invocations") or len(payload.get("commands") or []),
         "bar": bar,
-        "evidence": [str(json_path), str(out) + ".md"],
-        "ssh": payload.get("metrics", {}).get("ssh_used") or [],
-        "wrong_host": payload.get("metrics", {}).get("wrong_host_errors") or [],
+        "evidence": evidence,
+        "ssh": metrics.get("ssh_used") or [],
+        "wrong_host": wrong_host,
         "final": payload.get("final_answer") or "",
-        "wall_s": payload.get("wall_s") or r["secs"],
+        "wall_s": payload.get("wall_s") or r.get("secs") or 0,
     }
+    if via:
+        result["via"] = via
+    return result
+
+
+def remote_orca_script(commands: list[str]) -> str:
+    """Login-shell PATH plus the well-known absolute CLI. Bare `orca` over ssh is often 127."""
+    prelude = (
+        'export PATH="$HOME/.orca/cli/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"; '
+        'if [ -n "${ORCA_BIN:-}" ] && [ -x "$ORCA_BIN" ]; then BIN="$ORCA_BIN"; '
+        'elif [ -x "$HOME/.orca/cli/bin/orca" ]; then BIN="$HOME/.orca/cli/bin/orca"; '
+        'elif command -v orca >/dev/null 2>&1; then BIN="$(command -v orca)"; '
+        'else BIN=orca; fi; '
+    )
+    body = "; ".join(f'"$BIN" {cmd}' for cmd in commands)
+    return prelude + body
 
 
 def ssh_base() -> list[str]:
@@ -448,35 +533,29 @@ def box_drive(
         (ev / "transcripts" / f"box-{sid}.json").parent.mkdir(parents=True, exist_ok=True)
         (ev / "transcripts" / f"box-{sid}.json").write_text(json.dumps(payload, indent=2, default=str) + "\n")
         spec = specs.get(sid) or {}
-        bar = payload.get("bar") or {}
-        visible_ok = True if not spec.get("expect_tab") else bar.get("visible_tab") is True
-        passed = bool(payload.get("pass")) and visible_ok
-        reasons = list(payload.get("fail_reasons") or [])
-        if spec.get("expect_tab") and not visible_ok:
-            reasons.append("target tab group is missing or starts with headless-terminals:")
-        results[sid] = {
-            "pass": passed,
-            "payload": payload,
-            "runner": r,
-            "reasons": reasons,
-            "orca_cmds": (payload.get("metrics") or {}).get("orca_invocations") or 0,
-            "bar": bar,
-            "evidence": [str(ev / "transcripts" / f"box-{sid}.json")],
-            "ssh": [],
-            "wrong_host": payload.get("metrics", {}).get("wrong_host_errors") or [],
-            "final": payload.get("final_answer") or "",
-            "wall_s": payload.get("wall_s") or r["secs"],
-            "via": "box-rig",
-        }
+        results[sid] = overlay_from_harness(
+            payload,
+            spec,
+            r,
+            evidence=[str(ev / "transcripts" / f"box-{sid}.json")],
+            extra_out=r["out"] + json.dumps(payload),
+            via="box-rig",
+        )
     if "R07" in wanted:
         r = run(
             [
                 *ssh,
                 "hosta@10.77.0.2",
-                "orca host inventory --json; "
-                "orca orchestration worker-start --agent claude --spec hostname; "
-                "orca agent launch --agent claude --prompt hostname; "
-                "orca agent launch --host ubuntu-server-local --agent claude --prompt hostname",
+                "bash",
+                "-lc",
+                remote_orca_script(
+                    [
+                        "host inventory --json",
+                        "orchestration worker-start --agent claude --spec hostname",
+                        "agent launch --agent claude --prompt hostname",
+                        "agent launch --host ubuntu-server-local --agent claude --prompt hostname",
+                    ]
+                ),
             ],
             timeout=180,
         )
@@ -535,6 +614,7 @@ def drive(
 
     if inv["ok"]:
         mode = "desktop-cli"
+        ensure_caller_terminal("verify-orca-desktop-caller")
         # S01–S06/S08 via scripted CLI; S07/R08 reverse from host_a → host_b.
         for sid in wanted:
             spec = specs.get(sid) or {}

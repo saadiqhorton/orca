@@ -10,12 +10,27 @@ Never answers a trust/hooks dialog. Never sends keystrokes to an agent pane.
 """
 import argparse, glob, json, os, re, shlex, subprocess, sys, time
 
-ORCA = os.environ.get("ORCA_BIN") or next((p for p in [os.path.expanduser("~/.orca/cli/bin/orca"), "/root/.orca/cli/bin/orca"] if os.path.exists(p)), "orca")
-ERROR_CODES = ["selector_not_found", "terminal_handle_stale", "host_unknown", "Unknown host", "terminal_not_found",
+def _orca_bin():
+    env = os.environ.get("ORCA_BIN")
+    if env:
+        return env
+    for p in (os.path.expanduser("~/.orca/cli/bin/orca"), os.path.expanduser("~/.local/bin/orca"), "/root/.orca/cli/bin/orca"):
+        try:
+            if os.path.exists(p):
+                return p
+        except OSError:
+            continue
+    return "orca"
+
+
+ORCA = _orca_bin()
+ERROR_CODES = ["selector_not_found", "terminal_handle_stale", "host_unknown", "Unknown host", "unknown_host", "terminal_not_found",
                "dispatch_not_found", "dispatch_inactive", "agent_unconfigured", "agent_readiness", "agent_prompt_blocked",
                "worker_never_started", "no_active_sender_terminal", "invalid_argument", "timeout", "incompatible_runtime",
                "not connected to the desktop app", "unreachable", "start_failed"]
-WRONG_HOST = ["selector_not_found", "terminal_handle_stale", "terminal_not_found", "dispatch_not_found", "host_unknown", "Unknown host"]
+# unknown_host / "Unknown host" is the S08 refusal, not a routing accident.
+WRONG_HOST = ["selector_not_found", "terminal_handle_stale", "terminal_not_found", "dispatch_not_found"]
+REFUSAL_CODES = ("unknown_host", "host_unknown", "Unknown host")
 DIALOG_REASONS = ["agent-hooks-review-prompt", "agent-trust-workspace", "agent-prompt", "trust", "hooks"]
 SECRET_RE = re.compile(r"(?:sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[bp]-[A-Za-z0-9-]{20,}|\b[A-Za-z0-9_\-]{32,}\b|(?:token|password|secret)\s*[:=]?\s*\S{12,})", re.I)
 ORCA_INVOKE_RE = re.compile(r"(?:^|[\s;&|(`$])(?:[\w./~-]*/)?orca\s+(?=[a-z])")
@@ -236,6 +251,17 @@ def judge(spec, facts, final, cmds, metrics, wall, new_target_terms):
         ok = False; reasons.append("sent raw keystrokes to a terminal")
     if metrics["secrets_in_prompts"]:
         ok = False; reasons.append("secret-looking value in a prompt")
+    all_out = fin + "\n" + allcmd
+    if s.get("refuse_local"):
+        refused = any(code in all_out for code in REFUSAL_CODES) or bool(re.search(s.get("final_regex") or "unknown_host", all_out, re.I))
+        no_tab = not new_target_terms
+        if refused and no_tab:
+            ok = True
+            reasons = [r for r in reasons if "final answer" not in r]
+            metrics["wrong_host_errors"] = [w for w in metrics["wrong_host_errors"] if w.get("code") not in REFUSAL_CODES]
+        elif not no_tab:
+            ok = False
+            reasons.append("unknown host created a tab")
     bar = {"result": ok,
            "le_6_orca_cmds": metrics["orca_invocations"] <= 6,
            "zero_wrong_host": not metrics["wrong_host_errors"],
@@ -252,6 +278,8 @@ def scripted(sid, spec, facts, env, title, before=None):
     T = spec.get("target")
     before = before or {}
     log = []
+    caller = env.get("ORCA_TERMINAL_HANDLE")
+    from_args = ["--from", caller] if caller else []
     def run(a, **kw):
         r = orca(a, env=env, **kw); log.append(r); return r
     def wait_worker(d, secs=150):
@@ -276,7 +304,7 @@ def scripted(sid, spec, facts, env, title, before=None):
     if sid == "S06":
         r = run(["host", "inventory"]); final = r["out"]
     elif sid in ("S01", "S07"):
-        r = run(["orchestration", "worker-start", "--host", T, "--agent", agent, "--spec", SP["host"]])
+        r = run(["orchestration", "worker-start", "--host", T, "--agent", agent, "--spec", SP["host"]] + from_args)
         d = (re.findall(r"ctx_[0-9a-f]+", r["out"]) or [""])[0]
         if d:
             observe(T, before)
@@ -291,7 +319,7 @@ def scripted(sid, spec, facts, env, title, before=None):
             run(["terminal", "send", "--host", T, "--terminal", h, "--text", "uptime", "--enter"]); time.sleep(3)
             final = run(["terminal", "read", "--host", T, "--terminal", h])["out"][-1500:]
     elif sid == "S03":
-        r = run(["orchestration", "worker-start", "--host", T, "--agent", agent, "--spec", SP["ls"]])
+        r = run(["orchestration", "worker-start", "--host", T, "--agent", agent, "--spec", SP["ls"]] + from_args)
         d = (re.findall(r"ctx_[0-9a-f]+", r["out"]) or [""])[0]
         if d:
             observe(T, before)
@@ -305,12 +333,12 @@ def scripted(sid, spec, facts, env, title, before=None):
             s = run(["terminal", "show", "--host", T, "--terminal", h, "--json"])
             final = s["out"][-2000:] + "\n" + run(["terminal", "read", "--host", T, "--terminal", h])["out"][-1500:]
     elif sid == "S05":
-        r = run(["orchestration", "worker-start", "--host", T, "--agent", agent, "--spec", SP["wait"]])
+        r = run(["orchestration", "worker-start", "--host", T, "--agent", agent, "--spec", SP["wait"]] + from_args)
         d = (re.findall(r"ctx_[0-9a-f]+", r["out"]) or [""])[0]
         if d:
             observe(T, before)
             time.sleep(15)
-            run(["orchestration", "send", "--host", T, "--to", d, "--subject", "date", "--body", ("RUN: date" if stub else "What is the date today? Run date and reply with its output.")])
+            run(["orchestration", "send", "--host", T, "--to", d, "--subject", "date", "--body", ("RUN: date" if stub else "What is the date today? Run date and reply with its output.")] + from_args)
             time.sleep(15)
             rr = run(["orchestration", "worker-read", "--host", T, "--dispatch", d])
             wt = (re.findall(r"terminal=(term_[0-9a-f-]+)", r["out"]) or [""])[0]
@@ -352,8 +380,18 @@ def main():
     source_handle = None
     blocked = None
     if a.agent == "scripted":
-        cr = orca(["terminal", "create"] + (["--worktree", a.worktree] if a.worktree else []) + ["--title", title, "--json"])
-        source_handle = (re.findall(r"term_[0-9a-f-]+", cr["out"]) or [None])[0]
+        source_handle = os.environ.get("ORCA_TERMINAL_HANDLE") or None
+        create_tries = []
+        if a.worktree:
+            create_tries.append(["terminal", "create", "--worktree", a.worktree, "--title", title, "--json"])
+        create_tries.append(["terminal", "create", "--title", title, "--json"])
+        create_tries.append(["terminal", "create", "--worktree", "path:%s" % os.getcwd(), "--title", title, "--json"])
+        for args in create_tries:
+            cr = orca(args)
+            found = (re.findall(r"term_[0-9a-f-]+", cr["out"]) or [None])[0]
+            if found:
+                source_handle = found
+                break
         env = dict(os.environ)
         if source_handle:
             env["ORCA_TERMINAL_HANDLE"] = source_handle

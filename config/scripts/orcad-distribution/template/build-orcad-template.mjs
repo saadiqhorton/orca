@@ -17,6 +17,7 @@ import {
   ORCAD_SERVER_TARGET_FILENAME,
   ORCAD_TEMPLATE_MANIFEST_FILENAME,
   ORCAD_TEMPLATE_TARGETS_DIR,
+  ORCAD_VERSION_FILENAME,
   orcadNodePtySlotFiles,
   orcadTemplateCommonFilenames,
   orcadTemplateTargetFilenames
@@ -183,6 +184,30 @@ function sameBytes(left, right) {
   return sha256(left) === sha256(right)
 }
 
+function gitSourceCommit() {
+  try {
+    const result = runProcessSync({
+      program: 'git',
+      args: ['rev-parse', 'HEAD'],
+      cwd: root,
+      timeoutMs: 10_000
+    })
+    const sha = result.stdout?.trim()
+    return result.code === 0 && sha ? sha : null
+  } catch {
+    return null
+  }
+}
+
+function slotArtifactVersion(packageDir) {
+  const versionPath = join(packageDir, ORCAD_VERSION_FILENAME)
+  if (!existsSync(versionPath)) {
+    return null
+  }
+  const token = readFileSync(versionPath, 'utf8').trim().split(/\s/)[0]
+  return token.startsWith('0.1.0+') ? token : null
+}
+
 async function main() {
   assertTemplateBuildAllowed()
   const templateTargets = requestedTemplateTargets()
@@ -222,10 +247,25 @@ async function main() {
   const commonSha256 = Object.fromEntries(
     commonArtifacts.map((filename) => [filename, sha256(join(outputDir, filename))])
   )
+  const artifactVersion = slotArtifactVersion(packages[firstTarget])
+  const sourceCommit = gitSourceCommit()
   writeFileSync(
     join(outputDir, ORCAD_TEMPLATE_MANIFEST_FILENAME),
-    `${JSON.stringify({ schemaVersion: 3, commonSha256, targets }, null, 2)}\n`
+    `${JSON.stringify(
+      {
+        schemaVersion: 3,
+        artifactVersion,
+        sourceCommit,
+        commonSha256,
+        targets
+      },
+      null,
+      2
+    )}\n`
   )
+  if (artifactVersion) {
+    writeFileSync(join(outputDir, ORCAD_VERSION_FILENAME), `${artifactVersion}\n`)
+  }
   verifyPackagedOrcadTemplate(join(root, 'out'), templateTargets)
   // Outside the manifest, so deploys never copy it; it marks the whole template as test-only.
   for (const marker of darkBuildMarkers()) {

@@ -54,7 +54,7 @@ Read `features/README.md`, then the feature file.
 3. R07: after inventory, `worker-start --agent claude` and `agent launch --agent claude` (local and `--host`). Fail on extras allowlist / `agent_session_operation_unknown`.
 4. If there is no live two-host desktop, **S01–S08 FAIL** with `no live two-host desktop; refusing to false-green`. R* unit tests may still pass.
 
-Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host / `selector_not_found`, no hang >60s, no secrets in prompts, no dialog keystrokes, visible tab when `expect_tab`. S04 = escalate, never auto-answer. S08 = refuse, never run locally.
+Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host / `selector_not_found`, no hang >60s, no secrets in prompts, no dialog keystrokes, visible tab when `expect_tab`. S04 = escalate, never auto-answer. S08 = `unknown_host` refusal with no tab created is a PASS (not a wrong-host fail). Drive labels the summary `desktop-cli` or `box-rig` from the mode that actually ran. Template version is `orcad-template.json` `artifactVersion`. Desktop S01/S03/S05 create (or reuse) an Orca caller terminal before `worker-start`.
 
 **Permanent regressions** (`R01`…) never drop. Every future failure becomes a new `Rxx` in `scripts/scenarios.json` plus a feature file (or a sub-feature on an existing one).
 

@@ -114,17 +114,44 @@ def append(path: Path, text: str) -> None:
         fh.write(text)
 
 
+def _version_from_text(text: str | None) -> str | None:
+    if not text:
+        return None
+    token = text.strip().split()[0]
+    if token.startswith("0.1.0+"):
+        return token
+    m = re.search(r"0\.1\.0\+[0-9a-f]+", text)
+    return m.group(0) if m else None
+
+
 def detect_template_version(root: Path) -> str:
     env = os.environ.get("ORCA_TEMPLATE_VERSION")
     if env:
         return env
     marker = root / "out/orcad-template"
+    manifest = marker / "orcad-template.json"
+    if manifest.is_file():
+        try:
+            data = json.loads(manifest.read_text())
+            for key in ("artifactVersion", "version", "fullVersion"):
+                found = _version_from_text(data.get(key) if isinstance(data.get(key), str) else None)
+                if found:
+                    return found
+        except (OSError, json.JSONDecodeError):
+            pass
+    for path in (
+        marker / ".version",
+        root / "out/orcad" / ".version",
+        *([p for p in marker.rglob(".version")] if marker.is_dir() else []),
+    ):
+        if path.is_file():
+            try:
+                found = _version_from_text(path.read_text())
+            except OSError:
+                found = None
+            if found:
+                return found
     if marker.is_dir():
-        for path in [marker / ".version", *marker.rglob(".version")]:
-            if path.is_file():
-                text = path.read_text().strip().split()[0]
-                if text.startswith("0.1.0+"):
-                    return text
         for child in marker.iterdir():
             m = re.search(r"orcad-(0\.1\.0\+[0-9a-f]+)", child.name)
             if m:
@@ -177,16 +204,22 @@ def bun_doctor(root: Path, env: dict[str, str]) -> dict[str, Any]:
 
 
 def detect_agent_mode(root: Path) -> dict[str, Any]:
-    from live_drive import inventory, live_wanted, orca_bin
+    from live_drive import box_rig_available, inventory, live_wanted, orca_bin
 
     claude = which("claude")
     codex = which("codex")
-    orca = orca_bin()
-    inv = inventory() if orca else {"ok": False, "out": "", "names": [], "exit": 127}
+    try:
+        orca = orca_bin()
+    except OSError:
+        orca = which("orca")
+    try:
+        inv = inventory() if orca else {"ok": False, "out": "", "names": [], "exit": 127}
+    except OSError as err:
+        inv = {"ok": False, "out": f"inventory probe failed: {err}", "names": [], "exit": 13}
     if inv.get("ok"):
         agent = "scripted-cli"
         return {
-            "mode": "live",
+            "mode": "desktop-cli",
             "agent": agent,
             "claude": claude,
             "codex": codex,
@@ -199,6 +232,20 @@ def detect_agent_mode(root: Path) -> dict[str, Any]:
                 "reverse worker-start + Claude-after-inventory). Green means the real rig passed."
             ),
         }
+    if box_rig_available():
+        return {
+            "mode": "box-rig",
+            "agent": "scripted-cli",
+            "claude": claude,
+            "codex": codex,
+            "orca": orca,
+            "inventory_ok": False,
+            "inventory_out": inv.get("out", "")[:2000],
+            "note": (
+                "Operator box rig at /workspace/xhost-real-test. Drive runs the real orca CLI "
+                "on hosta/hostb (login shell / absolute path)."
+            ),
+        }
     if live_wanted():
         return {
             "mode": "live-required",
@@ -208,7 +255,7 @@ def detect_agent_mode(root: Path) -> dict[str, Any]:
             "orca": orca,
             "inventory_ok": False,
             "inventory_out": inv.get("out", "")[:2000],
-            "note": "ORCA_VERIFY_LIVE=1 but inventory did not list both hosts. S01–S08 will fail.",
+            "note": "ORCA_VERIFY_LIVE=1 but inventory did not list both hosts and no box rig is present. S01–S08 will fail.",
         }
     return {
         "mode": "no-live-rig",
@@ -222,6 +269,23 @@ def detect_agent_mode(root: Path) -> dict[str, Any]:
             "No live Orca desktop with dockhand + ubuntu-server-local. S01–S08 FAIL "
             "(refusing to false-green from greps / in-process e2e). R* unit tests may still run."
         ),
+    }
+
+
+def agent_info_from_drive(agent_info: dict[str, Any], live: dict[str, Any]) -> dict[str, Any]:
+    mode = live.get("mode") or "none"
+    notes = {
+        "desktop-cli": "Live two-host desktop. Drive ran the real orca CLI.",
+        "box-rig": "Operator box rig. Drive ran the real orca CLI on hosta/hostb.",
+        "none": agent_info.get("note", "No live two-host path."),
+    }
+    agent = "scripted-cli" if mode in ("desktop-cli", "box-rig") else agent_info.get("agent", "no-live-rig")
+    return {
+        **agent_info,
+        "mode": mode,
+        "agent": agent,
+        "live_mode": mode,
+        "note": notes.get(mode, notes["none"]),
     }
 
 
@@ -250,6 +314,7 @@ VITEST_FILES = [
     "src/shared/agent-launch/startup/orca-owned-claude-launch-args.test.ts",
     "src/main/runtime/terminal/surface/mobile-session-layout-projection-group-id.test.ts",
     "src/shared/orchestration/orca-host-awareness.test.ts",
+    "src/shared/orchestration/box-safety-probe.test.ts",
     "src/shared/orchestration/desktop-hub-contract.test.ts",
     "src/shared/agent-launch/startup/agent-launch-blocked-prompt.test.ts",
     "src/cli/terminals/terminal-send-startup-dialog.test.ts",
@@ -640,7 +705,7 @@ def write_summary(
         "",
         f"- **SHA:** `{sha}`",
         f"- **Template:** `{template}`",
-        f"- **Agent mode:** `{agent_info['mode']}` ({agent_info['agent']})",
+        f"- **Agent mode:** `{agent_info.get('live_mode') or agent_info['mode']}` ({agent_info['agent']})",
         f"- **Note:** {agent_info['note']}",
         f"- **Evidence:** `{ev}`",
         "",
@@ -705,6 +770,7 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
     live = live_drive(SKILL_DIR, root, ev, wanted, specs, start_info)
     write_json(ev / "live-drive.json", {k: live[k] for k in live if k != "results"})
     live_results = live.get("results") or {}
+    agent_info = agent_info_from_drive(agent_info, live)
     no_live_reason = live.get("reason") or (
         "no live two-host desktop; refusing to false-green"
     )
@@ -722,10 +788,12 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
                     "wrong_host": [],
                     "wall_s": 0,
                     "via": "missing",
+                    "bar": {},
                 }
+            bar = lr.get("bar") or {}
             extra = {
-                "no_ssh": not lr.get("ssh"),
-                "zero_wrong_host": not lr.get("wrong_host"),
+                "no_ssh": bar.get("no_ssh", not lr.get("ssh")),
+                "zero_wrong_host": bar.get("zero_wrong_host", not lr.get("wrong_host")),
                 "stand_in_unverified": [] if lr.get("pass") else [no_live_reason] if live.get("mode") == "none" else [],
                 "evidence": lr.get("evidence") or [],
                 "wall_s": lr.get("wall_s") or 0,
@@ -766,11 +834,6 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
                     extra=extra,
                 )
                 write_scenario_files(ev, results[sid])
-    agent_info = {
-        **agent_info,
-        "live_mode": live.get("mode"),
-        "note": f"{agent_info.get('note', '')} Drive mode={live.get('mode')}.",
-    }
     write_summary(ev, sha, template, agent_info, results, doctor)
     if any(not results[s]["pass"] for s in wanted):
         raise SystemExit(2)

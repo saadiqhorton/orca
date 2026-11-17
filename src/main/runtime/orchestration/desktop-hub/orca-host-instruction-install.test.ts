@@ -106,4 +106,16 @@ describe('writeOrcaHostInstructionFile safety (box patch)', () => {
     expect((await readFile(utf16)).equals(Buffer.from('\ufeffhi', 'utf16le'))).toBe(true)
     expect((await readdir(dir)).filter((n) => n.includes('orca-tmp'))).toEqual([])
   })
+
+  it('strip restores the user file byte-for-byte including blank-line runs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'orca-instr-strip-'))
+    homes.push(dir)
+    const user = join(dir, 'AGENTS.md')
+    const original = '# mine\n\n\nthree-newline gap above\n'
+    await writeFile(user, original, 'utf8')
+    await writeOrcaHostInstructionFile(user, ['dockhand'])
+    expect(await readFile(user, 'utf8')).toContain('orca-managed:host-preamble')
+    await writeOrcaHostInstructionFile(user, ['dockhand'], { strip: true })
+    expect(await readFile(user, 'utf8')).toBe(original)
+  })
 })

@@ -39,6 +39,13 @@ describe('orca host awareness copy', () => {
     expect(removeManagedHostInstruction(updated)).not.toContain('orca-managed:host-preamble')
   })
 
+  it('removeManagedHostInstruction is the inverse of an append upsert', () => {
+    const original = '# mine\n\n\nthree-newline gap above\n'
+    expect(removeManagedHostInstruction(upsertManagedHostInstruction(original, 'p'))).toBe(
+      original
+    )
+  })
+
   it('refuses an unknown host with the connected names', () => {
     expect(unknownDesktopHubHostMessage('TEMPLEOFDOOM', ['ubuntu-server-local'])).toContain(
       'ubuntu-server-local'

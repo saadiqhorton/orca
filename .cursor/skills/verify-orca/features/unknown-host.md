@@ -22,7 +22,7 @@ Preconditions:
 
 - **Fresh agent.** `verify-orca run --scenarios S08,R02`. Agent must not ssh. CLI refuse path: exit ≠ 0, code `unknown_host`, message lists connected names.
 - **Stand-in.** Vitest `desktop-hub-bind.test.ts` (`TEMPLEOFDOOM` vs `ubuntu-server-local` → `unknown_host`; hub throw → `desktop_hub_unavailable`). E2e must not forward methods for unknown/disconnected names.
-- **Proof.** No new local tab for S08. `bar.result` true because the refusal is the success.
+- **Proof.** No new local tab for S08. `bar.result` true because the refusal is the success. `unknown_host` / `Unknown host` in the transcript is not a wrong-host routing error when `refuse_local` holds and no tab was created.
 
 ## Gotchas
 

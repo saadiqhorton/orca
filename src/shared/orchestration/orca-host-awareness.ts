@@ -73,10 +73,17 @@ export function removeManagedHostInstruction(existing: string | undefined): stri
   if (startAt === -1 || endAt === -1 || endAt < startAt) {
     return existing
   }
-  const before = existing.slice(0, startAt)
-  const after = existing.slice(endAt + end.length).replace(/^\n/, '')
-  const next = `${before}${after}`.replace(/\n{3,}/g, '\n\n')
-  return next.trim().length === 0 ? '' : next
+  // Inverse of upsert: drop the block, the wrap's trailing newline, and the one `\n`
+  // separator upsert inserts before the start marker. Leave every other byte alone.
+  let from = startAt
+  let to = endAt + end.length
+  if (existing.startsWith('\n', to)) {
+    to += 1
+  }
+  if (from > 0 && existing[from - 1] === '\n') {
+    from -= 1
+  }
+  return existing.slice(0, from) + existing.slice(to)
 }
 
 export function unknownDesktopHubHostMessage(name: string, connected: readonly string[]): string {
