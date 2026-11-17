@@ -369,6 +369,7 @@ def run_vitest(root: Path, ev: Path, env: dict[str, str]) -> dict[str, Any]:
             "run",
             "--config",
             "config/vitest.config.ts",
+            "--reporter=verbose",
             *files,
         ],
         cwd=root,
@@ -486,16 +487,13 @@ def stand_in_suite(
         vt_ok
         and "unknown_host" in bind_src
         and "desktop_hub_unavailable" in bind_src
-        and "unknown_host" in vt_out
-        and (not e2e or "ssh" not in e2e_out.lower() or "SSH was used" not in e2e_out)
+        and ("unknown_host" in vt_out or "refuses unknown --host" in vt_out)
+        and "SSH was used" not in e2e_out
     )
     if e2e_ok:
         r02_ok = r02_ok and "a host that is not connected was dialed" not in e2e_out
     r03_ok = vt_ok and "reason is string" in typefix_src and "agent_blocked_on_prompt" in typefix_src
-    r04_ok = vt_ok and "unique remote folder" in vt_out.lower() or (
-        vt_ok and "folder:fld_remote" in (root / "src/cli/hosts/desktop-hub-selector-resolve.test.ts").read_text()
-    )
-    r04_ok = vt_ok  # selector tests are in the mapped vitest set
+    r04_ok = vt_ok and "folder:fld_remote" in (root / "src/cli/hosts/desktop-hub-selector-resolve.test.ts").read_text()
     r05_ok = tc_ok and "reason is string" in typefix_src
     r06_ok = (
         vt_ok
@@ -505,13 +503,13 @@ def stand_in_suite(
     )
 
     s06_ok = e2e_ok and "ubuntu-server-local" in e2e_out and "claude" in e2e_out and r01_ok
-    s01_ok = e2e_ok and "agent.launch" in e2e_out and "term_visible_e2e" in e2e_out
+    s01_ok = e2e_ok and "agent launch" in e2e_out and "term_visible_e2e" in e2e_out
     s02_ok = r01_ok and vt_ok and "terminal" in (root / "src/cli/hosts/desktop-hub-command-route.test.ts").read_text()
     s03_ok = e2e_ok and "federationAttachStart" in e2e_out and "federationStop" in e2e_out
     s04_ok = r03_ok  # no hooks dialog on stand-in
     s05_ok = s03_ok  # follow-up covered by federationShow after start
     s07_ok = e2e_ok and "dockhand" in e2e_out
-    s08_ok = r02_ok and e2e_ok and ("needs_sign_in" in e2e_out or "unknown_host" in vt_out)
+    s08_ok = r02_ok and e2e_ok and "needs_sign_in" in e2e_out and "TEMPLEOFDOOM" in e2e_out
 
     mapping = {
         "R01": (r01_ok, 0, ["skill YAML + preamble + instruction-install tests"] + ([] if r01_ok else orch_miss + cli_miss), unverified_live),
