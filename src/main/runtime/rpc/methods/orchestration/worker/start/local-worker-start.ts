@@ -8,6 +8,7 @@ import {
   isWorkerStartBlockedPromptError,
   throwIfWorkerStartBlockedOnPrompt
 } from './worker-start-blocked-prompt'
+import { isStartupDialogBlockedReason } from '../../../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import type { OrchestrationDb } from '../../../../../orchestration/db/orchestration-db'
 import type {
   DispatchContextRow,
@@ -195,6 +196,19 @@ export async function startLocalWorker(args: {
         if (setupReceipt.state === 'failed') {
           failedStage = 'setup_wait'
         }
+        if (isStartupDialogBlockedReason(wait.blockedReason) && setupReceipt.state !== 'failed') {
+          // The tab stays open at the prompt, so the worker stays ready and blocked instead of failing.
+          db.prepareStartingWorkerAuthority({
+            dispatchId: started.dispatch.id,
+            handle: terminalHandle,
+            ...(authority ?? requireWorkerAuthority(runtime, terminalHandle)),
+            worktreeId: resolvedWorktree.id,
+            effects,
+            setupState: setupReceipt.state,
+            terminalOwnership: external ? 'external' : 'created'
+          })
+          db.markWorkerBlockedOnPrompt(started.dispatch.id, wait.blockedReason)
+        }
         throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
         throw new Error(
           wait.blockedReason
@@ -243,6 +257,9 @@ export async function startLocalWorker(args: {
       onStage
     })
   } catch (error) {
+    if (isWorkerStartBlockedPromptError(error)) {
+      throw error
+    }
     result = await failWorkerStartWithReceipt({
       runtime,
       structuredSession: placed?.structuredSession ?? null,
@@ -256,9 +273,6 @@ export async function startLocalWorker(args: {
       launch: launch.receipt,
       mode
     })
-    if (isWorkerStartBlockedPromptError(error)) {
-      throw error
-    }
   }
   if (
     !params.terminal &&

@@ -162,6 +162,8 @@ export type WorkerDispatchRow = {
   residual_resources: string
   start_options: string
   last_error: string | null
+  /** Set while the worker is ready but its agent is stopped at a startup prompt. */
+  blocked_reason: string | null
   created_at: string
   updated_at: string
 }

@@ -84,6 +84,10 @@ export class TerminalWorkerTurnStops {
     if (!resolved) {
       return
     }
+    const blockedReason =
+      reason === 'needs-input' && !approval && resolved.target.kind === 'local'
+        ? (resolved.db.getWorkerDispatch(resolved.target.dispatch.id)?.blocked_reason ?? undefined)
+        : undefined
     const sent = reportWorkerTurnStop(
       resolved.db,
       resolved.target,
@@ -93,7 +97,8 @@ export class TerminalWorkerTurnStops {
         turnStartedAt: stop.row.turnStartedAt,
         reason,
         lastOutput,
-        ...(approval ? { approval } : {})
+        ...(approval ? { approval } : {}),
+        ...(blockedReason ? { blockedReason } : {})
       },
       this.deps
     )

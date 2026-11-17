@@ -55,7 +55,8 @@ export async function reconcileLegacyWorkerCandidate(args: {
     controllerIdentity.handle !== candidate.terminalHandle ||
     controllerIdentity.incarnationId !== candidate.incarnationId
   ) {
-    args.pendingResolutions.push({ candidate, resolution: 'exited' })
+    // A live PTY under another binding is not an exit; only proven exit marks the worker lost.
+    args.deferredDispatchIds.add(candidate.dispatchId)
     return
   }
   let adoptionStatus: 'ready' | 'unverifiable' | 'exited'
@@ -85,7 +86,7 @@ export async function reconcileLegacyWorkerCandidate(args: {
         preAdoptionIdentity.handle !== candidate.terminalHandle ||
         preAdoptionIdentity.incarnationId !== candidate.incarnationId
       ) {
-        return 'exited'
+        return 'unverifiable'
       }
       const exactSurfaceAlreadyPublished =
         ports.hasExactPersistedSurface(candidate) && ports.hasExactSurface(candidate)
@@ -182,7 +183,7 @@ export async function reconcileLegacyWorkerCandidate(args: {
     finalIdentity.incarnationId !== candidate.incarnationId
   ) {
     controller.deleteReceipt(candidate.paneKey)
-    args.pendingResolutions.push({ candidate, resolution: 'exited' })
+    args.deferredDispatchIds.add(candidate.dispatchId)
     return
   }
   args.pendingResolutions.push({ candidate, resolution: 'adopted' })
