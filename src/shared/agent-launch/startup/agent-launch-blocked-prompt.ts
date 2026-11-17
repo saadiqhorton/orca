@@ -39,7 +39,7 @@ export function isStartupDialogBlockedReason(
   return typeof reason === 'string' && STARTUP_DIALOG_REASONS.has(reason)
 }
 
-export function isStartupSecurityDialogReason(reason: string | undefined): boolean {
+export function isStartupSecurityDialogReason(reason: string | undefined): reason is string {
   return typeof reason === 'string' && STARTUP_SECURITY_DIALOG_REASONS.has(reason)
 }
 

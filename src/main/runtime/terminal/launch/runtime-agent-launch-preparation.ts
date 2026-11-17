@@ -1,10 +1,8 @@
 import type { SessionOptionValue } from '../../../../shared/native-chat/input/native-chat-session-options'
 import type { TerminalWorkspaceLaunchScope } from '../../orchestration/terminal-authority/structured-sessions/runtime-legacy-worker-terminal-recovery-types'
 import type { TerminalCreateOptions } from './terminal-create-options'
-import {
-  resolveAgentTerminalCreateOptions,
-  prepareHostAgentTerminalLaunch
-} from './runtime-agent-terminal-startup'
+import { prepareHostAgentTerminalLaunch } from './host-agent-terminal-launch'
+import { resolveAgentTerminalCreateOptions } from './runtime-agent-terminal-startup'
 import { RuntimeTerminalNames } from '../title/runtime-terminal-names'
 
 export abstract class RuntimeAgentLaunchPreparation extends RuntimeTerminalNames {

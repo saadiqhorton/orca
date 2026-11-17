@@ -16,6 +16,7 @@ describe('ensureOrchestrationScratchWorkspace', () => {
     homes.push(home)
     const groups: { id: string; name: string }[] = []
     const folders: { id: string; name: string; folderPath: string; projectGroupId: string }[] = []
+    const created: { skipPrimaryTerminal?: boolean }[] = []
     const runtime = {
       listVisibleProjectGroups: () => groups,
       listVisibleFolderWorkspaces: () => folders,
@@ -28,7 +29,9 @@ describe('ensureOrchestrationScratchWorkspace', () => {
         projectGroupId: string
         name?: string
         folderPath?: string | null
+        skipPrimaryTerminal?: boolean
       }) => {
+        created.push({ skipPrimaryTerminal: input.skipPrimaryTerminal })
         const folder = {
           id: 'fld_1',
           name: input.name ?? 'scratch',
@@ -41,6 +44,7 @@ describe('ensureOrchestrationScratchWorkspace', () => {
     }
     const first = await ensureOrchestrationScratchWorkspace(runtime, undefined, home)
     expect(first.created).toBe(true)
+    expect(created).toEqual([{ skipPrimaryTerminal: true }])
     expect(first.path).toBe(path.join(home, 'orca-orchestration'))
     expect(first.worktree).toBe(`folder:${first.folderWorkspaceId}`)
     const second = await ensureOrchestrationScratchWorkspace(runtime, undefined, home)

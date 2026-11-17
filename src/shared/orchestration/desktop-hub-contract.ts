@@ -139,10 +139,14 @@ export function desktopHubHostError(
   )
 }
 
-export function unknownDesktopHubHost(name: string): DesktopHubError {
+export function unknownDesktopHubHost(
+  name: string,
+  connected: readonly string[] = []
+): DesktopHubError {
+  const listed = connected.length > 0 ? connected.join(', ') : '(none listed)'
   return new DesktopHubError(
-    'host_unknown',
-    `Unknown host "${name}". Run orca host list to see the machines this desktop is connected to.`
+    'unknown_host',
+    `Unknown host "${name}". Connected machines: ${listed}. Run \`orca host inventory --json\`, then retry with \`orca … --host <connected-name>\`. Orca will not run this command locally or over ssh.`
   )
 }
 

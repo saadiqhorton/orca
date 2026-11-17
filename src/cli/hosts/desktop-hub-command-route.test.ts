@@ -181,19 +181,43 @@ describe('bindDesktopHubHost', () => {
     expect(flags.get('host')).toBe('TEMPLEOFDOOM')
   })
 
-  it('leaves unknown names for SSH resolution', async () => {
-    const flags = new Map<string, string | boolean>([['host', 'build-box']])
+  it('refuses an unknown --host instead of running locally', async () => {
+    const flags = new Map<string, string | boolean>([['host', 'TEMPLEOFDOOM']])
     const inner = {
       call: vi.fn(async () => ({
         id: '1',
         ok: true as const,
-        result: { hosts: [] },
+        result: {
+          hosts: [
+            {
+              kind: 'execution',
+              name: 'ubuntu-server-local',
+              status: 'connected',
+              id: 'env-ubuntu'
+            }
+          ]
+        },
         _meta: { runtimeId: 'local' }
       }))
     }
-    const result = await bindDesktopHubHost(inner as never, flags)
-    expect(result).toBe(inner)
-    expect(flags.get('host')).toBe('build-box')
+    await expect(bindDesktopHubHost(inner as never, flags)).rejects.toMatchObject({
+      code: 'unknown_host',
+      message: expect.stringContaining('ubuntu-server-local')
+    })
+    expect(flags.get('host')).toBe('TEMPLEOFDOOM')
+  })
+
+  it('refuses when the desktop hub list fails instead of running locally', async () => {
+    const flags = new Map<string, string | boolean>([['host', 'ubuntu-server-local']])
+    const inner = {
+      call: vi.fn(async () => {
+        throw new RuntimeClientError('runtime_unavailable', 'hub down')
+      })
+    }
+    await expect(bindDesktopHubHost(inner as never, flags)).rejects.toMatchObject({
+      code: 'desktop_hub_unavailable'
+    })
+    expect(flags.get('host')).toBe('ubuntu-server-local')
   })
 })
 

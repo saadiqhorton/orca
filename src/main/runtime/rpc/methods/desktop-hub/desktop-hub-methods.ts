@@ -10,6 +10,15 @@ import { readDesktopHubCatalogProvider } from '../../../orchestration/desktop-hu
 import { defineOrchestrationMethod } from '../orchestration/access/orchestration-method-access'
 import { callDesktopHubHost } from './desktop-hub-call'
 import { collectHostSurfaceInventory } from '../orchestration/surface/orchestration-surface-inventory'
+import {
+  rememberOrcaHostNames,
+  rememberOrcaInstructionFile
+} from '../../../orchestration/desktop-hub/orca-host-name-cache'
+import {
+  installOrcaHostInstructions,
+  orcaHostInstructionPath
+} from '../../../orchestration/desktop-hub/orca-host-instruction-install'
+import { getAppEnvironment, hasAppEnvironment } from '../../../../../shared/app-environment'
 
 /**
  * Routing control plane, not a Run mutation. A local CLI session may list, place, and forward.
@@ -90,11 +99,27 @@ async function listDesktopHub(ctx: { runtime: object; pairedDeviceId?: string })
   const registry = getDesktopHubRegistry(ctx.runtime)
   registry.assertCaller({ pairedDeviceId: ctx.pairedDeviceId })
   const provider = readDesktopHubCatalogProvider()
-  if (provider && !registry.hasVolunteer()) {
-    const catalog = await provider()
-    return { hub: 'desktop', hosts: catalog.hosts }
+  const listed =
+    provider && !registry.hasVolunteer()
+      ? { hub: 'desktop' as const, hosts: (await provider()).hosts }
+      : await registry.list()
+  await rememberListedOrcaHosts(listed.hosts)
+  return listed
+}
+
+async function rememberListedOrcaHosts(hosts: DesktopHubHostRow[]): Promise<void> {
+  const names = hosts.map((row) => row.name).filter((name) => name.length > 0)
+  rememberOrcaHostNames(names)
+  if (!hasAppEnvironment()) {
+    return
   }
-  return registry.list()
+  const userDataPath = getAppEnvironment().getPath('userData')
+  rememberOrcaInstructionFile(orcaHostInstructionPath(userDataPath))
+  try {
+    await installOrcaHostInstructions({ hosts: names, userDataPath })
+  } catch {
+    // Discovery copy is best-effort; listing hosts must still succeed.
+  }
 }
 
 /** The desktop process holds the catalog; a remote asks the hub instead of reading its own store. */

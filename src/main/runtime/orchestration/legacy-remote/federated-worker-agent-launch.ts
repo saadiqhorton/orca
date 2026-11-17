@@ -158,8 +158,7 @@ export async function launchFederatedWorkerAgent(args: {
           launchSource: 'orchestration',
           suppressStartupUpdatePrompt: true,
           ...(args.launchPreferences ? { launchPreferences: args.launchPreferences } : {}),
-          title: `worker-${params.taskId}`,
-          presentation: 'background'
+          title: `worker-${params.taskId}`
         })
         effects.push({ kind: 'terminal', role: 'agent', action: 'created', id: terminal.handle })
         terminalCreation = terminal

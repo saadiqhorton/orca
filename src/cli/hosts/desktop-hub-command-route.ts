@@ -1,13 +1,8 @@
 import { isDesktopHubHostValue } from './desktop-hub-host-flag'
 import { ignoresRemoteSelection } from '../dispatch/remote-selection-scope'
-import {
-  desktopHubHostError,
-  desktopHubRowMatches
-} from '../../shared/orchestration/desktop-hub-contract'
 import { isHomeRunMailboxSelector } from '../../shared/orchestration/orchestration-dispatch-id'
-import type { RuntimeClient } from '../runtime/client'
-import { RuntimeClientError } from '../runtime/types'
-import { wrapDesktopHubClient } from './desktop-hub-forwarding-client'
+
+export { bindDesktopHubHost, resolveDesktopHubHost } from './desktop-hub-bind'
 
 const KEEP_HOST_ORCHESTRATION = new Set(['worker-start', 'send', 'reply'])
 
@@ -116,64 +111,4 @@ export function isFolderWorktreeCreateWithoutRepo(
     !flags.has('project') &&
     !flags.has('project-host-setup')
   )
-}
-
-type HubListRow = {
-  kind?: string
-  name: string
-  machineName?: string
-  label?: string
-  id?: string
-  status?: string
-}
-
-/**
- * When `--host` names a connected desktop-hub machine, retarget the client there and
- * drop `--host` so existing commands run as if they were invoked on that host.
- * Unknown names are left for SSH / project-host resolution. A known but not-connected
- * hub host is refused (Orca will not try SSH).
- */
-export async function bindDesktopHubHost(
-  client: RuntimeClient,
-  flags: Map<string, string | boolean>
-): Promise<RuntimeClient> {
-  const host = flags.get('host')
-  if (!isDesktopHubHostValue(host)) {
-    return client
-  }
-  const row = await matchDesktopHubHost(client, host)
-  if (!row) {
-    return client
-  }
-  const blocked = desktopHubHostError(
-    row.status === 'needs_sign_in' || row.status === 'unreachable' || row.status === 'connected'
-      ? row.status
-      : 'unreachable',
-    row.name
-  )
-  if (blocked) {
-    throw new RuntimeClientError(blocked.code, blocked.message)
-  }
-  flags.delete('host')
-  return wrapDesktopHubClient(client, row.name)
-}
-
-export async function matchDesktopHubHost(
-  client: Pick<RuntimeClient, 'call'>,
-  alias: string
-): Promise<HubListRow | null> {
-  let hosts: unknown
-  try {
-    hosts = (await client.call<{ hosts?: unknown }>('orchestration.desktopHub.list', {})).result
-      .hosts
-  } catch {
-    return null
-  }
-  if (!Array.isArray(hosts)) {
-    return null
-  }
-  const row = (hosts as HubListRow[]).find(
-    (candidate) => typeof candidate?.name === 'string' && desktopHubRowMatches(candidate, alias)
-  )
-  return row ?? null
 }

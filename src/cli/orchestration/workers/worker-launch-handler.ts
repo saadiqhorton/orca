@@ -22,6 +22,7 @@ import { withResolvedNextCommands } from '../recovery/orchestration-mutation-rec
 import { readTextOrFileFlag } from '../../arguments/command-body-input'
 import { refuseAgentServerRoute } from '../identity/agent-server-route'
 import { isDesktopHubHostValue } from '../../hosts/desktop-hub-host-flag'
+import { resolveDesktopHubHost, throwDesktopHubHostResolution } from '../../hosts/desktop-hub-bind'
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async (ctx) => {
@@ -34,6 +35,10 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     }
     if (isDesktopHubHostValue(host)) {
       await assertDesktopHubRuntime(client)
+      const resolved = await resolveDesktopHubHost(client, host)
+      if (resolved.status !== 'matched') {
+        throwDesktopHubHostResolution(host, resolved)
+      }
     }
     const terminal = getPresentStringFlag(flags, 'terminal')
     const model = getOptionalStringFlag(flags, 'model')

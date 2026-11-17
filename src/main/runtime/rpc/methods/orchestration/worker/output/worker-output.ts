@@ -18,6 +18,7 @@ import {
 } from '../../../../../orchestration/workers/transcripts/worker-transcript-read'
 import type { AgentType } from '../../../../../../../shared/agent-status/contracts/agent-status-types'
 import { isWslHookRelayConnectionId } from '../../../../../../../shared/wsl-hook-relay-contract'
+import { newestTerminalReadCursor } from '../../../../../terminal/output/newest-terminal-read'
 
 export async function readExactWorkerOutput(args: {
   runtime: OrcaRuntimeService
@@ -176,10 +177,20 @@ async function readTerminalOutput(
   ) {
     throw sourceChanged()
   }
-  const terminal = await args.runtime.readTerminal(args.terminalHandle, {
-    cursor: cursor?.source === 'terminal' ? cursor.position : undefined,
+  const requestedCursor = cursor?.source === 'terminal' ? cursor.position : undefined
+  let terminal = await args.runtime.readTerminal(args.terminalHandle, {
+    cursor: requestedCursor,
     limit: args.limit
   })
+  if (requestedCursor === undefined) {
+    const newest = newestTerminalReadCursor({
+      latestCursor: terminal.latestCursor,
+      limit: args.limit
+    })
+    if (newest) {
+      terminal = await args.runtime.readTerminal(args.terminalHandle, newest)
+    }
+  }
   const redactedTerminal = redactWorkerTerminalView(terminal)
   const position =
     terminal.nextCursor !== null && /^\d+$/.test(terminal.nextCursor)

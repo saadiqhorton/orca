@@ -63,7 +63,10 @@ export async function routeDesktopHubCommand<T extends { host?: string; on?: str
 function selectorFromDesktopCatalog(catalog: DesktopHubCatalog, host: string): string {
   const row = catalog.hosts.find((candidate) => desktopHubRowMatches(candidate, host))
   if (!row) {
-    throw unknownDesktopHubHost(host)
+    throw unknownDesktopHubHost(
+      host,
+      catalog.hosts.map((candidate) => candidate.name)
+    )
   }
   const blocked = desktopHubHostError(row.status, row.name)
   if (blocked) {

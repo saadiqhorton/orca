@@ -17,7 +17,8 @@ describe('desktop hub host status', () => {
     expect(desktopHubStatus({ health: 'disconnected' })).toBe('unreachable')
     expect(desktopHubHostError('needs_sign_in', 'TEMPLEOFDOOM')?.message).toContain('needs sign-in')
     expect(desktopHubHostError('unreachable', 'ARCHIT4ME')?.message).toContain('will not try SSH')
-    expect(unknownDesktopHubHost('missing').message).toContain('orca host list')
+    expect(unknownDesktopHubHost('missing').code).toBe('unknown_host')
+    expect(unknownDesktopHubHost('missing').message).toContain('orca host inventory')
   })
 
   it('matches --host ubuntu-server-local when the machine is dezignerdrugz00', () => {

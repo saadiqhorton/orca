@@ -10,6 +10,14 @@ import { wslHostClientInstanceId } from '../../../wsl/host-lifecycle/wsl-host-cl
 import { buildDesktopHubCatalog } from '../../../runtime/orchestration/desktop-hub/desktop-hub-catalog'
 import { setDesktopHubCatalogProvider } from '../../../runtime/orchestration/desktop-hub/desktop-hub-provider'
 import { enableDesktopHubPlacementStore } from '../../../runtime/orchestration/desktop-hub/desktop-hub-placement-store'
+import {
+  rememberOrcaHostNames,
+  rememberOrcaInstructionFile
+} from '../../../runtime/orchestration/desktop-hub/orca-host-name-cache'
+import {
+  installOrcaHostInstructions,
+  orcaHostInstructionPath
+} from '../../../runtime/orchestration/desktop-hub/orca-host-instruction-install'
 import { openHubSubscription } from './desktop-hub-subscribe'
 
 type DesktopHubClientOptions = {
@@ -76,7 +84,9 @@ export function startDesktopHubClient(options: DesktopHubClientOptions): () => v
 }
 
 type DesktopRelayRpc = {
-  setMobileDesktopRelayHosts(hosts: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>): void
+  setMobileDesktopRelayHosts(
+    hosts: ReturnType<typeof createRuntimeEnvironmentMobileRelayHosts>
+  ): void
   dispatchLocal(input: {
     method: string
     params?: unknown
@@ -97,7 +107,8 @@ export function installDesktopConnectedSurfaces(
   const stop = startDesktopHubClient({
     userDataPath: getCanonicalUserDataPath(),
     machineName: () => runtime.readMachineName(),
-    localFingerprint: () => runtime.getOrchestrationDb().getOrCreateLocalMutationCallerFingerprint(),
+    localFingerprint: () =>
+      runtime.getOrchestrationDb().getOrCreateLocalMutationCallerFingerprint(),
     callLocal: (method, params, envelope) => {
       const record =
         envelope && typeof envelope === 'object' ? (envelope as Record<string, unknown>) : {}
@@ -139,7 +150,7 @@ function currentCatalog(
     localPlacement = undefined
   }
   const transport = createOrchestrationEnvironmentTransport()
-  return buildDesktopHubCatalog({
+  const catalog = buildDesktopHubCatalog({
     machineName: options.machineName(),
     ...(localPlacement ? { localPlacement } : {}),
     executions: describeRelayHosts(relay).map((host) => {
@@ -173,10 +184,18 @@ function currentCatalog(
         ...(verified?.machineName ? { machineName: verified.machineName } : {}),
         environmentId: host.environmentId,
         health: host.health,
-        ...(status?.snapshot?.blockedReason ? { blockedReason: status.snapshot.blockedReason } : {}),
+        ...(status?.snapshot?.blockedReason
+          ? { blockedReason: status.snapshot.blockedReason }
+          : {}),
         server
       }
     })
   })
+  const names = catalog.hosts.map((row) => row.name).filter((name) => name.length > 0)
+  rememberOrcaHostNames(names)
+  rememberOrcaInstructionFile(orcaHostInstructionPath(options.userDataPath))
+  void installOrcaHostInstructions({ hosts: names, userDataPath: options.userDataPath }).catch(
+    () => undefined
+  )
+  return catalog
 }
-

@@ -33,7 +33,7 @@ export const WorkerStartParams = z
     effort: OptionalWorkerLaunchPreference,
     retryOf: OptionalString.transform((value) =>
       value === undefined ? undefined : normalizeDispatchId(value)
-    ),
+    ).optional(),
     timeoutMs: OptionalFiniteNumber,
     devMode: z.boolean().optional(),
     /** Only from the paired Orca coordinating this Run: its own ID for the Task this start creates or reopens. */

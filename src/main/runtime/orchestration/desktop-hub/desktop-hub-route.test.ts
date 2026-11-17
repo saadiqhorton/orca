@@ -32,11 +32,15 @@ afterEach(() => {
 describe('desktop hub route', () => {
   it('uses the desktop pairing store when this process is the hub', async () => {
     setDesktopHubCatalogProvider(async () => catalog)
-    const runtime = { resolveOrchestrationWorkerServer: () => ({ environmentId: 'should-not-run' }) }
-    await expect(routeDesktopHubCommand(runtime, { host: 'ubuntu-server-local' })).resolves.toEqual({
-      host: undefined,
-      on: 'env-ubuntu'
-    })
+    const runtime = {
+      resolveOrchestrationWorkerServer: () => ({ environmentId: 'should-not-run' })
+    }
+    await expect(routeDesktopHubCommand(runtime, { host: 'ubuntu-server-local' })).resolves.toEqual(
+      {
+        host: undefined,
+        on: 'env-ubuntu'
+      }
+    )
     await expect(routeDesktopHubCommand(runtime, { host: 'TEMPLEOFDOOM' })).rejects.toMatchObject({
       code: 'needs_sign_in'
     })
@@ -66,10 +70,28 @@ describe('desktop hub route', () => {
         })
       }
     })
-    await expect(routeDesktopHubCommand(runtime, { host: 'ubuntu-server-local' })).resolves.toEqual({
-      host: undefined,
-      on: desktopHubSelector('env-ubuntu')
-    })
+    await expect(routeDesktopHubCommand(runtime, { host: 'ubuntu-server-local' })).resolves.toEqual(
+      {
+        host: undefined,
+        on: desktopHubSelector('env-ubuntu')
+      }
+    )
     await expect(routeDesktopHubCommand(runtime, {})).resolves.toEqual({})
+  })
+
+  it('refuses an unknown --host instead of running locally', async () => {
+    setDesktopHubCatalogProvider(async () => catalog)
+    await expect(routeDesktopHubCommand({}, { host: 'not-a-machine' })).rejects.toMatchObject({
+      code: 'unknown_host',
+      message: expect.stringContaining('ubuntu-server-local')
+    })
+  })
+
+  it('refuses when the desktop hub is unavailable instead of running locally', async () => {
+    await expect(routeDesktopHubCommand({}, { host: 'ubuntu-server-local' })).rejects.toMatchObject(
+      {
+        code: 'desktop_hub_unavailable'
+      }
+    )
   })
 })

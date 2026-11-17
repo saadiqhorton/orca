@@ -169,10 +169,8 @@ export function agentLaunchSurfaceFactory(
         ...(attributedLaunchSource ? { launchSource: attributedLaunchSource } : {}),
         ...(viewMode ? { viewMode } : {}),
         ...(accountEnv ? { accountEnv: { ...accountEnv } } : {}),
-        ...(presentation && (!movesHostWindow || !hasEarlyTab || presentation === 'background')
-          ? { presentation: movesHostWindow ? presentation : ('background' as const) }
-          : {}),
-        ...(hasEarlyTab || !movesHostWindow ? { surfaceOwner: false as const } : {}),
+        ...(presentation ? { presentation } : {}),
+        ...(hasEarlyTab || presentation === 'background' ? { surfaceOwner: false as const } : {}),
         ...(earlyTab
           ? {
               agentLaunchViewer: () =>

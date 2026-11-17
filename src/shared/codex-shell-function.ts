@@ -16,7 +16,8 @@ export const CODEX_COMMAND_IDENTITY_ENV_KEYS = [
   'ORCA_PANE_KEY',
   'ORCA_WORKTREE_ID',
   'ORCA_WORKSPACE_ID',
-  'ORCA_USER_DATA_PATH'
+  'ORCA_USER_DATA_PATH',
+  'ORCA_HOSTS'
 ] as const
 
 // Blank Orca's clipboard marker for commands Codex runs: agy reads SSH_CONNECTION as a remote host and ignores its local login (#37723).

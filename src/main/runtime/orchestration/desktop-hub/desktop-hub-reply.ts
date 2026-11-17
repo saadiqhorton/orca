@@ -4,11 +4,7 @@ export const DESKTOP_HUB_ANSWER_METHOD = 'orchestration.desktopHub.answer' as co
 export const DESKTOP_HUB_ANSWER_TIMEOUT_MS = 15_000
 
 export type DesktopHubAnswerTransport = {
-  sendRequest?: (
-    method: string,
-    params: unknown,
-    timeoutMs: number
-  ) => Promise<unknown>
+  sendRequest?: (method: string, params: unknown, timeoutMs: number) => Promise<unknown>
 }
 
 export type DesktopHubAnswerCall = (
@@ -25,18 +21,15 @@ export type DesktopHubAnswerBody = {
 
 /** Shared-control subscriptions have no sendRequest; one-shot RPCs still reach the runtime. */
 export async function sendDesktopHubAnswer(input: {
-  subscription: DesktopHubAnswerTransport
+  subscription: DesktopHubAnswerTransport | object
   requestId: string
   answer: DesktopHubAnswerBody
   callEnvironment?: DesktopHubAnswerCall
 }): Promise<void> {
   const params = { requestId: input.requestId, ...input.answer }
-  if (input.subscription.sendRequest) {
-    await input.subscription.sendRequest(
-      DESKTOP_HUB_ANSWER_METHOD,
-      params,
-      DESKTOP_HUB_ANSWER_TIMEOUT_MS
-    )
+  const transport = input.subscription as DesktopHubAnswerTransport
+  if (transport.sendRequest) {
+    await transport.sendRequest(DESKTOP_HUB_ANSWER_METHOD, params, DESKTOP_HUB_ANSWER_TIMEOUT_MS)
     return
   }
   if (!input.callEnvironment) {

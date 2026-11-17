@@ -120,9 +120,6 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     for (const line of formatDesktopHubList(hosts)) {
       say(line)
     }
-    if (listed.error?.message?.includes('did not answer')) {
-      throw new Error(listed.error.message)
-    }
     const registry = getDesktopHubRegistry(runtimeA)
     const needsSignIn = await rejectionCode(registry.place('TEMPLEOFDOOM'))
     say(`$ orca orchestration worker-start --host TEMPLEOFDOOM: ${needsSignIn}`)

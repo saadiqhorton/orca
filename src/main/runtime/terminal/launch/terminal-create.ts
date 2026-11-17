@@ -4,7 +4,7 @@ import {
   resolveTerminalLaunchResult,
   terminalLaunchPublicFacts
 } from './terminal-launch-result'
-import { revealCreatedTerminal } from './terminal-create-reveal'
+import { requirePtyControllerSpawn, revealCreatedTerminal } from './terminal-create-reveal'
 import type { PaneSpawnOperation } from '../../../ipc/pty/pane/pane-spawn-operation'
 import { OrcaRuntimeWithTerminalCreateDeduplication } from './terminal-create-deduplication'
 import { type PaneStartArgsOf, spawnInAdmittedPane } from './runtime-pane-admission'
@@ -57,10 +57,7 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
     // Why: this process starts every terminal it can place, so a slow window only delays showing
     // it; a window-made create that timed out here still ran later, and a retry duplicated it.
     if (selector !== undefined) {
-      const { ptyController } = this
-      if (!ptyController?.spawn) {
-        throw new Error('runtime_unavailable')
-      }
+      const ptyController = requirePtyControllerSpawn(this.ptyController)
       const workspace = await this.resolveTerminalCreateLaunchScope(selector, opts, ...evidence)
       const launchOpts = await this.resolveAgentTerminalCreateOptions(workspace, opts)
       const launchTitleAt = { sequence: this.nextTitleObservationSequence(), epochMs: Date.now() }
@@ -281,6 +278,7 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
           launchToken: pty?.launchToken ?? undefined,
           adoptedStablePane: launch.adoptedStablePane,
           presentation,
+          hasPty: Boolean(pty),
           opts,
           tabId,
           leafId

@@ -80,6 +80,13 @@ const injected = (home: string) => [
   `ORCA_CLAUDE_INJECTED_CONFIG_DIR=${home}`
 ]
 
+describe('claude host-instruction wrap', () => {
+  it('injects --append-system-prompt-file from ORCA_INSTRUCTIONS_FILE', () => {
+    expect(getPosixClaudeShellFunction()).toContain('--append-system-prompt-file')
+    expect(getFishClaudeShellFunction()).toContain('--append-system-prompt-file')
+  })
+})
+
 describe.each(SHELLS)('the claude function in %s', (shell) => {
   it('signs the system account in while a managed profile is selected, preserving later routing', () => {
     const f = fixture()

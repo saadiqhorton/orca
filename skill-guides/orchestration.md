@@ -8,11 +8,15 @@ description: >-
   "Have Codex (or Claude) review this and report back" means an Orca worker of
   that agent, even when you have your own model subagents.
   Also use when you are a dispatched worker (a prompt with Task and Dispatch
-  IDs: ask, worker_done). Otherwise prefer your own subagents,
-  including for long or parallel work. Use `orca-cli` to hand work off with
-  nothing expected back ("hand off", "handover", "give this to another agent",
-  "another worktree"), and for terminal control, shell commands, worktree
-  management, and reading or waiting on terminals.
+  IDs: ask, worker_done). Use for another machine/host/server, a named host
+  (e.g. ubuntu-server-local), "on <host>", "open a terminal on", "run X on",
+  "what machines/hosts can you use", or anything ssh-like: start with
+  `orca host inventory --json`, then `orca … --host <name>`; never ssh.
+  Otherwise prefer your own subagents, including for long or parallel work.
+  Use `orca-cli` to hand work off with nothing expected back ("hand off",
+  "handover", "give this to another agent", "another worktree"), and for
+  terminal control, shell commands, worktree management, and reading or
+  waiting on terminals.
 ---
 
 # Orca orchestration

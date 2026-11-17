@@ -45,8 +45,7 @@ describe('desktop hub answers over shared control', () => {
 
   it('delivers as soon as the shared-control subscription is open', () => {
     const sent: string[] = []
-    const subscription: RemoteRuntimeSharedSubscription | null = null
-    const open = { current: subscription }
+    const open: { current: RemoteRuntimeSharedSubscription | null } = { current: null }
     const { deliver, flush } = createDesktopHubDeliver({
       isOpen: () => open.current !== null,
       send: (event) => {

@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
+import { rememberedOrcaHostNames } from '../../../../orchestration/desktop-hub/orca-host-name-cache'
+import { installOrcaHostInstructions } from '../../../../orchestration/desktop-hub/orca-host-instruction-install'
 import {
   orchestrationScratchPaths,
   orchestrationScratchWorktreeSelector
@@ -21,6 +23,7 @@ export type OrchestrationScratchRuntime = {
     projectGroupId: string
     name?: string
     folderPath?: string | null
+    skipPrimaryTerminal?: boolean
   }) => Promise<{ folderWorkspace: ScratchFolder }>
 }
 
@@ -49,6 +52,15 @@ export async function ensureOrchestrationScratchWorkspace(
     )
   }
   await mkdir(paths.workspacePath, { recursive: true })
+  try {
+    await installOrcaHostInstructions({
+      hosts: rememberedOrcaHostNames(),
+      extraDirs: [paths.workspacePath],
+      home
+    })
+  } catch {
+    // Instruction files are best-effort; the scratch folder must still be created.
+  }
   const groups = runtime.listVisibleProjectGroups()
   let group = groups.find((candidate) => candidate.name === paths.groupName)
   if (!group) {
@@ -74,7 +86,8 @@ export async function ensureOrchestrationScratchWorkspace(
   const { folderWorkspace } = await runtime.createFolderWorkspace({
     projectGroupId: group.id,
     name: paths.workspaceName,
-    folderPath: paths.workspacePath
+    folderPath: paths.workspacePath,
+    skipPrimaryTerminal: true
   })
   return {
     path: folderWorkspace.folderPath,
