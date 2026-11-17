@@ -4,7 +4,7 @@ import {
 } from '../../../../../preflight/workspace-agent-detection'
 import { agentCommandOverrideDetectionOptions } from '../../../../../preflight/installed-agent-detection'
 
-type InventoryRuntime = {
+export type InventoryRuntime = {
   listVisibleProjectGroups: () => { id: string; name: string; parentPath: string | null }[]
   listVisibleFolderWorkspaces: () => {
     id: string

@@ -432,6 +432,7 @@ import {
 } from './notifications/notifications-params'
 import {
   DesktopHubCallParams,
+  DesktopHubLocateParams,
   OrchestrationSurfaceEnsureScratchParams
 } from './orchestration/desktop-hub-call-params'
 import { ApprovalAnswerParams } from './orchestration/orchestration-approval-answer-params'
@@ -1401,6 +1402,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.desktopHub.call': DesktopHubCallParams,
   'orchestration.desktopHub.inventory': null,
   'orchestration.desktopHub.list': null,
+  'orchestration.desktopHub.locate': DesktopHubLocateParams,
   'orchestration.dispatch': DispatchParams,
   'orchestration.dispatchShow': DispatchShowParams,
   'orchestration.federationAck': FederationAckParams,

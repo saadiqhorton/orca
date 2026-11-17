@@ -2,6 +2,9 @@ import { z } from 'zod'
 import type { ExecutionHostHealth } from '../execution-host/execution-host-health'
 
 /** Advertised by the desktop app on the client-event socket it already holds to each execution host. */
+/** Terminal handles minted by an execution host's runtime. */
+export const TERMINAL_HANDLE_PREFIX = 'term_'
+
 export const DESKTOP_HUB_CLIENT_CAPABILITY = 'orchestration.desktop-hub.v1' as const
 
 /** Environment id stored on a dispatch when the worker was placed through the desktop hub. */
@@ -147,6 +150,38 @@ export function unknownDesktopHubHost(
   return new DesktopHubError(
     'unknown_host',
     `Unknown host "${name}". Connected machines: ${listed}. Run \`orca host inventory --json\`, then retry with \`orca … --host <connected-name>\`. Orca will not run this command locally or over ssh.`
+  )
+}
+
+export const DesktopHubLocateSchema = z.discriminatedUnion('owner', [
+  z.object({ owner: z.literal('local') }),
+  z.object({ owner: z.literal('none') }),
+  z.object({
+    owner: z.literal('host'),
+    name: z.string().min(1).max(256),
+    hostKey: z.string().min(1).max(256),
+    machineName: z.string().min(1).max(256).optional(),
+    id: z.string().min(1).max(256).optional(),
+    label: z.string().min(1).max(256).optional()
+  })
+])
+export type DesktopHubLocate = z.infer<typeof DesktopHubLocateSchema>
+
+export function sessionNotFoundError(handle: string): DesktopHubError {
+  return new DesktopHubError(
+    'session_not_found',
+    `No session "${handle}" is known to this desktop or any connected host. Run \`orca terminal list --json\` on the host that owns it, or check the handle.`
+  )
+}
+
+export function hostMismatchError(
+  handle: string,
+  owner: string,
+  requested: string
+): DesktopHubError {
+  return new DesktopHubError(
+    'host_mismatch',
+    `Session "${handle}" lives on host "${owner}", not "${requested}". Drop --host, or pass --host ${owner}.`
   )
 }
 

@@ -9,7 +9,10 @@ import {
 } from './desktop-hub-command-route'
 import { ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
 import { formatScratchWorkspace } from './host-format'
-import { resolveRemoteSelectorsAcrossHosts } from './desktop-hub-selector-resolve'
+import {
+  resolveRemoteSelectorsAcrossHosts,
+  routeTerminalHandlesToOwner
+} from './desktop-hub-selector-resolve'
 import { warnIfLaunchPromptLooksSecret } from '../agents/agent-launch-secret-prompt'
 
 type ScratchWorkspace = {
@@ -115,6 +118,10 @@ export async function prepareDesktopHubCliClient(
   warnIfLaunchPromptLooksSecret(flags)
   let nextClient = client
   let nextPath = commandPath
+  const handleRoute = await routeTerminalHandlesToOwner(client, commandPath, flags)
+  if (handleRoute.client) {
+    return { client: handleRoute.client, commandPath, printed: false }
+  }
   const requestedHost = flags.get('host')
   if (shouldWrapDesktopHubHost(commandPath, flags)) {
     nextClient = await bindDesktopHubHost(client, flags)
@@ -127,6 +134,8 @@ export async function prepareDesktopHubCliClient(
       }
     }
   }
-  nextClient = await resolveRemoteSelectorsAcrossHosts(nextClient, nextPath, flags)
+  nextClient = await resolveRemoteSelectorsAcrossHosts(nextClient, nextPath, flags, {
+    skipHandles: handleRoute.handled
+  })
   return { client: nextClient, commandPath: nextPath, printed: false }
 }
