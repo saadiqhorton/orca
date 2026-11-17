@@ -1,7 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
-import { rememberedOrcaHostNames } from '../../../../orchestration/desktop-hub/orca-host-name-cache'
 import {
   installOrcaHostInstructions,
   settingsWriteGlobalSlice
@@ -57,7 +56,6 @@ export async function ensureOrchestrationScratchWorkspace(
   await mkdir(paths.workspacePath, { recursive: true })
   try {
     await installOrcaHostInstructions({
-      hosts: rememberedOrcaHostNames(),
       extraDirs: [paths.workspacePath],
       home,
       settings: settingsWriteGlobalSlice(runtime)

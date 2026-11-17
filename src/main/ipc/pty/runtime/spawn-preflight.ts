@@ -141,7 +141,8 @@ export async function prepareRuntimePtySpawn(
     const jcodeEnv = pane ? await ensureJcodeRuntimeDir(pane.paneKey) : undefined
     stampPtySpawnPaneEnv(ctx.env, {
       pane,
-      jcodeRuntimeDir: jcodeEnv?.[JCODE_RUNTIME_DIR_ENV_KEY]
+      jcodeRuntimeDir: jcodeEnv?.[JCODE_RUNTIME_DIR_ENV_KEY],
+      isRemote: Boolean(args.connectionId)
     })
   }
   const hostEnv = await resolvePtySpawnHostEnv({

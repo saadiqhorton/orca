@@ -108,7 +108,10 @@ async function listDesktopHub(ctx: { runtime: object; pairedDeviceId?: string })
   return listed
 }
 
-async function rememberListedOrcaHosts(hosts: DesktopHubHostRow[], runtime?: object): Promise<void> {
+async function rememberListedOrcaHosts(
+  hosts: DesktopHubHostRow[],
+  runtime?: object
+): Promise<void> {
   const names = hosts.map((row) => row.name).filter((name) => name.length > 0)
   rememberOrcaHostNames(names)
   if (!hasAppEnvironment()) {
@@ -118,7 +121,6 @@ async function rememberListedOrcaHosts(hosts: DesktopHubHostRow[], runtime?: obj
   rememberOrcaInstructionFile(orcaHostInstructionPath(userDataPath))
   try {
     await installOrcaHostInstructions({
-      hosts: names,
       userDataPath,
       settings: settingsWriteGlobalSlice(runtime)
     })
