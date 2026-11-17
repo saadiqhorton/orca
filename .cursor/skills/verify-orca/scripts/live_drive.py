@@ -113,6 +113,27 @@ def host_names() -> tuple[str, str]:
     )
 
 
+def inventory_host_rows(parsed: dict[str, Any], text: str) -> list[dict[str, Any]]:
+    hosts = parsed.get("hosts") or parsed.get("result", {}).get("hosts") or []
+    if isinstance(hosts, list):
+        return [row for row in hosts if isinstance(row, dict)]
+    return []
+
+
+def machine_names_from_inventory(parsed: dict[str, Any], text: str) -> dict[str, str]:
+    """Orca --host name → OS hostname (inventory machineName), not the Orca label."""
+    mapping: dict[str, str] = {}
+    for row in inventory_host_rows(parsed, text):
+        name = str(row.get("name") or "")
+        inv = row.get("inventory") if isinstance(row.get("inventory"), dict) else {}
+        machine = row.get("machineName") or inv.get("machineName")
+        if name and machine:
+            mapping[name] = str(machine)
+    for match in re.finditer(r"^(\S+) \(([^)]+)\)\s+\S+", text or "", re.M):
+        mapping.setdefault(match.group(1), match.group(2))
+    return mapping
+
+
 def inventory(timeout: int = 40) -> dict[str, Any]:
     r = orca(["host", "inventory", "--json"], timeout=timeout)
     parsed = jparse(r["out"]) or {}
@@ -136,11 +157,45 @@ def inventory(timeout: int = 40) -> dict[str, Any]:
         "exit": r["exit"],
         "out": text[:4000],
         "names": names,
+        "machine_names": machine_names_from_inventory(parsed, text),
         "cmd": r["cmd"],
         "secs": r["secs"],
         "has_a": a in text,
         "has_b": b in text,
     }
+
+
+def stub_mode() -> bool:
+    """Rig stub agents run shell lines, not the NL spec. Auto-on when the box rig is present."""
+    env = os.environ.get("ORCA_VERIFY_STUB", "").strip().lower()
+    if env in ("0", "false", "no"):
+        return False
+    if env in ("1", "true", "yes"):
+        return True
+    return box_rig_available()
+
+
+def scripted_facts(spec: dict[str, Any], inv: dict[str, Any]) -> dict[str, str]:
+    host_a, host_b = host_names()
+    target = spec.get("target") or host_a
+    machines = inv.get("machine_names") or {}
+    hostname = (
+        os.environ.get("ORCA_VERIFY_HOSTNAME")
+        or machines.get(target)
+        or (host_a if target == host_a else host_b)
+    )
+    # Never use the Orca --host label (ubuntu-server-local) when inventory named the machine.
+    if hostname == target and machines.get(target):
+        hostname = machines[target]
+    facts = {
+        "target_agent": "claude",
+        "target_hostname": hostname,
+    }
+    if target == host_a:
+        facts["target_home_marker"] = os.environ.get("ORCA_VERIFY_HOME_MARKER", "home")
+    if stub_mode():
+        facts["stub"] = "1"
+    return facts
 
 
 def live_wanted() -> bool:
@@ -234,6 +289,54 @@ def extra_args_violation(text: str) -> bool:
     return any(s.lower() in low for s in ERROR_ALLOWLIST)
 
 
+OWNED_CLAUDE_FLAG = "--append-system-prompt-file"
+
+
+def process_args_probe() -> str:
+    """Live process argv so R07 can require the owned Claude flag, not just 'no allowlist error'."""
+    chunks: list[str] = []
+    ps = run(["ps", "-ww", "-eo", "args="], timeout=8)
+    chunks.append(ps.get("out") or "")
+    proc = Path("/proc")
+    if proc.is_dir():
+        for entry in proc.iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                raw = (entry / "cmdline").read_bytes().replace(b"\x00", b" ").decode("utf-8", "ignore")
+            except OSError:
+                continue
+            if OWNED_CLAUDE_FLAG in raw or "claude" in raw:
+                chunks.append(raw)
+    return "\n".join(chunks)
+
+
+def r07_eval(
+    *,
+    inv_exit: int,
+    ws: dict[str, Any],
+    launch_host: dict[str, Any],
+    launch_local: dict[str, Any],
+    combined: str,
+) -> dict[str, Any]:
+    reasons: list[str] = []
+    if extra_args_violation(combined):
+        reasons.append("Claude extra-args allowlist / agent_session_operation_unknown")
+    if "no_active_sender_terminal" in combined:
+        reasons.append("no_active_sender_terminal")
+    if inv_exit != 0:
+        reasons.append(f"inventory exit {inv_exit}")
+    if ws.get("exit") != 0:
+        reasons.append(f"worker-start exit {ws.get('exit')}")
+    if launch_host.get("exit") != 0:
+        reasons.append(f"agent launch --host exit {launch_host.get('exit')}")
+    if launch_local.get("exit") != 0:
+        reasons.append(f"agent launch local exit {launch_local.get('exit')}")
+    if OWNED_CLAUDE_FLAG not in combined:
+        reasons.append("missing --append-system-prompt-file in process args")
+    return {"pass": not reasons, "reasons": reasons}
+
+
 def extract_term_handle(text: str) -> str | None:
     found = re.findall(r"term_[0-9a-f-]+", text or "")
     return found[0] if found else None
@@ -295,17 +398,27 @@ def claude_after_inventory(ev: Path, host_a: str) -> dict[str, Any]:
     steps.append(launch_host)
     launch_local = orca(["agent", "launch", "--agent", "claude", "--prompt", "hostname"], timeout=90)
     steps.append(launch_local)
-    combined = "\n".join(s["out"] for s in steps)
-    violated = extra_args_violation(combined)
+    time.sleep(2)
+    ps = process_args_probe()
+    combined = "\n".join(s["out"] for s in steps) + "\n" + ps
+    judged = r07_eval(
+        inv_exit=inv["exit"],
+        ws=ws,
+        launch_host=launch_host,
+        launch_local=launch_local,
+        combined=combined,
+    )
     (ev / "transcripts" / "r07-claude-after-inventory.log").parent.mkdir(parents=True, exist_ok=True)
     (ev / "transcripts" / "r07-claude-after-inventory.log").write_text(combined)
     return {
-        "pass": not violated and inv["exit"] == 0,
-        "violated": violated,
+        "pass": judged["pass"],
+        "reasons": judged["reasons"],
+        "violated": extra_args_violation(combined),
         "inventory_exit": inv["exit"],
         "worker_start_exit": ws["exit"],
         "agent_launch_host_exit": launch_host["exit"],
         "agent_launch_local_exit": launch_local["exit"],
+        "owned_flag": OWNED_CLAUDE_FLAG in combined,
         "evidence": [str(ev / "transcripts" / "r07-claude-after-inventory.log")],
         "out_tail": combined[-3000:],
         "cmds": [s["cmd"] for s in steps],
@@ -542,28 +655,40 @@ def box_drive(
             via="box-rig",
         )
     if "R07" in wanted:
+        r07_body = (
+            'CALLER=$("$BIN" terminal create --title verify-r07-caller --json); '
+            'HANDLE=$(printf %s "$CALLER" | grep -oE "term_[0-9a-f-]+" | head -1); '
+            'export ORCA_TERMINAL_HANDLE="$HANDLE"; '
+            'echo "CALLER=$HANDLE"; '
+            '"$BIN" host inventory --json; echo EXIT_INV:$?; '
+            '"$BIN" orchestration worker-start --agent claude --spec hostname '
+            '--from "$HANDLE" --json; echo EXIT_WS:$?; '
+            '"$BIN" agent launch --agent claude --prompt hostname --json; echo EXIT_LOCAL:$?; '
+            '"$BIN" agent launch --host ubuntu-server-local --agent claude --prompt hostname --json; '
+            'echo EXIT_HOST:$?; '
+            'sleep 2; ps -ww -eo args=; '
+            'for c in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$c" 2>/dev/null; echo; done '
+            '| grep -F -- --append-system-prompt-file || true'
+        )
         r = run(
-            [
-                *ssh,
-                "hosta@10.77.0.2",
-                "bash",
-                "-lc",
-                remote_orca_script(
-                    [
-                        "host inventory --json",
-                        "orchestration worker-start --agent claude --spec hostname",
-                        "agent launch --agent claude --prompt hostname",
-                        "agent launch --host ubuntu-server-local --agent claude --prompt hostname",
-                    ]
-                ),
-            ],
+            [*ssh, "hosta@10.77.0.2", "bash", "-lc", remote_orca_script([]) + r07_body],
             timeout=180,
         )
         (ev / "transcripts" / "box-R07.log").write_text(r["out"])
-        violated = extra_args_violation(r["out"])
+        def _exit_marker(name: str) -> int:
+            found = re.findall(rf"EXIT_{name}:(\d+)", r["out"])
+            return int(found[-1]) if found else (r["exit"] if name == "HOST" else 1)
+
+        judged = r07_eval(
+            inv_exit=_exit_marker("INV"),
+            ws={"exit": _exit_marker("WS")},
+            launch_host={"exit": _exit_marker("HOST")},
+            launch_local={"exit": _exit_marker("LOCAL")},
+            combined=r["out"],
+        )
         results["R07"] = {
-            "pass": not violated and r["exit"] != 127,
-            "reasons": [] if not violated else ["Claude extra-args allowlist / agent_session_operation_unknown"],
+            "pass": judged["pass"],
+            "reasons": judged["reasons"],
             "orca_cmds": 4,
             "bar": {},
             "evidence": [str(ev / "transcripts" / "box-R07.log")],
@@ -625,7 +750,7 @@ def drive(
                     "reasons": (
                         []
                         if r07["pass"]
-                        else ["Claude launch after inventory hit extras allowlist or inventory failed"]
+                        else (r07.get("reasons") or ["Claude launch after inventory failed"])
                     ),
                     "orca_cmds": len(r07["cmds"]),
                     "bar": {"visible_tab": None},
@@ -666,13 +791,7 @@ def drive(
                 continue
             if not sid.startswith("S"):
                 continue
-            target = spec.get("target") or host_a
-            sid_facts = {
-                "target_agent": "claude",
-                "target_hostname": host_a if target == host_a else host_b,
-            }
-            if target == host_a:
-                sid_facts["target_home_marker"] = os.environ.get("ORCA_VERIFY_HOME_MARKER", "home")
+            sid_facts = scripted_facts(spec, inv)
             ran = run_scripted(skill_dir, root, ev, sid, spec, sid_facts)
             ran["via"] = "desktop-cli"
             results[sid] = ran

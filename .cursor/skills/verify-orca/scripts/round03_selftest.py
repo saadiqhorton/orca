@@ -122,6 +122,22 @@ class TemplateAndMode(unittest.TestCase):
             )
             self.assertEqual(verify_orca.detect_template_version(root), "0.1.0+04f2ee16f6e3")
 
+    def test_template_version_from_resources_and_active_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            resources = root / "resources/orcad-template"
+            resources.mkdir(parents=True)
+            (resources / "orcad-template.json").write_text(
+                json.dumps({"schemaVersion": 3, "artifactVersion": "0.1.0+50f5395cdfd8", "commonSha256": {}, "targets": {}})
+            )
+            self.assertEqual(verify_orca.detect_template_version(root), "0.1.0+50f5395cdfd8")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rec = Path(tmp) / "orcad-active.json"
+            rec.write_text(json.dumps({"schemaVersion": 1, "active": "0.1.0+50f5395cdfd8"}))
+            with patch.object(verify_orca, "_active_orcad_records", return_value=[rec]):
+                self.assertEqual(verify_orca.detect_template_version(root), "0.1.0+50f5395cdfd8")
+
     def test_summary_label_follows_drive_mode(self):
         missing = {
             "mode": "live-required",
@@ -143,6 +159,65 @@ class RemoteOrca(unittest.TestCase):
         self.assertIn("$HOME/.orca/cli/bin/orca", script)
         self.assertIn('"$BIN" host inventory --json', script)
         self.assertNotEqual(script.strip().split()[0], "orca")
+
+
+class DesktopFactsAndR07(unittest.TestCase):
+    def test_hostname_comes_from_inventory_machine_name(self):
+        mapping = live_drive.machine_names_from_inventory(
+            {
+                "result": {
+                    "hosts": [
+                        {
+                            "name": "ubuntu-server-local",
+                            "machineName": "hostB-ubuntu",
+                            "status": "connected",
+                        },
+                        {"name": "dockhand", "machineName": "dezignerdrugz00", "status": "connected"},
+                    ]
+                }
+            },
+            "",
+        )
+        self.assertEqual(mapping["ubuntu-server-local"], "hostB-ubuntu")
+        self.assertEqual(mapping["dockhand"], "dezignerdrugz00")
+        facts = live_drive.scripted_facts(
+            {"target": "ubuntu-server-local"},
+            {"machine_names": mapping},
+        )
+        self.assertEqual(facts["target_hostname"], "hostB-ubuntu")
+        self.assertNotEqual(facts["target_hostname"], "ubuntu-server-local")
+
+    def test_stub_mode_auto_on_box_rig(self):
+        with patch.object(live_drive, "box_rig_available", return_value=True):
+            with patch.dict(os.environ, {"ORCA_VERIFY_STUB": ""}, clear=False):
+                os.environ.pop("ORCA_VERIFY_STUB", None)
+                self.assertTrue(live_drive.stub_mode())
+                facts = live_drive.scripted_facts({"target": "ubuntu-server-local"}, {"machine_names": {}})
+                self.assertEqual(facts.get("stub"), "1")
+        with patch.object(live_drive, "box_rig_available", return_value=False):
+            with patch.dict(os.environ, {"ORCA_VERIFY_STUB": "0"}):
+                self.assertFalse(live_drive.stub_mode())
+
+    def test_r07_fails_on_no_active_sender_without_owned_flag(self):
+        judged = live_drive.r07_eval(
+            inv_exit=0,
+            ws={"exit": 1, "out": "no_active_sender_terminal"},
+            launch_host={"exit": 0, "out": "ok"},
+            launch_local={"exit": 0, "out": "ok"},
+            combined="no_active_sender_terminal\nworker-start failed",
+        )
+        self.assertFalse(judged["pass"])
+        self.assertTrue(any("no_active_sender_terminal" in r for r in judged["reasons"]))
+
+    def test_r07_requires_owned_flag_and_zero_exits(self):
+        judged = live_drive.r07_eval(
+            inv_exit=0,
+            ws={"exit": 0},
+            launch_host={"exit": 0},
+            launch_local={"exit": 0},
+            combined="claude --append-system-prompt-file /tmp/ORCA.md --prompt hostname",
+        )
+        self.assertTrue(judged["pass"], judged["reasons"])
 
 
 if __name__ == "__main__":

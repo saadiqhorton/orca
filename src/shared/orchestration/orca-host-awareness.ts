@@ -50,14 +50,15 @@ export function upsertManagedHostInstruction(
   const block = wrapManagedHostInstruction(preamble)
   const start = `<!-- ${ORCA_HOST_PREAMBLE_MARKER} -->`
   const end = `<!-- /${ORCA_HOST_PREAMBLE_MARKER} -->`
-  if (!existing || existing.trim().length === 0) {
+  if (existing === undefined || existing === '') {
     return block
   }
   const startAt = existing.indexOf(start)
   const endAt = existing.indexOf(end)
   if (startAt === -1 || endAt === -1 || endAt < startAt) {
-    const trimmed = existing.endsWith('\n') ? existing : `${existing}\n`
-    return `${trimmed}\n${block}`
+    // One separator newline before the block. Do not invent a second newline when
+    // the file already lacks a trailing newline, and do not treat whitespace as empty.
+    return `${existing}\n${block}`
   }
   return `${existing.slice(0, startAt)}${block}${existing.slice(endAt + end.length).replace(/^\n/, '')}`
 }

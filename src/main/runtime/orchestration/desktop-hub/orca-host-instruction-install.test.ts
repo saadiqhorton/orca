@@ -118,4 +118,16 @@ describe('writeOrcaHostInstructionFile safety (box patch)', () => {
     await writeOrcaHostInstructionFile(user, ['dockhand'], { strip: true })
     expect(await readFile(user, 'utf8')).toBe(original)
   })
+
+  it('strip round-trips a file with no trailing newline and a whitespace-only file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'orca-instr-bytes-'))
+    homes.push(dir)
+    for (const original of ['no newline at end', '\n\n\n'] as const) {
+      const path = join(dir, original.startsWith('\n') ? 'blank.md' : 'nonewline.md')
+      await writeFile(path, original, 'utf8')
+      await writeOrcaHostInstructionFile(path, ['dockhand'])
+      await writeOrcaHostInstructionFile(path, ['dockhand'], { strip: true })
+      expect(await readFile(path, 'utf8')).toBe(original)
+    }
+  })
 })

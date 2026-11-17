@@ -40,6 +40,7 @@ import { runProcessSync } from '@orca/process-host'
 import { verifyPackagedOrcadTemplate } from './verify-packaged-orcad-template.cjs'
 import { readOrcadMobileWebAssetFilenames } from '../server-bundle/orcad-mobile-web-bundle.mjs'
 import { assertNotDarkBuild, darkBuildMarkers } from '../../../dark-build-switches.cjs'
+import { resolveBuildSourceCommit } from '../../build-identity/build-source-commit.mjs'
 
 const root = resolve(import.meta.dirname, '../../../..')
 const outputDir = join(root, 'out', 'orcad-template')
@@ -184,21 +185,6 @@ function sameBytes(left, right) {
   return sha256(left) === sha256(right)
 }
 
-function gitSourceCommit() {
-  try {
-    const result = runProcessSync({
-      program: 'git',
-      args: ['rev-parse', 'HEAD'],
-      cwd: root,
-      timeoutMs: 10_000
-    })
-    const sha = result.stdout?.trim()
-    return result.code === 0 && sha ? sha : null
-  } catch {
-    return null
-  }
-}
-
 function slotArtifactVersion(packageDir) {
   const versionPath = join(packageDir, ORCAD_VERSION_FILENAME)
   if (!existsSync(versionPath)) {
@@ -248,7 +234,9 @@ async function main() {
     commonArtifacts.map((filename) => [filename, sha256(join(outputDir, filename))])
   )
   const artifactVersion = slotArtifactVersion(packages[firstTarget])
-  const sourceCommit = gitSourceCommit()
+  // Written during this build from git HEAD of the tree that produced the artifacts.
+  // Never patch sourceCommit onto a previously packaged template.
+  const sourceCommit = resolveBuildSourceCommit()
   writeFileSync(
     join(outputDir, ORCAD_TEMPLATE_MANIFEST_FILENAME),
     `${JSON.stringify(

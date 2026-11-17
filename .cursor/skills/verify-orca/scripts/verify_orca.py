@@ -124,38 +124,110 @@ def _version_from_text(text: str | None) -> str | None:
     return m.group(0) if m else None
 
 
+def _template_dirs(root: Path) -> list[Path]:
+    env = os.environ.get("ORCA_ORCAD_TEMPLATE_PATH", "").strip()
+    dirs = [
+        root / "out/orcad-template",
+        root / "resources/orcad-template",
+    ]
+    if env:
+        dirs.insert(0, Path(env))
+    resources = os.environ.get("ELECTRON_RESOURCES_PATH") or os.environ.get("ORCA_RESOURCES_PATH")
+    if resources:
+        dirs.insert(0, Path(resources) / "orcad-template")
+    home = Path.home()
+    dirs.extend(
+        [
+            home / ".orca" / "resources" / "orcad-template",
+            home / "orca" / "resources" / "orcad-template",
+        ]
+    )
+    cwd = Path.cwd()
+    if cwd.resolve() == root.resolve():
+        dirs.extend([cwd / "resources/orcad-template", cwd / "out/orcad-template"])
+    seen: set[str] = set()
+    out: list[Path] = []
+    for path in dirs:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
+def _active_orcad_records() -> list[Path]:
+    homes = [Path.home()]
+    for key in ("HOME", "ORCA_REMOTE_HOME"):
+        value = os.environ.get(key)
+        if value:
+            homes.append(Path(value))
+    homes.extend([Path("/home/hosta"), Path("/home/hostb"), Path("/root")])
+    paths = [home / ".orca-remote" / "orcad-active.json" for home in homes]
+    seen: set[str] = set()
+    out: list[Path] = []
+    for path in paths:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
 def detect_template_version(root: Path) -> str:
     env = os.environ.get("ORCA_TEMPLATE_VERSION")
     if env:
         return env
-    marker = root / "out/orcad-template"
-    manifest = marker / "orcad-template.json"
-    if manifest.is_file():
-        try:
-            data = json.loads(manifest.read_text())
-            for key in ("artifactVersion", "version", "fullVersion"):
-                found = _version_from_text(data.get(key) if isinstance(data.get(key), str) else None)
-                if found:
-                    return found
-        except (OSError, json.JSONDecodeError):
-            pass
-    for path in (
-        marker / ".version",
-        root / "out/orcad" / ".version",
-        *([p for p in marker.rglob(".version")] if marker.is_dir() else []),
-    ):
-        if path.is_file():
+    for marker in _template_dirs(root):
+        manifest = marker / "orcad-template.json"
+        if manifest.is_file():
             try:
-                found = _version_from_text(path.read_text())
+                data = json.loads(manifest.read_text())
+                for key in ("artifactVersion", "version", "fullVersion"):
+                    found = _version_from_text(
+                        data.get(key) if isinstance(data.get(key), str) else None
+                    )
+                    if found:
+                        return found
+            except (OSError, json.JSONDecodeError):
+                pass
+        version_file = marker / ".version"
+        if version_file.is_file():
+            try:
+                found = _version_from_text(version_file.read_text())
             except OSError:
                 found = None
             if found:
                 return found
-    if marker.is_dir():
-        for child in marker.iterdir():
-            m = re.search(r"orcad-(0\.1\.0\+[0-9a-f]+)", child.name)
-            if m:
-                return m.group(1)
+        if marker.is_dir():
+            try:
+                children = list(marker.iterdir())
+            except OSError:
+                children = []
+            for child in children:
+                m = re.search(r"orcad-(0\.1\.0\+[0-9a-f]+)", child.name)
+                if m:
+                    return m.group(1)
+    slot = root / "out/orcad" / ".version"
+    if slot.is_file():
+        try:
+            found = _version_from_text(slot.read_text())
+        except OSError:
+            found = None
+        if found:
+            return found
+    for record in _active_orcad_records():
+        if not record.is_file():
+            continue
+        try:
+            data = json.loads(record.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        for key in ("active", "artifactVersion", "version"):
+            found = _version_from_text(data.get(key) if isinstance(data.get(key), str) else None)
+            if found:
+                return found
     return "unknown"
 
 

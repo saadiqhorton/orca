@@ -22,5 +22,21 @@ describe('box-safety-probe: turning off global instructions is byte-exact', () =
 
   it('an empty file that only held the managed block becomes empty, not a leftover newline', () => {
     expect(removeManagedHostInstruction(upsertManagedHostInstruction(undefined, 'p'))).toBe('')
+    expect(removeManagedHostInstruction(upsertManagedHostInstruction('', 'p'))).toBe('')
+  })
+
+  it('a file with no trailing newline is identical after enable then disable', () => {
+    const original = 'no newline at end'
+    expect(original.endsWith('\n')).toBe(false)
+    expect(removeManagedHostInstruction(upsertManagedHostInstruction(original, 'p'))).toBe(
+      original
+    )
+  })
+
+  it('a whitespace-only file is identical after enable then disable', () => {
+    const original = '\n\n\n'
+    expect(removeManagedHostInstruction(upsertManagedHostInstruction(original, 'p'))).toBe(
+      original
+    )
   })
 })
