@@ -5,7 +5,7 @@ export const TERMINAL_SEND_COMMAND_SPEC: CommandSpec = {
   path: ['terminal', 'send'],
   summary: 'Send input to a live terminal',
   usage:
-    'orca terminal send [--host <desktop-connected-host>] [--terminal <handle>] [--text <text>] [--enter] [--interrupt] [--wait-submit <seconds>] [--retry-request <id>] [--answer-dialog] [--json]',
+    'orca terminal send [--host <name>] [--terminal <handle>] [--text <text>] [--enter] [--interrupt] [--wait-submit <seconds>] [--retry-request <id>] [--answer-dialog] [--json]',
   allowedFlags: [
     ...GLOBAL_FLAGS,
     'terminal',
@@ -23,7 +23,7 @@ export const TERMINAL_SEND_COMMAND_SPEC: CommandSpec = {
     '--wait-submit only observes the accepted prompt for the requested duration; timeout returns the queued/input-accepted receipt and never resends.',
     'After an ambiguous transport failure, reissue the exact command with the reported --retry-request ID. The ID is bound to the prompt payload and exact terminal process incarnation.',
     'Older hosts accept the legacy raw input but report provider old-host and do not offer idempotent retry or submission observation.',
-    '--host <name> sends into a tab on a machine the desktop app is connected to. The tab is the same one in the desktop Orca window.',
+    '--host <name> is where the session lives; optional once Orca can locate it. The tab is the same one in the desktop Orca window.',
     'Never answer trust, hooks, or other security dialogs with keystrokes. Orca refuses send while those dialogs are on screen unless you pass --answer-dialog after the user asked you to.'
   ],
   examples: [
