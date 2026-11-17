@@ -65,8 +65,10 @@ Without `--worktree`, `agent launch`, `terminal create`, and
 `orchestration worker-start --host <name>` create or reuse `~/orca-orchestration`
 on that host (never the user's home). Message a visible tab with
 `send --host <name> --to <handle>`. Message a worker with
-`send --to dispatch:<id>` (you may still pass `--host`; Orca routes the Dispatch
-to the Run that owns it). Never use
+`send --to dispatch:<id>` or a bare `ctx_…` id (you may still pass `--host`;
+Orca routes the Dispatch to the Run that owns it). `worker-show`, `worker-read`,
+`worker-stop`, and the other `--dispatch` verbs stay on that Run too — `--host`
+is ignored. Never use
 SSH, never open a port, and never copy keys. If the status is `needs_sign_in`
 or `unreachable`, say so and stop. `--on` is only a paired Orca server saved on
 this machine; load `references/placement-and-remote.md` before using it. If an

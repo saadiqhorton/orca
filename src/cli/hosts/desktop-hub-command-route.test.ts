@@ -4,6 +4,8 @@ import {
   desktopHubCommandKeepsHostFlag,
   isFolderWorktreeCreateWithoutRepo,
   needsDefaultRemoteWorktree,
+  orchestrationCommandStaysOnHomeRun,
+  orchestrationRunsOnCallersOrca,
   shouldWrapDesktopHubHost
 } from './desktop-hub-command-route'
 import { RuntimeClientError } from '../runtime/types'
@@ -24,9 +26,64 @@ describe('desktop hub CLI --host routing', () => {
     const host = new Map<string, string | boolean>([['host', 'ubuntu-server-local']])
     expect(shouldWrapDesktopHubHost(['orchestration', 'worker-start'], host)).toBe(false)
     expect(shouldWrapDesktopHubHost(['orchestration', 'send'], host)).toBe(false)
+    expect(shouldWrapDesktopHubHost(['orchestration', 'reply'], host)).toBe(false)
     expect(shouldWrapDesktopHubHost(['host', 'inventory'], host)).toBe(false)
     expect(shouldWrapDesktopHubHost(['host', 'list'], host)).toBe(false)
     expect(desktopHubCommandKeepsHostFlag(['host', 'inventory'])).toBe(true)
+  })
+
+  it('resolves dispatch-scoped commands with --host on the owning Run, not the named host', () => {
+    const host = new Map<string, string | boolean>([
+      ['host', 'ubuntu-server-local'],
+      ['dispatch', 'ctx_793e1b7ab138']
+    ])
+    for (const command of [
+      'worker-stop',
+      'worker-read',
+      'worker-show',
+      'worker-abandon',
+      'worker-release',
+      'worker-keep-open',
+      'worker-retain',
+      'approve',
+      'deny'
+    ]) {
+      expect(shouldWrapDesktopHubHost(['orchestration', command], host)).toBe(false)
+      expect(orchestrationCommandStaysOnHomeRun(['orchestration', command], host)).toBe(true)
+      expect(orchestrationRunsOnCallersOrca(['orchestration', command], host)).toBe(true)
+    }
+  })
+
+  it('keeps check/inbox/list on the caller when the target is a home-run mailbox', () => {
+    const dispatchMailbox = new Map<string, string | boolean>([
+      ['host', 'ubuntu-server-local'],
+      ['terminal', 'ctx_793e1b7ab138']
+    ])
+    expect(shouldWrapDesktopHubHost(['orchestration', 'check'], dispatchMailbox)).toBe(false)
+    expect(shouldWrapDesktopHubHost(['orchestration', 'inbox'], dispatchMailbox)).toBe(false)
+    expect(
+      shouldWrapDesktopHubHost(
+        ['orchestration', 'worker-list'],
+        new Map([
+          ['host', 'ubuntu-server-local'],
+          ['run', 'run_home']
+        ])
+      )
+    ).toBe(false)
+  })
+
+  it('still wraps check and worker-list when --host names a live tab or an unscoped list', () => {
+    const liveTab = new Map<string, string | boolean>([
+      ['host', 'ubuntu-server-local'],
+      ['terminal', 'term_visible']
+    ])
+    expect(shouldWrapDesktopHubHost(['orchestration', 'check'], liveTab)).toBe(true)
+    expect(
+      shouldWrapDesktopHubHost(
+        ['orchestration', 'worker-list'],
+        new Map([['host', 'ubuntu-server-local']])
+      )
+    ).toBe(true)
   })
 
   it('does not wrap ssh: or runtime: values', () => {

@@ -136,6 +136,27 @@ describe('worker-stop against a terminal we lost contact with', () => {
     expect(closeTerminal).not.toHaveBeenCalled()
   })
 
+  it('shows and stops a worker given a dispatch: mailbox spelling', async () => {
+    vi.spyOn(runtime, 'getTerminalLivenessVerdict').mockReturnValue({
+      status: 'unverifiable',
+      reason: 'its SSH provider is no longer registered'
+    })
+    vi.spyOn(runtime, 'closeTerminal').mockResolvedValue({
+      handle: 'term_worker',
+      tabId: 'tab_worker',
+      ptyKilled: false,
+      ptyStopVerdict: 'unverifiable',
+      ptyStopReason: 'its SSH provider is no longer registered'
+    })
+    const dispatch = createWorker()
+    await expect(
+      call('orchestration.workerShow', { dispatch: `dispatch:${dispatch.id}` })
+    ).resolves.toMatchObject({ dispatch: { id: dispatch.id } })
+    await expect(
+      call('orchestration.workerStop', { dispatch: `dispatch:${dispatch.id}` })
+    ).resolves.toMatchObject({ dispatchId: dispatch.id })
+  })
+
   it('does not let abandon overwrite a stop in progress', () => {
     const dispatch = createWorker()
     expect(db.beginWorkerStop(dispatch.id, runtime.getRuntimeId()).disposition).toBe('stopping')

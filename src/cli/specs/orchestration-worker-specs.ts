@@ -66,6 +66,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     usage: 'orca orchestration worker-show --dispatch <dispatch_id> [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'A Dispatch created by orchestration dispatch is shown as unsupervised and reports the exact adopted terminal when its identity is still provable.',
       'observation.agentWait names a worker parked on a prompt only a human can answer, with the evidence that proved it (hook, prompt-text, or title). Null means Orca looked and found no wait. An absent field means it never looked — an older host, an unverifiable worker identity, an unreadable pane, or an agent probe that did not answer in time — and never means the worker is not waiting. A waiting worker is healthy, not failed.'
     ]
@@ -77,6 +78,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-read --dispatch <dispatch_id> [--source <auto|transcript|terminal>] [--cursor <cursor>] [--limit <n>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'source', 'cursor', 'limit'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'The default auto source uses an exact hook-reported transcript when available and otherwise returns labeled terminal output.',
       'A Dispatch created by orchestration dispatch reads from its adopted terminal with worker status unsupervised.',
       'Output stays readable after the terminal is released, including an automatic release after worker_done.',
@@ -91,6 +93,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-stop --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca, which already federates stop to the worker host.',
       'A Dispatch created by orchestration dispatch is fenced without closing its unsupervised terminal process.',
       'processAction closed_agent_terminal means Orca issued the close (do not also run terminal close); stop_unknown exits 1 and may still report it when the agent exit was not proven.',
       'Also stops every helper it started and theirs, listed in helpers; a helper the user kept open is listed and keeps running.',
@@ -108,6 +111,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'prompt', 'reason', 'from', 'retry-request'],
     identityFlagRoles: { from: 'caller' },
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       "Refused unless the user turned on Let coordinators approve worker permission prompts in Orca's settings on the machine running the worker; the escalation shows this command only then.",
       "The user still sees Allow and Deny; the first answer wins. A prompt the worker's agent lets only a person approve is refused and stays with the user.",
       "Orca picks the prompt's own allow-once option, never a standing rule."
@@ -121,6 +125,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'prompt', 'reason', 'from', 'retry-request'],
     identityFlagRoles: { from: 'caller' },
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'The approval id is in the escalation that reported the prompt. Agents can allow one only with orchestration approve, when the user allows it.',
       "Orca picks the prompt's own refuse-once option, never a standing rule or a stop, and refuses when there is none.",
       "When the agent's prompt takes no message, the reason reaches the worker as its next mail."
@@ -132,7 +137,10 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     usage:
       'orca orchestration worker-abandon --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
-    notes: ['Retains all possibly-live resources and performs no process or filesystem action.']
+    notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
+      'Retains all possibly-live resources and performs no process or filesystem action.'
+    ]
   },
   {
     path: ['orchestration', 'worker-release'],
@@ -142,6 +150,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-release --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'Post-completion cleanup for a settled (succeeded or failed) worker; closes only the exact coordinator-owned agent terminal of that worker.',
       'A settled Dispatch created by orchestration dispatch has no owned terminal resource and is reported retained without process action.',
       "worker-read afterwards reads the worker's own transcript or chat history while it still exists; a worker with none, or whose original is gone, reads as no longer available.",
@@ -157,6 +166,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration worker-keep-open --dispatch <dispatch_id> [--retry-request <id>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'dispatch', 'retry-request'],
     notes: [
+      '--dispatch takes the receipt id (bare ctx_… or dispatch:ctx_…). --host is ignored; the Dispatch lives on this Orca.',
       'Records a durable user-requested exception; a later explicit worker-release clears it and releases the terminal.',
       'Cancels the automatic release an accepted worker_done schedules; it also works on an active worker, before it reports.',
       'For a worker on a connected server, the retain is recorded on that server when it supports automatic release.',

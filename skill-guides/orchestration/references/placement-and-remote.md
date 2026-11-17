@@ -40,10 +40,12 @@ an existing project folder (including one `worktree create --host` made).
 `current` names this machine's workspace, not the remote one.
 
 Message a visible tab with `send --host <name> --to <handle>`. Message a worker
-with `send --to dispatch:<id>` — that Dispatch lives on the caller's Run, so
-`--host` is optional and is ignored if present. After start, `worker-show`,
-`worker-read`, and `worker-stop` take the Dispatch id from the receipt and do
-not need `--host` again.
+with `send --to dispatch:<id>` or a bare `ctx_…` id — that Dispatch lives on the
+caller's Run, so `--host` is optional and is ignored if present. After start,
+`worker-show`, `worker-read`, `worker-stop`, `worker-abandon`, `worker-release`,
+`worker-keep-open`, `approve`, and `deny` take the same Dispatch id (bare `ctx_…`
+or `dispatch:<id>`) and stay on the Run that owns it. `--host` is ignored if
+present; do not retarget those verbs at the worker's machine.
 
 `--host` is a name `orca host list` / `orca host inventory` prints with status
 `connected`. That list includes every machine the desktop app is connected to,

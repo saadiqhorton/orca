@@ -105,4 +105,12 @@ describe('worker-stop through CLI argv, RPC and SQLite', () => {
     ])
     expect(h.db.getWorkerDispatch(helper.dispatchId)?.state).toBe('stopped')
   })
+
+  it('stops a worker given a dispatch: mailbox spelling of the same id', async () => {
+    const worker = await start('term_coord', 'term_worker')
+    const shown = await success('worker-show', '--dispatch', `dispatch:${worker.dispatchId}`)
+    expect(shown).toMatchObject({ dispatch: { id: worker.dispatchId } })
+    const stopped = await success('worker-stop', '--dispatch', `dispatch:${worker.dispatchId}`)
+    expect(stopped).toMatchObject({ dispatchId: worker.dispatchId, state: 'stopped' })
+  })
 })

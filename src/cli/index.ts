@@ -28,11 +28,11 @@ import {
   isLocalEnvironmentSelector,
   refuseLocalManagementSelector
 } from './hosts/local-environment-selector'
-import { isDesktopHubHostValue } from './hosts/desktop-hub-host-flag'
 import {
   bindDesktopHubHost,
   isFolderWorktreeCreateWithoutRepo,
   needsDefaultRemoteWorktree,
+  orchestrationRunsOnCallersOrca,
   shouldWrapDesktopHubHost
 } from './hosts/desktop-hub-command-route'
 import { printResult } from './output/command-result-output'
@@ -116,7 +116,7 @@ export async function main(
     await refuseLocalManagementSelector(parsed.commandPath, parsed.flags)
     const RuntimeClientClass = await loadRuntimeClientClass()
     // `--on` runs on the caller's own Orca, which reaches that server; an inherited selection never reroutes it.
-    const onCallersOrca = runsOnCallersOrca(parsed.commandPath, parsed.flags)
+    const onCallersOrca = orchestrationRunsOnCallersOrca(parsed.commandPath, parsed.flags)
     if (
       onCallersOrca &&
       (parsed.flags.has('pairing-code') ||
@@ -241,19 +241,6 @@ export async function main(
     })
     process.exitCode = cliErrorExitCode(error, parsed.commandPath)
   }
-}
-
-const ON_CALLERS_ORCA_COMMANDS: ReadonlySet<string> = new Set(['send', 'reply', 'worker-start'])
-
-function runsOnCallersOrca(
-  commandPath: readonly string[],
-  flags: ReadonlyMap<string, string | boolean>
-): boolean {
-  return (
-    commandPath[0] === 'orchestration' &&
-    ON_CALLERS_ORCA_COMMANDS.has(commandPath[1] ?? '') &&
-    (flags.has('on') || isDesktopHubHostValue(flags.get('host')))
-  )
 }
 
 async function runClaudeTeams(argv: string[], cwd: string): Promise<void> {
