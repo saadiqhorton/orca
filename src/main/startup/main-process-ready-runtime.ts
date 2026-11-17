@@ -23,6 +23,7 @@ import { hydrateAgentCliShellPath } from '../agent-hooks/installation/local-agen
 import { isAgentStatusHooksEnabledForAgent } from '../../shared/agent-hook-listener/configuration/agent-status-hooks-setting'
 import { reconcileStartupManagedAgentHooks } from '../agent-hooks/installation/managed-agent-hook-startup'
 import { shouldInstallManagedHooks } from './configure-process'
+import { startManagedHostInstructions } from '../runtime/orchestration/desktop-hub/managed-host-instructions-startup'
 import { mainProcessState as state } from './main-process-state'
 import { initializeMainProcessObservers } from './main-process-observers'
 import { installFirstWorkRenameHookSubscription } from './workspace-startup/branch-rename-hook'
@@ -161,6 +162,7 @@ export async function initializeReadyRuntimeServices(): Promise<void> {
       isQuitting: () => state.isQuitting,
       shouldHydrateShellPath: app.isPackaged
     })
+    startManagedHostInstructions(store, app.getPath('userData'))
   }
   // Sample live processes: gone-time metrics omit dead children and already-released memory.
   startPreGoneCrashSampling()
