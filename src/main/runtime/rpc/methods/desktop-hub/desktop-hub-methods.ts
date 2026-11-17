@@ -16,7 +16,8 @@ import {
 } from '../../../orchestration/desktop-hub/orca-host-name-cache'
 import {
   installOrcaHostInstructions,
-  orcaHostInstructionPath
+  orcaHostInstructionPath,
+  settingsWriteGlobalSlice
 } from '../../../orchestration/desktop-hub/orca-host-instruction-install'
 import { getAppEnvironment, hasAppEnvironment } from '../../../../../shared/app-environment'
 
@@ -103,11 +104,11 @@ async function listDesktopHub(ctx: { runtime: object; pairedDeviceId?: string })
     provider && !registry.hasVolunteer()
       ? { hub: 'desktop' as const, hosts: (await provider()).hosts }
       : await registry.list()
-  await rememberListedOrcaHosts(listed.hosts)
+  await rememberListedOrcaHosts(listed.hosts, ctx.runtime)
   return listed
 }
 
-async function rememberListedOrcaHosts(hosts: DesktopHubHostRow[]): Promise<void> {
+async function rememberListedOrcaHosts(hosts: DesktopHubHostRow[], runtime?: object): Promise<void> {
   const names = hosts.map((row) => row.name).filter((name) => name.length > 0)
   rememberOrcaHostNames(names)
   if (!hasAppEnvironment()) {
@@ -116,7 +117,11 @@ async function rememberListedOrcaHosts(hosts: DesktopHubHostRow[]): Promise<void
   const userDataPath = getAppEnvironment().getPath('userData')
   rememberOrcaInstructionFile(orcaHostInstructionPath(userDataPath))
   try {
-    await installOrcaHostInstructions({ hosts: names, userDataPath })
+    await installOrcaHostInstructions({
+      hosts: names,
+      userDataPath,
+      settings: settingsWriteGlobalSlice(runtime)
+    })
   } catch {
     // Discovery copy is best-effort; listing hosts must still succeed.
   }

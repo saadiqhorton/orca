@@ -1,21 +1,23 @@
 ---
 name: verify-orca
-description: Drive Orca cross-host orchestration the way a user does — two-host desktop hub, orca CLI, Cook S01–S08 plus permanent regressions. Use when proving a build, running verify-orca, checking S01–S08, or attaching orca-deploy/verify evidence.
+description: Drive Orca cross-host orchestration the way a user does — two-host desktop hub, orca CLI, Cook S01–S08 plus permanent regressions. Use when proving a build, running verify-orca, checking S01–S08, or attaching verify evidence.
 ---
 
 # Verify Orca cross-host orchestration
 
 You are reading this cold. Drive the **real Orca CLI and desktop hub**, not internal setters. Cook brief: any Orca agent on any connected host, given **only** a plain-English request (no command hints), starts/messages/reads/stops agents and terminals on another connected host through `orca` only. Never SSH between hosts. Never answer trust/hooks by keystroke.
 
+**A green verify-orca means the real two-host rig passed.** Greps, unit tests, and in-process e2e cannot green S01–S08.
+
 Source material: `harness/BRIEF.md`, `harness/GAPS-r01.md`, `scripts/scenarios.json`.
 
 ## Interview (this repo)
 
-- **Surface:** `orca` CLI + desktop Orca window (visible tabs). Primary proof is CLI transcripts plus hub inventory; desktop layout is the visible-tab check.
-- **Run:** in-process two-runtime desktop-hub e2e (namespaced `dockhand` + `ubuntu-server-local`, no SSH) or, if present, the Cook box rig. Do not start the user's live Orca session.
-- **Drive:** existing harness first — `run-desktop-hub-e2e.ts`, mapped vitest files, Cook `harness/run_scenario.py` when a live `orca` + `claude`/`codex` exist. Otherwise the documented **scripted stand-in** in this skill.
-- **Observe:** SHA, template version, per-scenario pass/fail, orca command counts, transcripts, typecheck log.
-- **Isolate:** e2e uses `mkdtemp` userData dirs and tears them down. Never attach to a desktop you did not start.
+- **Surface:** `orca` CLI + desktop Orca window (visible tabs). Primary proof is CLI transcripts plus hub inventory; desktop layout (`terminal list` group names) is the visible-tab check.
+- **Run:** a desktop Orca app plus two connected hosts (`dockhand`, `ubuntu-server-local`). Launch will start them when `ORCA_VERIFY_START_CMD` is set, or when inventory is already live. The operator box rig at `/workspace/xhost-real-test` is an allowed fallback. Do not treat in-process stub runtimes as S01–S08 proof.
+- **Drive:** `harness/run_scenario.py` scripted CLI for S01–S06/S08; reverse-direction worker-start for S07/R08; Claude launch after inventory for R07. Spawn real terminals. Gate on those results.
+- **Observe:** SHA, template version, per-scenario pass/fail, orca command counts, transcripts, typecheck log, live-drive.json.
+- **Isolate:** Never attach to a desktop you did not start unless `ORCA_VERIFY_LIVE=1` is set against an already-running two-host app.
 
 ## Launch
 
@@ -25,9 +27,9 @@ From the Orca checkout:
 ./.cursor/skills/verify-orca/scripts/verify-orca launch
 ```
 
-Ready means `doctor` reports `ready: true`: process-host dist exists, `tsx` can load `run-desktop-hub-e2e.ts`, and the two-host catalog names `dockhand` and `ubuntu-server-local`. There is no long-lived server for the in-process rig — each drive starts its own pair of runtime servers. Teardown is `verify-orca cleanup`.
+Builds process-host. If `orca host inventory --json` already lists both hosts, records that. Else, if `ORCA_VERIFY_START_CMD` is set, spawns that command and waits until inventory is live. Teardown is `verify-orca cleanup` (only PIDs this run recorded).
 
-Optional live desktop (only if `ORCA_VERIFY_LIVE=1` and `orca host inventory --json` works): Cook `harness/run_scenario.py` launches a **fresh** agent with the scenario text as the sole prompt.
+Optional: `ORCA_VERIFY_LIVE=1` requires a live inventory (or a successful start). It must actually run the harness during Drive, not write a note.
 
 ## Doctor
 
@@ -35,7 +37,7 @@ Optional live desktop (only if `ORCA_VERIFY_LIVE=1` and `orca host inventory --j
 ./.cursor/skills/verify-orca/scripts/verify-orca doctor
 ```
 
-Read-only. Fail the instance if: wrong SHA when `ORCA_VERIFY_SHA` is set, typecheck runner missing, e2e entry missing, or a leftover process from a previous verify run owns the recorded PIDs. Writes `doctor.json` into the evidence dir.
+Read-only. Fail the instance if: wrong SHA when `ORCA_VERIFY_SHA` is set; typecheck runner missing; e2e entry missing; leftover PIDs; **or bun/vitest is not set up**. Bun is not ready until postinstall has written `node_modules/bun/<bin>` and `bun --version` matches `config/.bun-version`, and `node_modules/vitest/vitest.mjs` exists. Writes `doctor.json` into the evidence dir.
 
 ## Drive
 
@@ -45,12 +47,14 @@ Read-only. Fail the instance if: wrong SHA when `ORCA_VERIFY_SHA` is set, typech
 ./.cursor/skills/verify-orca/scripts/verify-orca run --scenarios S06
 ```
 
-Read `features/README.md`, then the feature file. Fresh agent, **no hints**:
+Read `features/README.md`, then the feature file.
 
-1. If `claude` or `codex` is on `PATH` **and** `orca host inventory --json` lists connected hosts, launch a new agent with **only** `scenarios.json` `text`. Record `agent=claude|codex`.
-2. Otherwise use the **scripted stand-in** (`agent=scripted-stand-in`) and say so in `summary.md`. The stand-in is product-feasibility (CLI/hub/unit/e2e), not “did a fresh LLM just know”.
+1. Probe `orca host inventory --json` (or the box rig). If both hosts are connected, run the real CLI for every wanted S* scenario.
+2. S07 / R08: create a terminal on `ubuntu-server-local` and run `orca orchestration worker-start --host dockhand …` there. Check dockhand `terminal list` groups — fail if the new group starts with `headless-terminals:`.
+3. R07: after inventory, `worker-start --agent claude` and `agent launch --agent claude` (local and `--host`). Fail on extras allowlist / `agent_session_operation_unknown`.
+4. If there is no live two-host desktop, **S01–S08 FAIL** with `no live two-host desktop; refusing to false-green`. R* unit tests may still pass.
 
-Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host / `selector_not_found`, no hang >60s, no secrets in prompts, no dialog keystrokes. S04 = escalate, never auto-answer. S08 = refuse, never run locally.
+Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host / `selector_not_found`, no hang >60s, no secrets in prompts, no dialog keystrokes, visible tab when `expect_tab`. S04 = escalate, never auto-answer. S08 = refuse, never run locally.
 
 **Permanent regressions** (`R01`…) never drop. Every future failure becomes a new `Rxx` in `scripts/scenarios.json` plus a feature file (or a sub-feature on an existing one).
 
@@ -59,25 +63,27 @@ Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host
 Proof artifacts survive cleanup. Default location:
 
 - `$ORCA_VERIFY_EVIDENCE_DIR` if set
-- else `/cursor/stores/self/orca-deploy/verify/<sha>/` when that store exists
-- else `.cursor/skills/verify-orca/evidence/<sha>/` (gitignored)
+- else `<repo>/.verify-evidence/<sha>/` (gitignored)
+
+Do not default to `/cursor/stores/self/...` — that path does not exist outside the cloud VM.
 
 Layout:
 
 ```
 summary.md          # SHA, template version, agent mode, per-scenario table
-doctor.json
+doctor.json         # includes bun.ok
+live-drive.json
 typecheck.log
 vitest.log
 e2e.log
 scenarios/<ID>.json
 scenarios/<ID>.md
-transcripts/desktop-hub-e2e.log
+transcripts/…
 ```
 
-`summary.md` must name **which** agent ran (real `claude`/`codex` vs `scripted-stand-in`) and list every stand-in step the real target will not have (no live desktop, no Codex hooks dialog, host names from the e2e catalog).
+`summary.md` must name **which** drive mode ran (`desktop-cli`, `box-rig`, or `none`) and must not mark S01–S08 PASS unless that live drive passed.
 
-Proof standards: real user path (plain request or the exact CLI a competent agent would run after inventory); capture action **and** resulting state; side effects (unknown host did not spawn a local tab; blocked launch `outcome=agent_blocked_on_prompt`). Do not treat a unit-test mock as a visible desktop tab.
+Proof standards: real user path (plain request or the exact CLI a competent agent would run after inventory); capture action **and** resulting state; side effects (unknown host did not spawn a local tab; blocked launch `outcome=agent_blocked_on_prompt`; tab group from desktop layout). Do not treat a unit-test mock as a visible desktop tab.
 
 ## Cleanup
 
@@ -99,6 +105,19 @@ All helpers are executable. Invocation is the four commands above, or the full l
 
 Python entry: `./.cursor/skills/verify-orca/scripts/verify_orca.py`.
 
+Environment:
+
+| Variable | Meaning |
+| --- | --- |
+| `ORCA_ROOT` | Orca checkout (default: detect from this skill) |
+| `ORCA_BIN` | `orca` CLI path |
+| `ORCA_VERIFY_EVIDENCE_DIR` | Evidence directory (default `<repo>/.verify-evidence/<sha>`) |
+| `ORCA_VERIFY_LIVE` | Require live inventory; Drive must run the real CLI |
+| `ORCA_VERIFY_START_CMD` | Shell command that starts the built desktop + runtimes |
+| `ORCA_VERIFY_HOST_A` | Default `ubuntu-server-local` |
+| `ORCA_VERIFY_HOST_B` | Default `dockhand` |
+| `ORCA_VERIFY_BOX_RIG` | Set `0` to skip `/workspace/xhost-real-test` |
+
 ## Maintenance
 
-When a verify run fails, fix product code, add a new permanent scenario (`R07`…), and re-run `verify-orca all`. Keep `features/` honest as commands and host names change.
+When a verify run fails, fix product code, add a new permanent scenario (`R09`…), and re-run `verify-orca all`. Keep `features/` honest as commands and host names change.

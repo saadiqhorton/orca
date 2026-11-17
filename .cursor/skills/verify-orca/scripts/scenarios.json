@@ -136,5 +136,21 @@
     "feature": "visible-tabs",
     "text": "--host surfaces must be visible tabs, not headless-terminals group (worker-start, S07).",
     "source_failure": "r00 real S01 / rig S07 headless group"
+  },
+  "R07": {
+    "id": "R07",
+    "kind": "regression",
+    "feature": "claude-launch-after-inventory",
+    "text": "After a host list has been served, Claude worker-start and agent launch must not reject Orca-owned --append-system-prompt-file.",
+    "source_failure": "r02 1ff11f1b extra-args allowlist after inventory"
+  },
+  "R08": {
+    "id": "R08",
+    "kind": "regression",
+    "feature": "visible-tabs",
+    "text": "Reverse-direction worker-start (CLI on ubuntu-server-local --host dockhand) must not land in headless-terminals:folder:*.",
+    "source_failure": "r02 real S07 reverse worker-start headless group",
+    "target": "dockhand",
+    "expect_tab": true
   }
 }

@@ -1,19 +1,21 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  extraAgentArgsWithHostInstructions,
+  orcaOwnedHostInstructionArgs,
   rememberOrcaHostNames,
-  rememberOrcaInstructionFile
+  rememberOrcaInstructionFile,
+  rememberOrcaWriteGlobalAgentInstructions
 } from './orca-host-name-cache'
-import { installOrcaHostInstructions } from './orca-host-instruction-install'
+import { installOrcaHostInstructions, writeOrcaHostInstructionFile } from './orca-host-instruction-install'
 
 const homes: string[] = []
 
 afterEach(async () => {
   rememberOrcaHostNames([])
   rememberOrcaInstructionFile(undefined)
+  rememberOrcaWriteGlobalAgentInstructions(true)
   await Promise.all(homes.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
@@ -34,6 +36,7 @@ describe('installOrcaHostInstructions', () => {
     )
     expect(agents).toContain('ubuntu-server-local')
     expect(agents).toContain('never ssh')
+    expect(agents).toMatch(/Host list as of \d{4}-\d{2}-\d{2}T\d{2}:00Z/)
     expect(claude).toContain('orca host inventory --json')
     await installOrcaHostInstructions({
       hosts: ['dockhand'],
@@ -48,11 +51,59 @@ describe('installOrcaHostInstructions', () => {
     expect(globalCodex).toContain('dockhand')
   })
 
-  it('injects Claude --append-system-prompt-file from the managed instruction path', () => {
+  it('exposes Claude host-instruction argv as Orca-owned tokens, not extras', () => {
     rememberOrcaInstructionFile('/tmp/orca-agent-instructions/ORCA.md')
-    expect(extraAgentArgsWithHostInstructions('claude', undefined)).toBe(
-      "--append-system-prompt-file '/tmp/orca-agent-instructions/ORCA.md'"
-    )
-    expect(extraAgentArgsWithHostInstructions('codex', undefined)).toBeUndefined()
+    expect(orcaOwnedHostInstructionArgs('claude')).toEqual([
+      '--append-system-prompt-file',
+      '/tmp/orca-agent-instructions/ORCA.md'
+    ])
+    expect(orcaOwnedHostInstructionArgs('codex')).toBeUndefined()
+  })
+
+  it('skips and strips global instruction files when the setting is off', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'orca-instr-off-'))
+    homes.push(home)
+    const userDataPath = join(home, 'user-data')
+    await installOrcaHostInstructions({
+      hosts: ['dockhand'],
+      userDataPath,
+      home,
+      writeGlobalAgentInstructions: true
+    })
+    expect(await readFile(join(home, '.codex', 'AGENTS.md'), 'utf8')).toContain('dockhand')
+    await installOrcaHostInstructions({
+      hosts: ['dockhand', 'ubuntu-server-local'],
+      userDataPath,
+      home,
+      writeGlobalAgentInstructions: false
+    })
+    const stripped = await readFile(join(home, '.codex', 'AGENTS.md'), 'utf8')
+    expect(stripped).not.toContain('orca-managed:host-preamble')
+    expect(stripped).not.toContain('ubuntu-server-local')
+    const local = await readFile(join(home, 'orca-orchestration', 'AGENTS.md'), 'utf8')
+    expect(local).toContain('ubuntu-server-local')
+  })
+})
+
+describe('writeOrcaHostInstructionFile safety (box patch)', () => {
+  it('keeps user content and never rewrites on a non-ENOENT read failure', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'orca-instr-'))
+    homes.push(dir)
+    const user = join(dir, 'AGENTS.md')
+    await writeFile(user, '# mine\nkeep me\n', 'utf8')
+    await writeOrcaHostInstructionFile(user, ['a'])
+    await writeOrcaHostInstructionFile(user, ['a', 'b'])
+    const text = await readFile(user, 'utf8')
+    expect(text.startsWith('# mine\nkeep me\n')).toBe(true)
+    expect(text.match(/<!-- orca-managed:host-preamble -->/g)?.length).toBe(1)
+    expect(text).toContain('Connected machines: a, b.')
+    const asDir = join(dir, 'CLAUDE.md')
+    await mkdir(asDir)
+    await writeOrcaHostInstructionFile(asDir, ['a'])
+    const utf16 = join(dir, 'U16.md')
+    await writeFile(utf16, Buffer.from('\ufeffhi', 'utf16le'))
+    await writeOrcaHostInstructionFile(utf16, ['a'])
+    expect((await readFile(utf16)).equals(Buffer.from('\ufeffhi', 'utf16le'))).toBe(true)
+    expect((await readdir(dir)).filter((n) => n.includes('orca-tmp'))).toEqual([])
   })
 })

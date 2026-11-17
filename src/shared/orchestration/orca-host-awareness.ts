@@ -18,13 +18,19 @@ export function parseOrcaHostsEnv(value: string | undefined): string[] {
     .filter((name) => name.length > 0)
 }
 
-export function formatOrcaHostPreamble(hosts: readonly string[]): string {
+/** Hour-truncated so skip-unchanged instruction writes still work within the hour. */
+export function formatOrcaHostListStamp(now = new Date()): string {
+  return `${now.toISOString().slice(0, 13)}:00Z`
+}
+
+export function formatOrcaHostPreamble(hosts: readonly string[], now = new Date()): string {
   const names = hosts.length > 0 ? hosts.join(', ') : '(run `orca host inventory --json`)'
   return [
     'You run inside Orca.',
     `Connected machines: ${names}.`,
     'For any work on another machine use `orca … --host <name>`; never ssh.',
-    'Start with `orca host inventory --json`.'
+    'Start with `orca host inventory --json`.',
+    `Host list as of ${formatOrcaHostListStamp(now)}.`
   ].join(' ')
 }
 
@@ -54,6 +60,23 @@ export function upsertManagedHostInstruction(
     return `${trimmed}\n${block}`
   }
   return `${existing.slice(0, startAt)}${block}${existing.slice(endAt + end.length).replace(/^\n/, '')}`
+}
+
+export function removeManagedHostInstruction(existing: string | undefined): string | undefined {
+  if (!existing) {
+    return existing
+  }
+  const start = `<!-- ${ORCA_HOST_PREAMBLE_MARKER} -->`
+  const end = `<!-- /${ORCA_HOST_PREAMBLE_MARKER} -->`
+  const startAt = existing.indexOf(start)
+  const endAt = existing.indexOf(end)
+  if (startAt === -1 || endAt === -1 || endAt < startAt) {
+    return existing
+  }
+  const before = existing.slice(0, startAt)
+  const after = existing.slice(endAt + end.length).replace(/^\n/, '')
+  const next = `${before}${after}`.replace(/\n{3,}/g, '\n\n')
+  return next.trim().length === 0 ? '' : next
 }
 
 export function unknownDesktopHubHostMessage(name: string, connected: readonly string[]): string {

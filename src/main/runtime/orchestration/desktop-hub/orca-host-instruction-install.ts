@@ -1,11 +1,16 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
   formatOrcaHostPreamble,
+  removeManagedHostInstruction,
   upsertManagedHostInstruction
 } from '../../../../shared/orchestration/orca-host-awareness'
 import { orchestrationScratchPaths } from '../../../../shared/orchestration/orchestration-scratch-workspace'
+import {
+  rememberOrcaWriteGlobalAgentInstructions,
+  rememberedOrcaWriteGlobalAgentInstructions
+} from './orca-host-name-cache'
 
 export const ORCA_AGENT_INSTRUCTIONS_DIR = 'orca-agent-instructions'
 export const ORCA_HOST_INSTRUCTION_FILE = 'ORCA.md'
@@ -14,19 +19,68 @@ export function orcaHostInstructionPath(userDataPath: string): string {
   return join(userDataPath, ORCA_AGENT_INSTRUCTIONS_DIR, ORCA_HOST_INSTRUCTION_FILE)
 }
 
+export function writeGlobalAgentInstructionsEnabled(
+  settings?: { orcaWriteGlobalAgentInstructions?: boolean } | null
+): boolean {
+  return settings?.orcaWriteGlobalAgentInstructions !== false
+}
+
+export function settingsWriteGlobalSlice(host: object | undefined): {
+  orcaWriteGlobalAgentInstructions?: boolean
+} | undefined {
+  if (!host) {
+    return undefined
+  }
+  const rec = host as {
+    getSettings?: () => { orcaWriteGlobalAgentInstructions?: boolean }
+    store?: { getSettings?: () => { orcaWriteGlobalAgentInstructions?: boolean } }
+  }
+  if (typeof rec.getSettings === 'function') {
+    return rec.getSettings()
+  }
+  return rec.store?.getSettings?.()
+}
+
 export async function writeOrcaHostInstructionFile(
   path: string,
-  hosts: readonly string[]
+  hosts: readonly string[],
+  opts?: { strip?: boolean }
 ): Promise<void> {
   const preamble = formatOrcaHostPreamble(hosts)
   let existing: string | undefined
   try {
     existing = await readFile(path, 'utf8')
-  } catch {
+  } catch (error) {
+    // Why: only a missing file may be created from scratch. Any other read failure
+    // (EACCES, EBUSY, EMFILE, EISDIR…) must never replace the user's content.
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+      return
+    }
     existing = undefined
   }
+  if (opts?.strip && existing === undefined) {
+    return
+  }
+  // Why: a UTF-16 file decoded as UTF-8 would be corrupted on rewrite; leave it alone.
+  if (existing !== undefined && existing.includes('\u0000')) {
+    return
+  }
+  const next = opts?.strip
+    ? (removeManagedHostInstruction(existing) ?? existing)
+    : upsertManagedHostInstruction(existing, preamble)
+  if (next === existing) {
+    return
+  }
   await mkdir(join(path, '..'), { recursive: true })
-  await writeFile(path, upsertManagedHostInstruction(existing, preamble), 'utf8')
+  // Why: write a sibling temp file and rename so a crash never truncates the user's file.
+  const tmp = `${path}.orca-tmp-${process.pid}`
+  await writeFile(tmp, next ?? '', 'utf8')
+  try {
+    await rename(tmp, path)
+  } catch (error) {
+    await rm(tmp, { force: true }).catch(() => undefined)
+    throw error
+  }
 }
 
 function globalAgentInstructionFiles(home: string): string[] {
@@ -37,31 +91,55 @@ function globalAgentInstructionFiles(home: string): string[] {
   ]
 }
 
+function writeGlobalFrom(args: {
+  writeGlobalAgentInstructions?: boolean
+  settings?: { orcaWriteGlobalAgentInstructions?: boolean } | null
+}): boolean {
+  if (args.writeGlobalAgentInstructions !== undefined) {
+    return args.writeGlobalAgentInstructions
+  }
+  if (args.settings) {
+    return writeGlobalAgentInstructionsEnabled(args.settings)
+  }
+  return rememberedOrcaWriteGlobalAgentInstructions()
+}
+
 export async function installOrcaHostInstructions(args: {
   hosts: readonly string[]
   userDataPath?: string
   home?: string
   extraDirs?: readonly string[]
+  writeGlobalAgentInstructions?: boolean
+  settings?: { orcaWriteGlobalAgentInstructions?: boolean } | null
 }): Promise<string[]> {
   const written: string[] = []
   const home = args.home ?? homedir()
+  const writeGlobal = writeGlobalFrom(args)
+  rememberOrcaWriteGlobalAgentInstructions(writeGlobal)
   const dirs: string[] = [...(args.extraDirs ?? [])]
   if (args.userDataPath) {
     dirs.push(join(args.userDataPath, ORCA_AGENT_INSTRUCTIONS_DIR))
   }
   dirs.push(orchestrationScratchPaths(home).workspacePath)
-  const files = [
-    ...dirs.flatMap((dir) => [
-      join(dir, 'AGENTS.md'),
-      join(dir, 'CLAUDE.md'),
-      join(dir, ORCA_HOST_INSTRUCTION_FILE)
-    ]),
-    // Vitest blocks writes under the real ~/.codex and ~/.claude; tests pass a temp home.
-    ...(args.home !== undefined || !process.env.VITEST ? globalAgentInstructionFiles(home) : [])
-  ]
-  for (const file of files) {
+  const localFiles = dirs.flatMap((dir) => [
+    join(dir, 'AGENTS.md'),
+    join(dir, 'CLAUDE.md'),
+    join(dir, ORCA_HOST_INSTRUCTION_FILE)
+  ])
+  // Vitest blocks writes under the real ~/.codex and ~/.claude; tests pass a temp home.
+  const globalFiles =
+    args.home !== undefined || !process.env.VITEST ? globalAgentInstructionFiles(home) : []
+  for (const file of localFiles) {
     await writeOrcaHostInstructionFile(file, args.hosts)
     written.push(file)
+  }
+  for (const file of globalFiles) {
+    if (writeGlobal) {
+      await writeOrcaHostInstructionFile(file, args.hosts)
+      written.push(file)
+    } else {
+      await writeOrcaHostInstructionFile(file, args.hosts, { strip: true })
+    }
   }
   return written
 }

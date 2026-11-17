@@ -92,10 +92,7 @@ def evidence_dir(root: Path, sha: str) -> Path:
     env = os.environ.get("ORCA_VERIFY_EVIDENCE_DIR")
     if env:
         return Path(env).resolve()
-    store = Path("/cursor/stores/self/orca-deploy/verify") / git_sha_short(sha)
-    if Path("/cursor/stores/self/orca-deploy").is_dir():
-        return store
-    return SKILL_DIR / "evidence" / git_sha_short(sha)
+    return root / ".verify-evidence" / git_sha_short(sha)
 
 
 def run_dir(sha: str) -> Path:
@@ -137,19 +134,59 @@ def detect_template_version(root: Path) -> str:
     return "0.1.0+c05ff1997397"  # last shipped template for 1ff11f1b product; skill-only commits keep it
 
 
+def bun_doctor(root: Path, env: dict[str, str]) -> dict[str, Any]:
+    """Fail ready when bun's postinstall has not produced a runnable pinned binary."""
+    pinned_path = root / "config/.bun-version"
+    pinned = pinned_path.read_text().strip() if pinned_path.exists() else None
+    bun_pkg = root / "node_modules/bun/package.json"
+    vitest = root / "node_modules/vitest/vitest.mjs"
+    runner = root / "config/scripts/test-runtime/execution-policy/run-vitest.mjs"
+    bun_bin: Path | None = None
+    bun_ver = None
+    bun_exists = False
+    if bun_pkg.exists():
+        try:
+            meta = json.loads(bun_pkg.read_text())
+            rel = (meta.get("bin") or {}).get("bun")
+            if rel:
+                bun_bin = bun_pkg.parent / rel
+                bun_exists = bun_bin.exists()
+                if bun_exists:
+                    probed = run_cmd([str(bun_bin), "--version"], cwd=root, timeout=8, env=env)
+                    bun_ver = (probed["out"] or "").strip().splitlines()[0] if probed["exit"] == 0 else None
+        except (OSError, json.JSONDecodeError, IndexError):
+            bun_bin = bun_bin
+    bun_ok = bool(pinned and bun_exists and bun_ver == pinned)
+    return {
+        "pinned": pinned,
+        "bun_package": bun_pkg.exists(),
+        "bun_bin": str(bun_bin) if bun_bin else None,
+        "bun_bin_exists": bun_exists,
+        "bun_version": bun_ver,
+        "vitest_mjs": vitest.exists(),
+        "run_vitest": runner.exists(),
+        "ok": bun_ok and vitest.exists() and runner.exists(),
+        "fail_reason": (
+            None
+            if bun_ok and vitest.exists() and runner.exists()
+            else (
+                "bun/vitest setup missing: bun postinstall has not produced a runnable "
+                f"pinned binary (pinned {pinned}, found {bun_ver}, bin_exists={bun_exists}, "
+                f"vitest_mjs={vitest.exists()})"
+            )
+        ),
+    }
+
+
 def detect_agent_mode(root: Path) -> dict[str, Any]:
-    live = os.environ.get("ORCA_VERIFY_LIVE", "").strip() in ("1", "true", "yes")
+    from live_drive import inventory, live_wanted, orca_bin
+
     claude = which("claude")
     codex = which("codex")
-    orca = os.environ.get("ORCA_BIN") or which("orca")
-    inventory_ok = False
-    inventory_out = ""
-    if live and orca:
-        r = run_cmd([orca, "host", "inventory", "--json"], cwd=root, timeout=40)
-        inventory_out = r["out"][:2000]
-        inventory_ok = r["exit"] == 0 and "ubuntu-server-local" in r["out"]
-    if live and inventory_ok and (claude or codex):
-        agent = "codex" if codex else "claude"
+    orca = orca_bin()
+    inv = inventory() if orca else {"ok": False, "out": "", "names": [], "exit": 127}
+    if inv.get("ok"):
+        agent = "scripted-cli"
         return {
             "mode": "live",
             "agent": agent,
@@ -157,22 +194,35 @@ def detect_agent_mode(root: Path) -> dict[str, Any]:
             "codex": codex,
             "orca": orca,
             "inventory_ok": True,
-            "note": f"fresh {agent} via Cook harness/run_scenario.py, prompt = scenario text only",
+            "inventory_out": inv.get("out", "")[:2000],
+            "hosts": inv.get("names") or [],
+            "note": (
+                "Live two-host desktop. Drive runs the real orca CLI (scripted harness + "
+                "reverse worker-start + Claude-after-inventory). Green means the real rig passed."
+            ),
+        }
+    if live_wanted():
+        return {
+            "mode": "live-required",
+            "agent": "missing-live-rig",
+            "claude": claude,
+            "codex": codex,
+            "orca": orca,
+            "inventory_ok": False,
+            "inventory_out": inv.get("out", "")[:2000],
+            "note": "ORCA_VERIFY_LIVE=1 but inventory did not list both hosts. S01–S08 will fail.",
         }
     return {
-        "mode": "scripted-stand-in",
-        "agent": "scripted-stand-in",
+        "mode": "no-live-rig",
+        "agent": "no-live-rig",
         "claude": claude,
         "codex": codex,
         "orca": orca,
-        "inventory_ok": inventory_ok,
-        "inventory_out": inventory_out,
+        "inventory_ok": False,
+        "inventory_out": inv.get("out", "")[:2000],
         "note": (
-            "No live Orca desktop + claude/codex inventory. Stand-in = in-process "
-            "desktop-hub e2e + mapped vitest + skill/preamble static checks. "
-            "Does not prove a fresh LLM 'just knew'. Unverified on real target: "
-            "live Codex hooks dialog, live uptime on ubuntu-server-local, "
-            "desktop tab strip eyeball."
+            "No live Orca desktop with dockhand + ubuntu-server-local. S01–S08 FAIL "
+            "(refusing to false-green from greps / in-process e2e). R* unit tests may still run."
         ),
     }
 
@@ -199,6 +249,8 @@ VITEST_FILES = [
     "src/cli/hosts/desktop-hub-cli-bind.test.ts",
     "src/main/runtime/orchestration/desktop-hub/desktop-hub-route.test.ts",
     "src/main/runtime/orchestration/desktop-hub/orca-host-instruction-install.test.ts",
+    "src/shared/agent-launch/startup/orca-owned-claude-launch-args.test.ts",
+    "src/main/runtime/terminal/surface/mobile-session-layout-projection-group-id.test.ts",
     "src/shared/orchestration/orca-host-awareness.test.ts",
     "src/shared/orchestration/desktop-hub-contract.test.ts",
     "src/shared/agent-launch/startup/agent-launch-blocked-prompt.test.ts",
@@ -225,15 +277,23 @@ def cmd_launch(root: Path, sha: str, ev: Path) -> dict[str, Any]:
         env=env,
     )
     e2e_path = root / "src/main/runtime/orchestration/desktop-hub/run-desktop-hub-e2e.ts"
+    from live_drive import try_start_desktop
+
+    start = try_start_desktop(root, ev)
     state = {
         "sha": sha,
-        "kind": "in-process-desktop-hub-e2e",
+        "kind": (
+            "live-desktop"
+            if start.get("already_live") or start.get("started")
+            else "build-plus-optional-desktop"
+        ),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "pids": [],
+        "pids": list(start.get("pids") or []),
         "process_host_build_exit": build["exit"],
         "e2e_entry": str(e2e_path),
         "hosts": ["dockhand", "ubuntu-server-local"],
         "ssh": False,
+        "desktop_start": start,
         "ready": build["exit"] == 0 and e2e_path.exists(),
     }
     write_json(rd / "run.json", state)
@@ -266,6 +326,7 @@ def cmd_doctor(root: Path, sha: str, ev: Path) -> dict[str, Any]:
                 leftover.append(pid)
             except OSError:
                 pass
+    bun = bun_doctor(root, env)
     ready = (
         e2e.exists()
         and tc.exists()
@@ -275,6 +336,7 @@ def cmd_doctor(root: Path, sha: str, ev: Path) -> dict[str, Any]:
         and "what machines" in orch
         and "reason is string" in typefix
         and not leftover
+        and bun["ok"]
     )
     doc = {
         "sha": sha,
@@ -290,6 +352,8 @@ def cmd_doctor(root: Path, sha: str, ev: Path) -> dict[str, Any]:
         "path_has_tsx": bool(which("tsx") or (root / "node_modules/.bin/tsx").exists()),
         "node": run_cmd(["node", "-v"], cwd=root, timeout=10, env=env)["out"].strip(),
         "box_rig": Path("/workspace/xhost-real-test").is_dir(),
+        "bun": bun,
+        "evidence_dir": str(ev),
     }
     write_json(ev / "doctor.json", doc)
     print(json.dumps({"doctor": "ok" if ready else "fail", "ready": ready, "sha": sha, "agent": agent["mode"]}))
@@ -455,9 +519,9 @@ def stand_in_suite(
     bind_src = (root / "src/cli/hosts/desktop-hub-bind.ts").read_text()
     reveal_src = (root / "src/main/runtime/terminal/launch/terminal-create-reveal.ts").read_text()
 
-    need_tc = any(s in wanted for s in ("R05", "S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08"))
+    need_tc = any(s in wanted for s in ("R05",))
     need_vt = True
-    need_e2e = any(s.startswith("S") or s in ("R02", "R06") for s in wanted)
+    need_e2e = any(s in ("R02", "R06") for s in wanted)
 
     if need_tc:
         print("verify-orca: typecheck…", flush=True)
@@ -505,14 +569,21 @@ def stand_in_suite(
         and (not e2e or (e2e_ok and "term_visible_e2e" in e2e_out))
     )
 
-    s06_ok = e2e_ok and "ubuntu-server-local" in e2e_out and "claude" in e2e_out and r01_ok
-    s01_ok = e2e_ok and "agent launch" in e2e_out and "term_visible_e2e" in e2e_out
-    s02_ok = r01_ok and vt_ok and "terminal" in (root / "src/cli/hosts/desktop-hub-command-route.test.ts").read_text()
-    s03_ok = e2e_ok and "federationAttachStart" in e2e_out and "federationStop" in e2e_out
-    s04_ok = r03_ok  # no hooks dialog on stand-in
-    s05_ok = s03_ok  # follow-up covered by federationShow after start
-    s07_ok = e2e_ok and "dockhand" in e2e_out
-    s08_ok = r02_ok and e2e_ok and "needs_sign_in" in e2e_out and "TEMPLEOFDOOM" in e2e_out
+    r07_src = root / "src/shared/agent-launch/startup/orca-owned-claude-launch-args.test.ts"
+    r08_src = root / "src/main/runtime/terminal/surface/mobile-session-layout-projection-group-id.test.ts"
+    r07_ok = (
+        vt_ok
+        and r07_src.exists()
+        and "parseExtraAgentArgs" in r07_src.read_text()
+        and "buildAgentStartupPlan" in r07_src.read_text()
+        and "orcaOwnedAgentArgs" in r07_src.read_text()
+    )
+    r08_ok = (
+        vt_ok
+        and r08_src.exists()
+        and "orca-orchestration:folder:" in r08_src.read_text()
+        and "headless-terminals:" in r08_src.read_text()
+    )
 
     mapping = {
         "R01": (r01_ok, 0, ["skill YAML + preamble + instruction-install tests"] + ([] if r01_ok else orch_miss + cli_miss), unverified_live),
@@ -521,17 +592,13 @@ def stand_in_suite(
         "R04": (r04_ok, 0, ["desktop-hub-selector-resolve unique folder:"], ["live bare folder: against two real hosts"]),
         "R05": (r05_ok, 0, [f"full typecheck exit {(tc or {}).get('exit')}"], []),
         "R06": (r06_ok, 1, ["cliLaunchPresentation omits background; e2e term_visible_e2e"], ["desktop window screenshot"]),
-        "S01": (s01_ok, 4, ["e2e worker-start hostname + agent.launch --host → term_visible_e2e"], unverified_live),
-        "S02": (s02_ok, 3, ["skill triggers + terminal create --host wrap"], ["live uptime output from ubuntu-server-local"]),
-        "S03": (s03_ok, 4, ["e2e federation start/read/stop"], unverified_live),
-        "S04": (s04_ok, 3, ["R03 blocked-prompt stand-in (no hooks dialog on rig)"], ["live Codex node --version or hooks escalate"]),
-        "S05": (s05_ok, 5, ["e2e start/read/stop as follow-up stand-in"], ["live send --body date"]),
-        "S06": (s06_ok, 1, ["e2e inventory lists ubuntu-server-local + claude,codex; skill triggers"], unverified_live),
-        "S07": (s07_ok, 4, ["e2e catalog includes dockhand; reverse direction not fully driven on stand-in"], ["live from ubuntu-server-local → dockhand"]),
-        "S08": (s08_ok, 1, ["unknown_host unit + e2e refuses TEMPLEOFDOOM/ARCHIT4ME without forwarding"], []),
+        "R07": (r07_ok, 0, ["real parseExtraAgentArgs + resolveAgentStartupPlanInputs + buildAgentStartupPlan"], ["live Claude after inventory"]),
+        "R08": (r08_ok, 0, ["getHeadlessMobileSessionGroupId(folder:) is not headless-terminals:"], ["live reverse worker-start group"]),
     }
 
     for sid in wanted:
+        if sid not in mapping:
+            continue
         spec = specs[sid]
         passed, cmds, evidence, skip = mapping[sid]
         reasons = []
@@ -603,10 +670,10 @@ def write_summary(
         "",
         "## Stand-in vs real target",
         "",
-        "This run used the in-process desktop-hub e2e (two namespaced runtimes, no SSH) unless doctor.agent.mode is live.",
-        "Steps the stand-in did that a Saadiq-PC run will not: start stub runtimes in-process, skip Electron window,",
-        "skip Codex TTY hooks, skip real `uptime` on ubuntu-server-local.",
-        "Those stay unverified until a live `ORCA_VERIFY_LIVE=1` run with claude/codex.",
+        "S01–S08 pass only when the Drive step ran the real orca CLI against a desktop + 2 hosts",
+        "(or the operator box rig). Greps, unit tests, and in-process e2e cannot green those IDs.",
+        "R07 always runs the real launch-argument builder; live R07 also runs Claude after inventory.",
+        "R08 always runs the folder: group-id unit; live R08 also reverse worker-start visibility.",
         "",
         "## Doctor",
         "",
@@ -628,18 +695,84 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
     env = node_env(root)
     ev.mkdir(parents=True, exist_ok=True)
     (ev / "scenarios").mkdir(exist_ok=True)
-    doctor = json.loads((ev / "doctor.json").read_text()) if (ev / "doctor.json").exists() else cmd_doctor(root, sha, ev)
+    doctor = cmd_doctor(root, sha, ev)
     agent_info = doctor.get("agent") or detect_agent_mode(root)
     template = doctor.get("template_version") or detect_template_version(root)
 
     results = stand_in_suite(root, specs, wanted, agent_info, ev, env)
-    if agent_info["mode"] == "live":
-        live_note = (
-            "Live claude/codex detected. Re-run Cook harness/run_scenario.py on the "
-            "desktop host for S01–S08; this verify-orca process still records the "
-            "scripted stand-in proof in the same evidence dir."
-        )
-        agent_info = {**agent_info, "note": live_note + " " + agent_info.get("note", "")}
+
+    from live_drive import drive as live_drive, try_start_desktop
+
+    start_info = try_start_desktop(root, ev)
+    live = live_drive(SKILL_DIR, root, ev, wanted, specs, start_info)
+    write_json(ev / "live-drive.json", {k: live[k] for k in live if k != "results"})
+    live_results = live.get("results") or {}
+    no_live_reason = live.get("reason") or (
+        "no live two-host desktop; refusing to false-green"
+    )
+    for sid in wanted:
+        spec = specs[sid]
+        if sid.startswith("S"):
+            lr = live_results.get(sid)
+            if not lr:
+                lr = {
+                    "pass": False,
+                    "reasons": [no_live_reason],
+                    "orca_cmds": 0,
+                    "evidence": [],
+                    "ssh": [],
+                    "wrong_host": [],
+                    "wall_s": 0,
+                    "via": "missing",
+                }
+            extra = {
+                "no_ssh": not lr.get("ssh"),
+                "zero_wrong_host": not lr.get("wrong_host"),
+                "stand_in_unverified": [] if lr.get("pass") else [no_live_reason] if live.get("mode") == "none" else [],
+                "evidence": lr.get("evidence") or [],
+                "wall_s": lr.get("wall_s") or 0,
+                "ssh_used": lr.get("ssh") or [],
+                "wrong_host_errors": lr.get("wrong_host") or [],
+            }
+            reasons = list(lr.get("reasons") or [])
+            results[sid] = scenario_result(
+                sid,
+                spec,
+                passed=bool(lr.get("pass")),
+                agent=agent_info["agent"],
+                reasons=reasons,
+                orca_cmds=int(lr.get("orca_cmds") or 0),
+                extra=extra,
+            )
+            write_scenario_files(ev, results[sid])
+            continue
+        if sid in ("R07", "R08") and live.get("mode") != "none" and sid in live_results:
+            lr = live_results[sid]
+            if not lr.get("pass"):
+                existing = results.get(sid)
+                reasons = list(lr.get("reasons") or ["live CLI failed"])
+                extra = {
+                    "no_ssh": True,
+                    "zero_wrong_host": True,
+                    "stand_in_unverified": [],
+                    "evidence": (existing.get("evidence") if existing else []) + (lr.get("evidence") or []),
+                    "wall_s": lr.get("wall_s") or 0,
+                }
+                results[sid] = scenario_result(
+                    sid,
+                    spec,
+                    passed=False,
+                    agent=agent_info["agent"],
+                    reasons=reasons,
+                    orca_cmds=int(lr.get("orca_cmds") or 0),
+                    extra=extra,
+                )
+                write_scenario_files(ev, results[sid])
+    agent_info = {
+        **agent_info,
+        "live_mode": live.get("mode"),
+        "note": f"{agent_info.get('note', '')} Drive mode={live.get('mode')}.",
+    }
     write_summary(ev, sha, template, agent_info, results, doctor)
     if any(not results[s]["pass"] for s in wanted):
         raise SystemExit(2)

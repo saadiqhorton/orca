@@ -2,7 +2,10 @@ import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
 import { rememberedOrcaHostNames } from '../../../../orchestration/desktop-hub/orca-host-name-cache'
-import { installOrcaHostInstructions } from '../../../../orchestration/desktop-hub/orca-host-instruction-install'
+import {
+  installOrcaHostInstructions,
+  settingsWriteGlobalSlice
+} from '../../../../orchestration/desktop-hub/orca-host-instruction-install'
 import {
   orchestrationScratchPaths,
   orchestrationScratchWorktreeSelector
@@ -56,7 +59,8 @@ export async function ensureOrchestrationScratchWorkspace(
     await installOrcaHostInstructions({
       hosts: rememberedOrcaHostNames(),
       extraDirs: [paths.workspacePath],
-      home
+      home,
+      settings: settingsWriteGlobalSlice(runtime)
     })
   } catch {
     // Instruction files are best-effort; the scratch folder must still be created.

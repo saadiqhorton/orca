@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatOrcaHostListStamp,
   formatOrcaHostPreamble,
   formatOrcaHostsEnv,
   parseOrcaHostsEnv,
+  removeManagedHostInstruction,
   unknownDesktopHubHostMessage,
   upsertManagedHostInstruction
 } from './orca-host-awareness'
 
 describe('orca host awareness copy', () => {
   it('names connected machines and forbids ssh', () => {
-    const preamble = formatOrcaHostPreamble(['dockhand', 'ubuntu-server-local'])
+    const now = new Date('2026-11-17T18:23:00.000Z')
+    const preamble = formatOrcaHostPreamble(['dockhand', 'ubuntu-server-local'], now)
     expect(preamble).toContain('You run inside Orca.')
     expect(preamble).toContain('dockhand, ubuntu-server-local')
     expect(preamble).toContain('never ssh')
     expect(preamble).toContain('orca host inventory --json')
+    expect(preamble).toContain('Host list as of 2026-11-17T18:00Z')
+    expect(formatOrcaHostListStamp(now)).toBe('2026-11-17T18:00Z')
     expect(formatOrcaHostsEnv(['dockhand', 'ubuntu-server-local'])).toBe(
       'dockhand,ubuntu-server-local'
     )
@@ -30,6 +35,8 @@ describe('orca host awareness copy', () => {
     expect(updated).toContain('second')
     expect(updated).not.toContain('first')
     expect(updated).toContain('# keep me')
+    expect(removeManagedHostInstruction(updated)).toContain('# keep me')
+    expect(removeManagedHostInstruction(updated)).not.toContain('orca-managed:host-preamble')
   })
 
   it('refuses an unknown host with the connected names', () => {

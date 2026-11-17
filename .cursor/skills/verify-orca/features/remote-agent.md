@@ -21,9 +21,9 @@ Preconditions:
 - Doctor lists both `dockhand` and `ubuntu-server-local`.
 - Prompts are the exact `S01` / `S04` / `S07` texts.
 
-- **Fresh agent.** `verify-orca run --scenarios S01,S04,S07`. Each uses `--host` on the named machine. S04 final text matches a node version **or** hook/trust/blocked/waiting. No `terminal send` keystrokes into a dialog.
-- **Stand-in.** E2e `agent.launch` on `ubuntu-server-local` yields `term_visible_e2e`; worker hostname contains `B_CWD=` / host-b marker; catalog includes `dockhand`. S04 stand-in is R03 unit proof plus “stub; no hooks dialog on the rig” in `summary.md`.
-- **Proof.** ≤6 orca commands, no ssh, visible tab for S01/S04/S07 when the surface exists.
+- **Fresh agent.** `verify-orca run --scenarios S01,S04,S07`. S01/S04 use the real CLI `--host` on the named machine. S07 is reverse: a terminal on `ubuntu-server-local` runs `orca orchestration worker-start --host dockhand`. S04 final text matches a node version **or** hook/trust/blocked/waiting. No `terminal send` keystrokes into a dialog.
+- **No live rig.** S01/S04/S07 FAIL. Do not pass them from e2e greps.
+- **Proof.** ≤6 orca commands, no ssh, visible tab (`group` not `headless-terminals:`) for S01/S04/S07.
 
 ## Gotchas
 

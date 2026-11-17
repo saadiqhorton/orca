@@ -130,7 +130,10 @@ export function collectHeadlessTopLevelTabOrder(
 }
 
 export function getHeadlessMobileSessionGroupId(worktreeId: string): string {
-  return `headless-terminals:${worktreeId}`
+  // folder: scratch is a real desktop project; headless-terminals: hides reverse worker-start (R08).
+  return worktreeId.startsWith('folder:')
+    ? `orca-orchestration:${worktreeId}`
+    : `headless-terminals:${worktreeId}`
 }
 
 export function buildHeadlessMobileSessionTabGroups(

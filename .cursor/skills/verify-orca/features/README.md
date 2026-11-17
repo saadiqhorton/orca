@@ -5,19 +5,19 @@ This directory is the maintained source for verifying user-facing cross-host orc
 ## Baseline preconditions
 
 - Run from the Orca git checkout. Record `git rev-parse HEAD` as the build SHA.
-- Launch via `./.cursor/skills/verify-orca/scripts/verify-orca launch` (in-process desktop hub: namespaced hosts `dockhand` and `ubuntu-server-local`, no SSH).
-- Run `./.cursor/skills/verify-orca/scripts/verify-orca doctor` and require `ready: true`, the expected SHA, and two connected host names.
+- Launch via `./.cursor/skills/verify-orca/scripts/verify-orca launch` (builds process-host; starts the desktop if `ORCA_VERIFY_START_CMD` is set or inventory is already live).
+- Run `./.cursor/skills/verify-orca/scripts/verify-orca doctor` and require `ready: true` **including bun/vitest** (pinned bun binary from postinstall, `vitest.mjs`).
 - Put the skill `scripts/` on your mental PATH; invoke helpers exactly as written.
-- Never drive a desktop Orca instance this run did not start.
-- Fresh-agent drives use the scenario `text` as the **only** prompt. No command hints.
+- Never drive a desktop Orca instance this run did not start, unless `ORCA_VERIFY_LIVE=1` against an already-running two-host desktop.
+- Fresh-agent drives use the scenario `text` as the **only** prompt. No command hints. S01–S08 are real CLI only.
 
 ## Driving conventions
 
 - Start every recipe from the baseline unless its preconditions say otherwise.
 - Treat every command as literal. Keep quoted names and flags unchanged.
 - Prefer `orca host inventory --json` then `orca … --host <name>`. Never `ssh`.
-- Live agents: `claude` or `codex` via Cook `harness/run_scenario.py`.
-- Otherwise: `verify-orca run --scenarios <ID>` scripted stand-in. Record that mode.
+- Live drive: Cook `harness/run_scenario.py --agent scripted` plus reverse worker-start and Claude-after-inventory. Gate S01–S08 on those results.
+- No live two-host desktop: S01–S08 **FAIL** (no grep / in-process e2e false-green).
 - Restore/close tabs this run created. Do not remove proof artifacts during cleanup.
 
 ## Proof and skip reporting
@@ -25,9 +25,9 @@ This directory is the maintained source for verifying user-facing cross-host orc
 - Capture the user action and the resulting state, not only the last log line.
 - CLI proof includes the command, stdout, stderr, and exit code.
 - Hub proof includes host names, `unknown_host` / `desktop_hub_unavailable` codes, and that no local tab was created for a refused host.
-- Visible-tab proof is a handle whose group does **not** start with `headless-terminals:` (or e2e `term_visible_e2e` / `surface: visible` on the stand-in).
+- Visible-tab proof is a handle whose group does **not** start with `headless-terminals:`, read from `terminal list` layout on the target host.
 - Record the feature ID and entry point with every artifact.
-- An unreachable live-agent path is a reported skip, not a pass through a different path. The stand-in may still prove product feasibility; `summary.md` must say so.
+- An unreachable live two-host path is a **FAIL** for S01–S08, not a skip and not a grep pass.
 
 ## Feature entry contract
 
@@ -44,7 +44,8 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Blocked startup](./blocked-startup.md) — R03 Hooks need review.
 - [Selector resolve](./selector-resolve.md) — R04 folder:/term_ without `--host`.
 - [Typecheck gate](./typecheck-gate.md) — R05 compile before push.
-- [Visible tabs](./visible-tabs.md) — R06 `--host` surfaces not headless.
+- [Visible tabs](./visible-tabs.md) — R06 `--host` surfaces not headless; R08 reverse worker-start.
+- [Claude launch after inventory](./claude-launch-after-inventory.md) — R07 Orca-owned Claude argv.
 
 ## Permanent scenario rule
 

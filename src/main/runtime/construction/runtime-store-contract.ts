@@ -154,6 +154,7 @@ export type RuntimeStore = {
     floatingTerminalCwd?: GlobalSettings['floatingTerminalCwd']
     floatingTerminalTrustedCwds?: GlobalSettings['floatingTerminalTrustedCwds']
     agentStatusHooksEnabled?: GlobalSettings['agentStatusHooksEnabled']
+    orcaWriteGlobalAgentInstructions?: GlobalSettings['orcaWriteGlobalAgentInstructions']
     claudeSubagentNavigationEnabled?: GlobalSettings['claudeSubagentNavigationEnabled']
     followSymlinkedDirectories?: GlobalSettings['followSymlinkedDirectories']
     tabAutoGenerateTitle?: GlobalSettings['tabAutoGenerateTitle']

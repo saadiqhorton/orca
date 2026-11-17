@@ -16,7 +16,8 @@ import {
 } from '../../../runtime/orchestration/desktop-hub/orca-host-name-cache'
 import {
   installOrcaHostInstructions,
-  orcaHostInstructionPath
+  orcaHostInstructionPath,
+  settingsWriteGlobalSlice
 } from '../../../runtime/orchestration/desktop-hub/orca-host-instruction-install'
 import { openHubSubscription } from './desktop-hub-subscribe'
 
@@ -24,6 +25,7 @@ type DesktopHubClientOptions = {
   userDataPath: string
   machineName: () => string
   localFingerprint: () => string
+  settingsHost?: object
   callLocal: (
     method: string,
     params: unknown,
@@ -106,6 +108,7 @@ export function installDesktopConnectedSurfaces(
   runtimeRpc.setMobileDesktopRelayHosts(createRuntimeEnvironmentMobileRelayHosts())
   const stop = startDesktopHubClient({
     userDataPath: getCanonicalUserDataPath(),
+    settingsHost: runtime,
     machineName: () => runtime.readMachineName(),
     localFingerprint: () =>
       runtime.getOrchestrationDb().getOrCreateLocalMutationCallerFingerprint(),
@@ -194,8 +197,10 @@ function currentCatalog(
   const names = catalog.hosts.map((row) => row.name).filter((name) => name.length > 0)
   rememberOrcaHostNames(names)
   rememberOrcaInstructionFile(orcaHostInstructionPath(options.userDataPath))
-  void installOrcaHostInstructions({ hosts: names, userDataPath: options.userDataPath }).catch(
-    () => undefined
-  )
+  void installOrcaHostInstructions({
+    hosts: names,
+    userDataPath: options.userDataPath,
+    settings: settingsWriteGlobalSlice(options.settingsHost)
+  }).catch(() => undefined)
   return catalog
 }

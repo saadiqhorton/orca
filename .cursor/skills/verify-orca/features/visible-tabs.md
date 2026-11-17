@@ -5,8 +5,10 @@
 ## Sub-features
 
 - `R06` remote tabs landing in the headless group (real S01, rig S07).
+- `R08` reverse-direction `worker-start` from `ubuntu-server-local` `--host dockhand` must not use `headless-terminals:folder:*`.
 - `omit-background` CLI omits `presentation: 'background'` when `client.isRemote`.
 - `published-visible` a published PTY session counts as `surface: 'visible'` (no “could not make it discoverable”).
+- `folder-group` `getHeadlessMobileSessionGroupId('folder:…')` returns `orca-orchestration:folder:…`.
 
 ## How to get to it (user POV)
 
@@ -21,10 +23,11 @@ Preconditions:
 - Doctor ready. S01/S07/S02 create surfaces on the target.
 
 - **Fresh agent.** After S01/S02/S07, every new target handle has `tabId` and `group` that does not start with `headless-terminals:`.
-- **Stand-in.** `cli-launch-presentation` remote → `undefined` (not `background`); e2e launched tab `term_visible_e2e`; `ensure-orchestration-scratch` `skipPrimaryTerminal: true` (no extra shell).
-- **Proof.** `scenarios/R06.json`. Saadiq seeing four tabs on an older demo does not waive worker-start / S07.
+- **Live R08.** Drive creates a terminal on `ubuntu-server-local` and runs `orca orchestration worker-start --host dockhand` there, then reads dockhand `terminal list` group names.
+- **Unit.** `getHeadlessMobileSessionGroupId('folder:fld_dockhand')` is `orca-orchestration:folder:fld_dockhand`.
+- **Proof.** `scenarios/R06.json` and `scenarios/R08.json`. Saadiq seeing four tabs on an older demo does not waive reverse worker-start / S07.
 
 ## Gotchas
 
-- The synthetic group id `headless-terminals:${worktreeId}` still exists in orcad layout projection. Visibility is `presentation` / `surface: 'visible'` / desktop reveal, not renaming that id.
+- Folder scratch must not use `headless-terminals:folder:…` — that prefix is what the cook visibility bar treats as hidden. Reverse S07 creates a new `folder:` worktree, so `existingGroups[0]` cannot save it.
 - Worker-start and reverse S07 were the headless paths; agent-launch `--focus` is not the default `--host` path.

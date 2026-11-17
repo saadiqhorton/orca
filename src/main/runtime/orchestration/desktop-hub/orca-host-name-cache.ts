@@ -6,6 +6,7 @@ import {
 
 let remembered: string[] = []
 let instructionFile: string | undefined
+let writeGlobalAgentInstructions = true
 
 export function rememberOrcaHostNames(hosts: readonly string[]): void {
   remembered = hosts.filter((name) => name.trim().length > 0)
@@ -15,12 +16,20 @@ export function rememberOrcaInstructionFile(path: string | undefined): void {
   instructionFile = path
 }
 
+export function rememberOrcaWriteGlobalAgentInstructions(value: boolean | undefined): void {
+  writeGlobalAgentInstructions = value !== false
+}
+
 export function rememberedOrcaHostNames(): readonly string[] {
   return remembered
 }
 
 export function rememberedOrcaInstructionFile(): string | undefined {
   return instructionFile
+}
+
+export function rememberedOrcaWriteGlobalAgentInstructions(): boolean {
+  return writeGlobalAgentInstructions
 }
 
 export function applyOrcaHostAwarenessEnv(env: Record<string, string>): void {
@@ -32,13 +41,10 @@ export function applyOrcaHostAwarenessEnv(env: Record<string, string>): void {
   }
 }
 
-export function extraAgentArgsWithHostInstructions(
-  agent: string,
-  extra: string | undefined
-): string | undefined {
-  if (agent !== 'claude' || !instructionFile || instructionFile.includes("'")) {
-    return extra
+/** Claude host-instruction argv. Must not be placed on the user extra-args allowlist path. */
+export function orcaOwnedHostInstructionArgs(agent: string): string[] | undefined {
+  if (agent !== 'claude' || !instructionFile) {
+    return undefined
   }
-  const flag = `--append-system-prompt-file '${instructionFile}'`
-  return extra ? `${flag} ${extra}` : flag
+  return ['--append-system-prompt-file', instructionFile]
 }
