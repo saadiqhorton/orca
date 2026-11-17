@@ -2,6 +2,7 @@ import type { CommandHandler } from '../dispatch/dispatch'
 import { formatEnvironment, formatEnvironmentList } from './environment-format'
 import {
   formatHostInventory,
+  withHostOrchestrationTiers,
   formatHostList,
   formatHostName,
   type HostInventoryRow,
@@ -126,7 +127,7 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
         hosts: HostInventoryRow[]
         message?: string
       }>('orchestration.desktopHub.inventory', {})
-      printResult(listed, json, formatHostInventory)
+      printResult(withHostOrchestrationTiers(listed), json, formatHostInventory)
     } catch (error) {
       if (error instanceof RuntimeClientError && error.code === 'method_not_found') {
         throw new RuntimeClientError(

@@ -1,3 +1,9 @@
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
+import {
+  orchestrationTiersFor,
+  type OrchestrationTier
+} from '../../shared/orchestration/orchestration-knowledge-tier'
+
 export type HostListEntry = {
   kind: 'local' | 'ssh' | 'environment' | 'execution'
   name: string
@@ -77,6 +83,24 @@ export type HostInventoryRow = {
   selector?: string
   error?: string
   inventory?: HostInventory
+  orchestrationTiers?: Partial<Record<TuiAgent, OrchestrationTier>>
+}
+
+export function withHostOrchestrationTiers<T extends { result: { hosts: HostInventoryRow[] } }>(
+  envelope: T
+): T {
+  const { hosts } = envelope.result
+  return {
+    ...envelope,
+    result: {
+      ...envelope.result,
+      hosts: hosts.map((host) =>
+        host.inventory
+          ? { ...host, orchestrationTiers: orchestrationTiersFor(host.inventory.agents) }
+          : host
+      )
+    }
+  }
 }
 
 export function formatHostInventory(result: {
