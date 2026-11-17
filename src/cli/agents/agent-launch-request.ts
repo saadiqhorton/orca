@@ -38,6 +38,7 @@ type Flags = Map<string, string | boolean>
 /** The host strips agent fields from the worktree.create payload. */
 export type CliAgentLaunchTarget =
   | { kind: 'existing'; worktree: string }
+  | { kind: 'orchestration-session' }
   | { kind: 'create-worktree'; create: Record<string, unknown> }
 
 export type CliAgentLaunch = {
