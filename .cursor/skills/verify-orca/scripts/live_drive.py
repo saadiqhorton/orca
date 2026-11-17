@@ -191,8 +191,8 @@ def scripted_facts(spec: dict[str, Any], inv: dict[str, Any]) -> dict[str, str]:
         "target_agent": "claude",
         "target_hostname": hostname,
     }
-    if target == host_a:
-        facts["target_home_marker"] = os.environ.get("ORCA_VERIFY_HOME_MARKER", "home")
+    if "{target_home_marker}" in json.dumps(spec):
+        facts["target_home_marker"] = home_marker_for_target(str(target))
     if stub_mode():
         facts["stub"] = "1"
     return facts
@@ -205,7 +205,10 @@ def live_wanted() -> bool:
 def box_rig_available() -> bool:
     if os.environ.get("ORCA_VERIFY_BOX_RIG", "").strip() in ("0", "false", "no"):
         return False
-    return BOX_ROOT.is_dir() and (BOX_ROOT / "keys/id_ed25519").exists()
+    try:
+        return BOX_ROOT.is_dir() and (BOX_ROOT / "keys/id_ed25519").exists()
+    except OSError:
+        return False
 
 
 def try_start_desktop(root: Path, ev: Path) -> dict[str, Any]:
@@ -298,16 +301,19 @@ def process_args_probe() -> str:
     ps = run(["ps", "-ww", "-eo", "args="], timeout=8)
     chunks.append(ps.get("out") or "")
     proc = Path("/proc")
-    if proc.is_dir():
-        for entry in proc.iterdir():
-            if not entry.name.isdigit():
-                continue
-            try:
-                raw = (entry / "cmdline").read_bytes().replace(b"\x00", b" ").decode("utf-8", "ignore")
-            except OSError:
-                continue
-            if OWNED_CLAUDE_FLAG in raw or "claude" in raw:
-                chunks.append(raw)
+    try:
+        entries = list(proc.iterdir()) if proc.is_dir() else []
+    except OSError:
+        entries = []
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes().replace(b"\x00", b" ").decode("utf-8", "ignore")
+        except OSError:
+            continue
+        if OWNED_CLAUDE_FLAG in raw or "claude" in raw:
+            chunks.append(raw)
     return "\n".join(chunks)
 
 
@@ -342,14 +348,211 @@ def extract_term_handle(text: str) -> str | None:
     return found[0] if found else None
 
 
+BOX_SSH_HOSTS = {
+    DEFAULT_A: "hostb@10.77.0.3",
+    DEFAULT_B: "hosta@10.77.0.2",
+}
+SEEDED_HOME_MARKER = ".orca-verify-s03"
+
+
+def pick_home_marker(listing: str) -> str | None:
+    """A real `ls -A ~` entry. Never the magic word 'home' unless that name exists."""
+    names: list[str] = []
+    for raw in (listing or "").splitlines():
+        name = raw.strip().rstrip("/")
+        if not name or name in (".", ".."):
+            continue
+        names.append(name)
+    for preferred in ("gitproj", ".orca", ".orca-remote"):
+        if preferred in names:
+            return preferred
+    return names[0] if names else None
+
+
+def list_target_home(host: str) -> str:
+    """`ls -A ~` on the target host. Desktop uses orca; box-rig uses the same ssh path as the drive."""
+    forced = os.environ.get("ORCA_VERIFY_HOME_LISTING")
+    if forced is not None:
+        return forced
+    chunks: list[str] = []
+    try:
+        create = orca(
+            ["terminal", "create", "--host", host, "--title", "verify-s03-ls", "--json"],
+            timeout=40,
+        )
+        handle = extract_term_handle(create.get("out") or "")
+        if handle:
+            orca(
+                [
+                    "terminal",
+                    "send",
+                    "--host",
+                    host,
+                    "--terminal",
+                    handle,
+                    "--text",
+                    "ls -A ~",
+                    "--enter",
+                ],
+                timeout=30,
+            )
+            time.sleep(1.5)
+            read = orca(["terminal", "read", "--host", host, "--terminal", handle], timeout=30)
+            chunks.append(read.get("out") or "")
+    except OSError:
+        pass
+    listing = "\n".join(chunks)
+    if pick_home_marker(listing):
+        return listing
+    if box_rig_available():
+        remote = BOX_SSH_HOSTS.get(host, "hostb@10.77.0.3")
+        try:
+            r = run([*ssh_base(), remote, "ls -A ~"], timeout=20)
+            chunks.append(r.get("out") or "")
+        except OSError:
+            pass
+    return "\n".join(chunks)
+
+
+def seed_home_marker(host: str, name: str = SEEDED_HOME_MARKER) -> str:
+    cmd = f"touch ~/{name}"
+    try:
+        if box_rig_available():
+            remote = BOX_SSH_HOSTS.get(host, "hostb@10.77.0.3")
+            run([*ssh_base(), remote, cmd], timeout=20)
+        else:
+            create = orca(
+                ["terminal", "create", "--host", host, "--title", "verify-s03-seed", "--json"],
+                timeout=40,
+            )
+            handle = extract_term_handle(create.get("out") or "")
+            if handle:
+                orca(
+                    [
+                        "terminal",
+                        "send",
+                        "--host",
+                        host,
+                        "--terminal",
+                        handle,
+                        "--text",
+                        cmd,
+                        "--enter",
+                    ],
+                    timeout=30,
+                )
+    except OSError:
+        pass
+    return name
+
+
+def home_marker_for_target(host: str) -> str:
+    forced = os.environ.get("ORCA_VERIFY_HOME_MARKER", "").strip()
+    if forced:
+        return forced
+    picked = pick_home_marker(list_target_home(host))
+    if picked:
+        return picked
+    return seed_home_marker(host)
+
+
+def workspace_from_inventory(parsed: dict[str, Any]) -> str | None:
+    """Prefer the rig `work` folder, else the first inventory workspace path."""
+    paths: list[str] = []
+    for row in inventory_host_rows(parsed, ""):
+        inv = row.get("inventory") if isinstance(row.get("inventory"), dict) else {}
+        for folder in inv.get("folderWorkspaces") or []:
+            if isinstance(folder, dict) and folder.get("path"):
+                paths.append(str(folder["path"]))
+        for project in inv.get("projects") or []:
+            if not isinstance(project, dict):
+                continue
+            for key in ("parentPath", "path", "rootPath"):
+                if project.get(key):
+                    paths.append(str(project[key]))
+        for repo in inv.get("repos") or []:
+            if not isinstance(repo, dict):
+                continue
+            sel = str(repo.get("selector") or repo.get("path") or "")
+            if sel.startswith("path:"):
+                paths.append(sel[5:])
+            elif sel.startswith("/"):
+                paths.append(sel)
+    for path in paths:
+        if path.rstrip("/").endswith("/work") or os.path.basename(path.rstrip("/")) == "work":
+            return path
+    return paths[0] if paths else None
+
+
+def parse_orcad_version(text: str) -> str | None:
+    if not text:
+        return None
+    try:
+        i = text.index("{")
+        data = json.loads(text[i:])
+    except Exception:
+        data = None
+    if isinstance(data, dict):
+        for key in ("active", "artifactVersion", "version", "fullVersion"):
+            value = data.get(key)
+            if isinstance(value, str) and "0.1.0+" in value:
+                m = re.search(r"0\.1\.0\+[0-9a-f]+", value)
+                if m:
+                    return m.group(0)
+        nested = json.dumps(data)
+        m = re.search(r"0\.1\.0\+[0-9a-f]+", nested)
+        if m:
+            return m.group(0)
+    m = re.search(r"0\.1\.0\+[0-9a-f]+", text)
+    return m.group(0) if m else None
+
+
+def runtime_orcad_version() -> str | None:
+    """Ask the live CLI, then cat orcad-active.json over the box-rig ssh path."""
+    for args in (
+        ["host", "inventory", "--json"],
+        ["version"],
+        ["doctor", "--json"],
+    ):
+        try:
+            r = orca(args, timeout=20)
+        except OSError:
+            r = {"out": ""}
+        found = parse_orcad_version(r.get("out") or "")
+        if found:
+            return found
+    if not box_rig_available():
+        return None
+    try:
+        ssh = ssh_base()
+    except OSError:
+        return None
+    for host in ("hosta@10.77.0.2", "hostb@10.77.0.3"):
+        try:
+            r = run(
+                [*ssh, host, "cat ~/.orca-remote/orcad-active.json 2>/dev/null || true"],
+                timeout=15,
+            )
+        except OSError:
+            continue
+        found = parse_orcad_version(r.get("out") or "")
+        if found:
+            return found
+    return None
+
+
 def from_flags(handle: str | None) -> list[str]:
     return ["--from", handle] if handle else []
 
 
-def ensure_caller_terminal(title: str = "verify-orca-caller") -> str | None:
+def ensure_caller_terminal(
+    title: str = "verify-orca-caller",
+    workspace: str | None = None,
+) -> str | None:
     """Desktop-driven worker-start needs a live Orca terminal as the caller.
 
     Create one (or reuse ORCA_TERMINAL_HANDLE) before driving S01/S03/S05.
+    Prefer an inventory workspace (rig ~/work) over $HOME, which is not an Orca workspace.
     """
     existing = os.environ.get("ORCA_TERMINAL_HANDLE")
     if existing:
@@ -358,6 +561,10 @@ def ensure_caller_terminal(title: str = "verify-orca-caller") -> str | None:
     wt = os.environ.get("ORCA_VERIFY_WORKTREE", "").strip()
     if wt:
         tries.append(["terminal", "create", "--worktree", wt, "--title", title, "--json"])
+    env_ws = os.environ.get("ORCA_VERIFY_WORKSPACE", "").strip() or workspace
+    if env_ws:
+        selector = env_ws if env_ws.startswith("path:") else f"path:{env_ws}"
+        tries.append(["terminal", "create", "--worktree", selector, "--title", title, "--json"])
     tries.append(["terminal", "create", "--title", title, "--json"])
     tries.append(
         ["terminal", "create", "--worktree", f"path:{os.getcwd()}", "--title", title, "--json"]
@@ -511,10 +718,14 @@ def run_scripted(
     r = run(args, cwd=root, timeout=480, env=env)
     payload = {}
     json_path = Path(str(out) + ".json")
-    if json_path.exists():
+    try:
+        json_exists = json_path.exists()
+    except OSError:
+        json_exists = False
+    if json_exists:
         try:
             payload = json.loads(json_path.read_text())
-        except json.JSONDecodeError:
+        except (OSError, json.JSONDecodeError):
             payload = {}
     return overlay_from_harness(
         payload,
@@ -580,6 +791,28 @@ def remote_orca_script(commands: list[str]) -> str:
     return prelude + body
 
 
+def box_r07_remote_script(workspace: str | None = None) -> str:
+    """Run R07 from an Orca workspace (~/work), not $HOME. Skip --from when create fails."""
+    ws = workspace or os.environ.get("ORCA_VERIFY_WORKSPACE") or "$HOME/work"
+    return (
+        remote_orca_script([])
+        + f'cd "{ws}" 2>/dev/null || cd "$HOME/work" || cd "$HOME"; '
+        'CALLER=$("$BIN" terminal create --title verify-r07-caller --json); '
+        'HANDLE=$(printf %s "$CALLER" | grep -oE "term_[0-9a-f-]+" | head -1); '
+        'export ORCA_TERMINAL_HANDLE="$HANDLE"; '
+        'echo "CALLER=$HANDLE"; '
+        'if [ -n "$HANDLE" ]; then FROM="--from $HANDLE"; else FROM=""; fi; '
+        '"$BIN" host inventory --json; echo EXIT_INV:$?; '
+        '"$BIN" orchestration worker-start --agent claude --spec hostname $FROM --json; echo EXIT_WS:$?; '
+        '"$BIN" agent launch --agent claude --prompt hostname --json; echo EXIT_LOCAL:$?; '
+        '"$BIN" agent launch --host ubuntu-server-local --agent claude --prompt hostname --json; '
+        'echo EXIT_HOST:$?; '
+        'sleep 2; ps -ww -eo args=; '
+        'for c in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$c" 2>/dev/null; echo; done '
+        '| grep -F -- --append-system-prompt-file || true'
+    )
+
+
 def ssh_base() -> list[str]:
     key = BOX_ROOT / "keys/id_ed25519"
     return [
@@ -622,12 +855,13 @@ def box_drive(
     for sid in wanted:
         if sid == "S07" or sid == "R08":
             src = "hostb@10.77.0.3"
-            wt = "path:/home/hostb/work"
+            wt = "path:$HOME/work"
             facts = "target_hostname=hostA-dockhand"
         else:
             src = "hosta@10.77.0.2"
-            wt = "path:/home/hosta/work"
-            facts = "target_hostname=hostB-ubuntu --fact target_home_marker=gitproj"
+            wt = "path:$HOME/work"
+            marker = home_marker_for_target(DEFAULT_A)
+            facts = f"target_hostname=hostB-ubuntu --fact target_home_marker={shlex.quote(marker)}"
         remote_out = f"/tmp/verify-{sid}"
         cmd = (
             f"cd ~/cook-harness && python3 run_scenario.py --scenario {sid} --agent scripted "
@@ -655,23 +889,8 @@ def box_drive(
             via="box-rig",
         )
     if "R07" in wanted:
-        r07_body = (
-            'CALLER=$("$BIN" terminal create --title verify-r07-caller --json); '
-            'HANDLE=$(printf %s "$CALLER" | grep -oE "term_[0-9a-f-]+" | head -1); '
-            'export ORCA_TERMINAL_HANDLE="$HANDLE"; '
-            'echo "CALLER=$HANDLE"; '
-            '"$BIN" host inventory --json; echo EXIT_INV:$?; '
-            '"$BIN" orchestration worker-start --agent claude --spec hostname '
-            '--from "$HANDLE" --json; echo EXIT_WS:$?; '
-            '"$BIN" agent launch --agent claude --prompt hostname --json; echo EXIT_LOCAL:$?; '
-            '"$BIN" agent launch --host ubuntu-server-local --agent claude --prompt hostname --json; '
-            'echo EXIT_HOST:$?; '
-            'sleep 2; ps -ww -eo args=; '
-            'for c in /proc/[0-9]*/cmdline; do tr "\\0" " " < "$c" 2>/dev/null; echo; done '
-            '| grep -F -- --append-system-prompt-file || true'
-        )
         r = run(
-            [*ssh, "hosta@10.77.0.2", "bash", "-lc", remote_orca_script([]) + r07_body],
+            [*ssh, "hosta@10.77.0.2", "bash", "-lc", box_r07_remote_script()],
             timeout=180,
         )
         (ev / "transcripts" / "box-R07.log").write_text(r["out"])
@@ -739,7 +958,8 @@ def drive(
 
     if inv["ok"]:
         mode = "desktop-cli"
-        ensure_caller_terminal("verify-orca-desktop-caller")
+        ws = workspace_from_inventory(jparse(inv.get("out") or "") or {})
+        ensure_caller_terminal("verify-orca-desktop-caller", workspace=ws)
         # S01–S06/S08 via scripted CLI; S07/R08 reverse from host_a → host_b.
         for sid in wanted:
             spec = specs.get(sid) or {}

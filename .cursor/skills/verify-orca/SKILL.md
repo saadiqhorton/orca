@@ -54,7 +54,7 @@ Read `features/README.md`, then the feature file.
 3. R07: after inventory, `worker-start --agent claude` and `agent launch --agent claude` (local and `--host`). Fail on extras allowlist / `agent_session_operation_unknown`.
 4. If there is no live two-host desktop, **S01–S08 FAIL** with `no live two-host desktop; refusing to false-green`. R* unit tests may still pass.
 
-Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host / `selector_not_found`, no hang >60s, no secrets in prompts, no dialog keystrokes, visible tab when `expect_tab`. S04 = escalate, never auto-answer. S08 = `unknown_host` refusal with no tab created is a PASS (not a wrong-host fail). Drive labels the summary `desktop-cli` or `box-rig` from the mode that actually ran. Template version is `orcad-template.json` `artifactVersion`, then `resources/orcad-template`, then `~/.orca-remote/orcad-active.json`. Desktop S01/S05 pass `stub=1` when the box rig is present (or `ORCA_VERIFY_STUB=1`) and take `target_hostname` from inventory `machineName`. R07 requires worker-start and both Claude launches exit 0 plus `--append-system-prompt-file` in process args.
+Bar (every NL scenario): correct result, ≤6 orca commands, 0 ssh, 0 wrong-host / `selector_not_found`, no hang >60s, no secrets in prompts, no dialog keystrokes, visible tab when `expect_tab`. S04 = escalate, never auto-answer. S08 = `unknown_host` refusal with no tab created is a PASS (not a wrong-host fail). Drive labels the summary `desktop-cli` or `box-rig` from the mode that actually ran. Template version is `orcad-template.json` `artifactVersion`, then `resources/orcad-template`, then a readable `~/.orca-remote/orcad-active.json`, then the live CLI / box-rig ssh `orcad-active.json` (never hard-coded `/home/hosta` or `/home/hostb`). Desktop S01/S05 pass `stub=1` when the box rig is present (or `ORCA_VERIFY_STUB=1`) and take `target_hostname` from inventory `machineName`. S03 is judged against a real `ls -A ~` entry on the target (or a seeded `.orca-verify-s03`), not the magic word `home`. R07 requires worker-start and both Claude launches exit 0 plus `--append-system-prompt-file` in process args, and box-rig R07 `cd`s into `~/work` first. Every path probe swallows `OSError`.
 
 **Permanent regressions** (`R01`…) never drop. Every future failure becomes a new `Rxx` in `scripts/scenarios.json` plus a feature file (or a sub-feature on an existing one).
 
@@ -117,6 +117,9 @@ Environment:
 | `ORCA_VERIFY_HOST_A` | Default `ubuntu-server-local` |
 | `ORCA_VERIFY_HOST_B` | Default `dockhand` |
 | `ORCA_VERIFY_BOX_RIG` | Set `0` to skip `/workspace/xhost-real-test` |
+| `ORCA_VERIFY_STUB` | `1` force stub agents; `0` disable; default auto-on when the box rig is present |
+| `ORCA_VERIFY_HOME_MARKER` | Override S03 listing token (otherwise a real `ls -A ~` entry, or a seeded file) |
+| `ORCA_VERIFY_WORKSPACE` | Directory box-rig R07 cds into before `terminal create` (default `$HOME/work`) |
 
 ## Maintenance
 

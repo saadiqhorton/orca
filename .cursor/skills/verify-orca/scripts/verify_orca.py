@@ -32,7 +32,7 @@ def repo_root() -> Path:
         return Path(env).resolve()
     here = SKILL_DIR
     for parent in [here, *here.parents]:
-        if (parent / "src/main/runtime/orchestration/desktop-hub/run-desktop-hub-e2e.ts").exists():
+        if path_exists(parent / "src/main/runtime/orchestration/desktop-hub/run-desktop-hub-e2e.ts"):
             return parent
     raise SystemExit("verify-orca: cannot find Orca checkout (set ORCA_ROOT)")
 
@@ -114,6 +114,35 @@ def append(path: Path, text: str) -> None:
         fh.write(text)
 
 
+def path_is_file(path: Path) -> bool:
+    """True if path is a file. EACCES on 700 home dirs must not crash doctor/run."""
+    try:
+        return Path(path).is_file()
+    except OSError:
+        return False
+
+
+def path_is_dir(path: Path) -> bool:
+    try:
+        return Path(path).is_dir()
+    except OSError:
+        return False
+
+
+def path_exists(path: Path) -> bool:
+    try:
+        return Path(path).exists()
+    except OSError:
+        return False
+
+
+def read_text_safe(path: Path) -> str | None:
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return None
+
+
 def _version_from_text(text: str | None) -> str | None:
     if not text:
         return None
@@ -157,12 +186,12 @@ def _template_dirs(root: Path) -> list[Path]:
 
 
 def _active_orcad_records() -> list[Path]:
+    """Local activation records only. Never hard-code rig homes (/home/hosta, /home/hostb, /root)."""
     homes = [Path.home()]
     for key in ("HOME", "ORCA_REMOTE_HOME"):
         value = os.environ.get(key)
         if value:
             homes.append(Path(value))
-    homes.extend([Path("/home/hosta"), Path("/home/hostb"), Path("/root")])
     paths = [home / ".orca-remote" / "orcad-active.json" for home in homes]
     seen: set[str] = set()
     out: list[Path] = []
@@ -175,32 +204,41 @@ def _active_orcad_records() -> list[Path]:
     return out
 
 
+def runtime_orcad_version() -> str | None:
+    """Active orcad version from the CLI or the box-rig ssh path, not unreadable local homes."""
+    try:
+        from live_drive import runtime_orcad_version as probe
+
+        return probe()
+    except OSError:
+        return None
+
+
 def detect_template_version(root: Path) -> str:
     env = os.environ.get("ORCA_TEMPLATE_VERSION")
     if env:
         return env
     for marker in _template_dirs(root):
         manifest = marker / "orcad-template.json"
-        if manifest.is_file():
+        if path_is_file(manifest):
+            raw = read_text_safe(manifest)
             try:
-                data = json.loads(manifest.read_text())
+                data = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                data = {}
+            if isinstance(data, dict):
                 for key in ("artifactVersion", "version", "fullVersion"):
                     found = _version_from_text(
                         data.get(key) if isinstance(data.get(key), str) else None
                     )
                     if found:
                         return found
-            except (OSError, json.JSONDecodeError):
-                pass
         version_file = marker / ".version"
-        if version_file.is_file():
-            try:
-                found = _version_from_text(version_file.read_text())
-            except OSError:
-                found = None
+        if path_is_file(version_file):
+            found = _version_from_text(read_text_safe(version_file))
             if found:
                 return found
-        if marker.is_dir():
+        if path_is_dir(marker):
             try:
                 children = list(marker.iterdir())
             except OSError:
@@ -210,44 +248,47 @@ def detect_template_version(root: Path) -> str:
                 if m:
                     return m.group(1)
     slot = root / "out/orcad" / ".version"
-    if slot.is_file():
-        try:
-            found = _version_from_text(slot.read_text())
-        except OSError:
-            found = None
+    if path_is_file(slot):
+        found = _version_from_text(read_text_safe(slot))
         if found:
             return found
     for record in _active_orcad_records():
-        if not record.is_file():
+        if not path_is_file(record):
             continue
+        raw = read_text_safe(record)
         try:
-            data = json.loads(record.read_text())
-        except (OSError, json.JSONDecodeError):
+            data = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
             continue
         for key in ("active", "artifactVersion", "version"):
             found = _version_from_text(data.get(key) if isinstance(data.get(key), str) else None)
             if found:
                 return found
+    found = runtime_orcad_version()
+    if found:
+        return found
     return "unknown"
 
 
 def bun_doctor(root: Path, env: dict[str, str]) -> dict[str, Any]:
     """Fail ready when bun's postinstall has not produced a runnable pinned binary."""
     pinned_path = root / "config/.bun-version"
-    pinned = pinned_path.read_text().strip() if pinned_path.exists() else None
+    pinned = (read_text_safe(pinned_path) or "").strip() or None if path_exists(pinned_path) else None
     bun_pkg = root / "node_modules/bun/package.json"
     vitest = root / "node_modules/vitest/vitest.mjs"
     runner = root / "config/scripts/test-runtime/execution-policy/run-vitest.mjs"
     bun_bin: Path | None = None
     bun_ver = None
     bun_exists = False
-    if bun_pkg.exists():
+    if path_exists(bun_pkg):
         try:
             meta = json.loads(bun_pkg.read_text())
             rel = (meta.get("bin") or {}).get("bun")
             if rel:
                 bun_bin = bun_pkg.parent / rel
-                bun_exists = bun_bin.exists()
+                bun_exists = path_exists(bun_bin)
                 if bun_exists:
                     probed = run_cmd([str(bun_bin), "--version"], cwd=root, timeout=8, env=env)
                     bun_ver = (probed["out"] or "").strip().splitlines()[0] if probed["exit"] == 0 else None
@@ -256,20 +297,20 @@ def bun_doctor(root: Path, env: dict[str, str]) -> dict[str, Any]:
     bun_ok = bool(pinned and bun_exists and bun_ver == pinned)
     return {
         "pinned": pinned,
-        "bun_package": bun_pkg.exists(),
+        "bun_package": path_exists(bun_pkg),
         "bun_bin": str(bun_bin) if bun_bin else None,
         "bun_bin_exists": bun_exists,
         "bun_version": bun_ver,
-        "vitest_mjs": vitest.exists(),
-        "run_vitest": runner.exists(),
-        "ok": bun_ok and vitest.exists() and runner.exists(),
+        "vitest_mjs": path_exists(vitest),
+        "run_vitest": path_exists(runner),
+        "ok": bun_ok and path_exists(vitest) and path_exists(runner),
         "fail_reason": (
             None
-            if bun_ok and vitest.exists() and runner.exists()
+            if bun_ok and path_exists(vitest) and path_exists(runner)
             else (
                 "bun/vitest setup missing: bun postinstall has not produced a runnable "
                 f"pinned binary (pinned {pinned}, found {bun_ver}, bin_exists={bun_exists}, "
-                f"vitest_mjs={vitest.exists()})"
+                f"vitest_mjs={path_exists(vitest)})"
             )
         ),
     }
@@ -366,8 +407,11 @@ def node_env(root: Path) -> dict[str, str]:
     node_bin = Path(sys.executable).parent  # unused; prefer PATH
     nvm = Path.home() / ".nvm/versions/node"
     extras = []
-    if nvm.is_dir():
-        versions = sorted(nvm.iterdir(), reverse=True)
+    if path_is_dir(nvm):
+        try:
+            versions = sorted(nvm.iterdir(), reverse=True)
+        except OSError:
+            versions = []
         if versions:
             extras.append(str(versions[0] / "bin"))
     extras.append(str(root / "node_modules/.bin"))
@@ -429,7 +473,7 @@ def cmd_launch(root: Path, sha: str, ev: Path) -> dict[str, Any]:
         "hosts": ["dockhand", "ubuntu-server-local"],
         "ssh": False,
         "desktop_start": start,
-        "ready": build["exit"] == 0 and e2e_path.exists(),
+        "ready": build["exit"] == 0 and path_exists(e2e_path),
     }
     write_json(rd / "run.json", state)
     (ev / "launch.log").write_text(build["out"][-8000:] + f"\nready={state['ready']}\n")
@@ -445,16 +489,16 @@ def cmd_doctor(root: Path, sha: str, ev: Path) -> dict[str, Any]:
     e2e = root / "src/main/runtime/orchestration/desktop-hub/run-desktop-hub-e2e.ts"
     tc = root / "config/scripts/typecheck/project-execution/run-typecheck-projects-in-parallel.mjs"
     skill = SKILL_DIR / "SKILL.md"
-    orch = (root / "skill-guides/orchestration.md").read_text() if (root / "skill-guides/orchestration.md").exists() else ""
-    cli = (root / "skill-guides/orca-cli.md").read_text() if (root / "skill-guides/orca-cli.md").exists() else ""
+    orch = read_text_safe(root / "skill-guides/orchestration.md") or ""
+    cli = read_text_safe(root / "skill-guides/orca-cli.md") or ""
     typefix = ""
     blocked = root / "src/shared/agent-launch/startup/agent-launch-blocked-prompt.ts"
-    if blocked.exists():
-        typefix = blocked.read_text()
+    if path_exists(blocked):
+        typefix = read_text_safe(blocked) or ""
     agent = detect_agent_mode(root)
     leftover = []
-    if (rd / "run.json").exists():
-        prev = json.loads((rd / "run.json").read_text())
+    if path_exists(rd / "run.json"):
+        prev = json.loads(read_text_safe(rd / "run.json") or "{}")
         for pid in prev.get("pids") or []:
             try:
                 os.kill(int(pid), 0)
@@ -463,9 +507,9 @@ def cmd_doctor(root: Path, sha: str, ev: Path) -> dict[str, Any]:
                 pass
     bun = bun_doctor(root, env)
     ready = (
-        e2e.exists()
-        and tc.exists()
-        and skill.exists()
+        path_exists(e2e)
+        and path_exists(tc)
+        and path_exists(skill)
         and "open a terminal on" in orch
         and "never ssh" in orch
         and "what machines" in orch
@@ -484,9 +528,9 @@ def cmd_doctor(root: Path, sha: str, ev: Path) -> dict[str, Any]:
         "ssh_between_hosts": False,
         "agent": agent,
         "leftover_pids": leftover,
-        "path_has_tsx": bool(which("tsx") or (root / "node_modules/.bin/tsx").exists()),
+        "path_has_tsx": bool(which("tsx") or path_exists(root / "node_modules/.bin/tsx")),
         "node": run_cmd(["node", "-v"], cwd=root, timeout=10, env=env)["out"].strip(),
-        "box_rig": Path("/workspace/xhost-real-test").is_dir(),
+        "box_rig": path_is_dir(Path("/workspace/xhost-real-test")),
         "bun": bun,
         "evidence_dir": str(ev),
     }
@@ -563,7 +607,7 @@ def run_typecheck(root: Path, ev: Path, env: dict[str, str]) -> dict[str, Any]:
 
 
 def run_vitest(root: Path, ev: Path, env: dict[str, str]) -> dict[str, Any]:
-    files = [f for f in VITEST_FILES if (root / f).exists()]
+    files = [f for f in VITEST_FILES if path_exists(root / f)]
     r = run_cmd(
         [
             "node",
@@ -695,7 +739,9 @@ def stand_in_suite(
     if e2e_ok:
         r02_ok = r02_ok and "a host that is not connected was dialed" not in e2e_out
     r03_ok = vt_ok and "reason is string" in typefix_src and "agent_blocked_on_prompt" in typefix_src
-    r04_ok = vt_ok and "folder:fld_remote" in (root / "src/cli/hosts/desktop-hub-selector-resolve.test.ts").read_text()
+    r04_ok = vt_ok and "folder:fld_remote" in (
+        read_text_safe(root / "src/cli/hosts/desktop-hub-selector-resolve.test.ts") or ""
+    )
     r05_ok = tc_ok and "reason is string" in typefix_src
     r06_ok = (
         vt_ok
@@ -708,16 +754,16 @@ def stand_in_suite(
     r08_src = root / "src/main/runtime/terminal/surface/mobile-session-layout-projection-group-id.test.ts"
     r07_ok = (
         vt_ok
-        and r07_src.exists()
-        and "parseExtraAgentArgs" in r07_src.read_text()
-        and "buildAgentStartupPlan" in r07_src.read_text()
-        and "orcaOwnedAgentArgs" in r07_src.read_text()
+        and path_exists(r07_src)
+        and "parseExtraAgentArgs" in (read_text_safe(r07_src) or "")
+        and "buildAgentStartupPlan" in (read_text_safe(r07_src) or "")
+        and "orcaOwnedAgentArgs" in (read_text_safe(r07_src) or "")
     )
     r08_ok = (
         vt_ok
-        and r08_src.exists()
-        and "orca-orchestration:folder:" in r08_src.read_text()
-        and "headless-terminals:" in r08_src.read_text()
+        and path_exists(r08_src)
+        and "orca-orchestration:folder:" in (read_text_safe(r08_src) or "")
+        and "headless-terminals:" in (read_text_safe(r08_src) or "")
     )
 
     mapping = {
@@ -915,18 +961,18 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
 def cmd_cleanup(sha: str, ev: Path) -> None:
     rd = run_dir(sha)
     pids = []
-    if (rd / "run.json").exists():
-        pids = json.loads((rd / "run.json").read_text()).get("pids") or []
+    if path_exists(rd / "run.json"):
+        pids = json.loads((read_text_safe(rd / "run.json") or "{}")).get("pids") or []
     for pid in pids:
         try:
             os.kill(int(pid), signal.SIGTERM)
         except OSError:
             pass
-    if rd.exists():
+    if path_exists(rd):
         shutil.rmtree(rd, ignore_errors=True)
     # Evidence must remain.
-    print(json.dumps({"cleanup": "ok", "removed_run_dir": str(rd), "evidence_kept": str(ev), "evidence_exists": ev.exists()}))
-    if not ev.exists() or not (ev / "summary.md").exists():
+    print(json.dumps({"cleanup": "ok", "removed_run_dir": str(rd), "evidence_kept": str(ev), "evidence_exists": path_exists(ev)}))
+    if not path_exists(ev) or not path_exists(ev / "summary.md"):
         raise SystemExit("cleanup ate the proof or evidence missing")
 
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Round-03 judge/probe selftest. No live rig required.
+"""verify-orca judge/probe selftest. No live rig required.
 
-Proves: EACCES orca_bin does not crash; S08 unknown_host + no tab is PASS;
-verify-orca overlay agrees with the harness in both desktop-cli and box-rig;
-template version is read from orcad-template.json; summary labels follow drive mode.
+Proves: EACCES path probes do not crash; S08 unknown_host + no tab is PASS;
+template version from manifest, resources, ssh/runtime active record; S03 marker
+from a real ls listing; box-rig R07 cds into ~/work; overlay agrees in both modes.
 """
 from __future__ import annotations
 
@@ -218,6 +218,118 @@ class DesktopFactsAndR07(unittest.TestCase):
             combined="claude --append-system-prompt-file /tmp/ORCA.md --prompt hostname",
         )
         self.assertTrue(judged["pass"], judged["reasons"])
+
+
+class PathProbesNeverCrash(unittest.TestCase):
+    def test_template_version_swallows_permission_error_on_unreadable_homes(self):
+        real_is_file = Path.is_file
+
+        def is_file(self):
+            if any(part in str(self) for part in ("/home/hosta", "/home/hostb", "/root")):
+                raise PermissionError(13, "Permission denied", str(self))
+            return real_is_file(self)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(Path, "is_file", is_file):
+                with patch.object(verify_orca, "runtime_orcad_version", return_value=None):
+                    self.assertEqual(verify_orca.detect_template_version(Path(tmp)), "unknown")
+
+    def test_active_records_do_not_hardcode_rig_homes(self):
+        paths = [str(p) for p in verify_orca._active_orcad_records()]
+        joined = "\n".join(paths)
+        self.assertNotIn("/home/hosta", joined)
+        self.assertNotIn("/home/hostb", joined)
+
+    def test_path_is_file_swallows_oserror(self):
+        bogus = Path("/home/hosta/.orca-remote/orcad-active.json")
+        with patch.object(Path, "is_file", side_effect=PermissionError(13, "no")):
+            self.assertFalse(verify_orca.path_is_file(bogus))
+
+
+class TemplateVersionFromRuntime(unittest.TestCase):
+    def test_schema4_manifest_falls_back_to_runtime_active(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "resources/orcad-template"
+            marker.mkdir(parents=True)
+            (marker / "orcad-template.json").write_text(json.dumps({"schemaVersion": 4}))
+            with patch.object(verify_orca, "_template_dirs", return_value=[marker]):
+                with patch.object(verify_orca, "_active_orcad_records", return_value=[]):
+                    with patch.object(
+                        verify_orca, "runtime_orcad_version", return_value="0.1.0+a46e76b8b300"
+                    ):
+                        self.assertEqual(
+                            verify_orca.detect_template_version(root), "0.1.0+a46e76b8b300"
+                        )
+
+    def test_runtime_probe_reads_ssh_orcad_active_json(self):
+        payload = json.dumps({"schemaVersion": 1, "active": "0.1.0+a46e76b8b300"})
+        with patch.object(live_drive, "box_rig_available", return_value=True):
+            with patch.object(live_drive, "orca", return_value={"exit": 1, "out": ""}):
+                with patch.object(
+                    live_drive,
+                    "run",
+                    return_value={"exit": 0, "out": payload},
+                ):
+                    self.assertEqual(live_drive.runtime_orcad_version(), "0.1.0+a46e76b8b300")
+
+
+class S03HomeMarker(unittest.TestCase):
+    S03 = {
+        "target": "ubuntu-server-local",
+        "success": {"final_contains_any": ["{target_home_marker}"]},
+    }
+
+    def test_pick_home_marker_uses_real_listing_not_magic_home(self):
+        self.assertEqual(live_drive.pick_home_marker("gitproj\n.orca\n"), "gitproj")
+        self.assertEqual(live_drive.pick_home_marker("Desktop\nDownloads\n"), "Desktop")
+        self.assertIsNone(live_drive.pick_home_marker(""))
+        self.assertNotEqual(live_drive.pick_home_marker("Desktop\n.gitconfig\n"), "home")
+
+    def test_scripted_facts_s03_uses_listed_entry(self):
+        with patch.object(live_drive, "list_target_home", return_value="Desktop\n.gitconfig\nwork\n"):
+            facts = live_drive.scripted_facts(self.S03, {"machine_names": {}})
+            self.assertEqual(facts["target_home_marker"], "Desktop")
+            self.assertNotEqual(facts["target_home_marker"], "home")
+
+    def test_scripted_facts_s03_seeds_when_listing_empty(self):
+        with patch.object(live_drive, "list_target_home", return_value=""):
+            with patch.object(
+                live_drive, "seed_home_marker", return_value=".orca-verify-s03"
+            ) as seed:
+                facts = live_drive.scripted_facts(self.S03, {"machine_names": {}})
+                seed.assert_called()
+                self.assertEqual(facts["target_home_marker"], ".orca-verify-s03")
+
+
+class BoxR07Workspace(unittest.TestCase):
+    def test_box_r07_cds_into_work_before_terminal_create(self):
+        script = live_drive.box_r07_remote_script()
+        self.assertRegex(script, r'cd\s+"?\$HOME/work"?')
+        self.assertIn("terminal create", script)
+        self.assertLess(script.find("$HOME/work"), script.find("terminal create"))
+
+    def test_box_r07_skips_from_when_caller_handle_empty(self):
+        script = live_drive.box_r07_remote_script()
+        self.assertIn('if [ -n "$HANDLE" ]', script)
+        self.assertIn("--from", script)
+        self.assertNotRegex(script, r'worker-start[^;\n]*--from "\$HANDLE"')
+
+    def test_workspace_from_inventory_prefers_work_folder(self):
+        parsed = {
+            "hosts": [
+                {
+                    "name": "ubuntu-server-local",
+                    "inventory": {
+                        "folderWorkspaces": [
+                            {"name": "scratch", "path": "/tmp/scratch"},
+                            {"name": "work", "path": "/home/someone/work"},
+                        ]
+                    },
+                }
+            ]
+        }
+        self.assertEqual(live_drive.workspace_from_inventory(parsed), "/home/someone/work")
 
 
 if __name__ == "__main__":
