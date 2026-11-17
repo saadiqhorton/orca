@@ -1,4 +1,7 @@
-import { isTuiAgent, TUI_AGENT_CONFIG } from '../../../../../../../../shared/agent-launch/catalog/tui-agent-config'
+import {
+  isTuiAgent,
+  TUI_AGENT_CONFIG
+} from '../../../../../../../../shared/agent-launch/catalog/tui-agent-config'
 import type { TuiAgent } from '../../../../../../../../shared/agent-launch/catalog/tui-agent'
 import { isTuiAgentEnabled } from '../../../../../../../../shared/agent-launch/catalog/tui-agent-selection'
 import type { OrcaRuntimeService } from '../../../../../../orca-runtime'

@@ -81,14 +81,12 @@ export async function collectHostSurfaceInventory(
 }
 
 function listHostRepos(runtime: InventoryRuntime): HostSurfaceInventory['repos'] {
-  return (runtime.listVisibleRepos?.() ?? [])
-    .filter((repo) => repo.kind !== 'folder')
-    .map((repo) => ({
-      id: repo.id,
-      name: repo.displayName || repo.id,
-      path: repo.path,
-      selector: `path:${repo.path}`
-    }))
+  return (runtime.listVisibleRepos?.() ?? []).map((repo) => ({
+    id: repo.id,
+    name: repo.displayName || repo.id,
+    path: repo.path,
+    selector: `path:${repo.path}`
+  }))
 }
 
 async function listHostAgents(runtime: InventoryRuntime): Promise<string[]> {

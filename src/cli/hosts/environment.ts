@@ -108,7 +108,11 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
     }
     const hub = await readDesktopHubHosts(client, local.machineName)
     const hosts = [local, ...sshTargets, ...environments, ...hub.hosts]
-    printResult(localSuccess({ hosts, ...(hub.note ? { note: hub.note } : {}) }), json, formatHostList)
+    printResult(
+      localSuccess({ hosts, ...(hub.note ? { note: hub.note } : {}) }),
+      json,
+      formatHostList
+    )
   },
   'host inventory': async ({ client, flags, json }) => {
     rejectLocalPairingStoreRetargeting(
@@ -211,7 +215,10 @@ async function readDesktopHubHosts(
       message?: string
     }>('orchestration.desktopHub.list', {})
     const hosts = listed.result.hosts.flatMap((row) => {
-      if (localMachineName && (row.machineName === localMachineName || row.name === localMachineName)) {
+      if (
+        localMachineName &&
+        (row.machineName === localMachineName || row.name === localMachineName)
+      ) {
         return []
       }
       const entry: HostListEntry = {

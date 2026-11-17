@@ -1,4 +1,5 @@
 import { DesktopHubError } from '../../../../../shared/orchestration/desktop-hub-contract'
+import type { RuntimeOrchestrationEnvelope } from '../../../../../shared/runtime-rpc-envelope'
 import { desktopHubOnSelector } from '../../../orchestration/desktop-hub/desktop-hub-route'
 
 const HUB_CONTROL_PREFIX = 'orchestration.desktopHub.'
@@ -9,7 +10,7 @@ type HubCallRuntime = {
     method: string,
     params: unknown,
     timeoutMs?: number,
-    envelope?: unknown
+    envelope?: RuntimeOrchestrationEnvelope
   ) => Promise<unknown>
 }
 
@@ -20,7 +21,7 @@ export async function callDesktopHubHost(
     method: string
     params?: unknown
     timeoutMs?: number
-    envelope?: unknown
+    envelope?: RuntimeOrchestrationEnvelope
   }
 ): Promise<unknown> {
   if (params.method.startsWith(HUB_CONTROL_PREFIX)) {

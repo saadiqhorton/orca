@@ -1,4 +1,23 @@
 import type { OrchestrationWorkerLaunchReceipt } from '../../rpc/methods/orchestration/worker/start/launch/worker-launch-preferences'
+import {
+  ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION,
+  ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY,
+  ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION,
+  ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_RUNTIME_CAPABILITY
+} from '../../../../shared/orchestration/orchestration-runtime-capabilities'
+
+export function federatedProtocolVersion(capabilities: string[] | undefined): number {
+  const supportsControlMail = capabilities?.includes(
+    ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY
+  )
+  if (
+    supportsControlMail &&
+    capabilities?.includes(ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_RUNTIME_CAPABILITY)
+  ) {
+    return ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION
+  }
+  return supportsControlMail ? ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION : 1
+}
 
 export function isKnownRemoteStartFailure(code: string): boolean {
   return [

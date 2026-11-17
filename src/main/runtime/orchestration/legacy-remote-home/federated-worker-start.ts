@@ -3,10 +3,6 @@ import { isTuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent-co
 import type { RuntimeStatus } from '../../../../shared/runtime-session-contracts'
 import {
   ORCHESTRATION_CONTRACT_RUNTIME_CAPABILITY,
-  ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION,
-  ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY,
-  ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION,
-  ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_RUNTIME_CAPABILITY,
   ORCHESTRATION_FEDERATION_RUNTIME_CAPABILITY,
   ORCHESTRATION_WORKER_TURN_STOP_REPORTS_RUNTIME_CAPABILITY
 } from '../../../../shared/orchestration/orchestration-runtime-capabilities'
@@ -29,6 +25,7 @@ import {
 import { isWorkerStartTimeoutWithinTimerLimit } from '../../../../shared/orchestration/orchestration-timing-budgets'
 import {
   federatedFailedReceipt,
+  federatedProtocolVersion,
   federatedUnknownReceipt,
   isKnownRemoteStartFailure
 } from './federated-worker-start-receipts'
@@ -36,6 +33,7 @@ import { releaseRetriedWorkerTerminal } from '../../rpc/methods/orchestration/wo
 import { withWorkerStartNext } from '../../rpc/methods/orchestration/receipt-next'
 import { recordReadyFederatedDispatch } from './federated-worker-ready-record'
 import { resolveFederatedChildParent } from './federated-worker-child-parent'
+import { assertRemoteHostHasAgent } from '../../rpc/methods/orchestration/worker/start/launch/worker-agent-cli-installed'
 import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
 import { prepareWorkerStartCard } from '../workers/launch/worker-start-card'
 import {
@@ -97,6 +95,13 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
     capabilities: status.capabilities,
     serverName: server.name
   })
+  await assertRemoteHostHasAgent({
+    runtime,
+    environmentId: server.environmentId,
+    agent: params.agent,
+    timeoutMs: budgets.preflightTimeoutMs,
+    pairingFence
+  })
   const childParent =
     worktree === 'new-child'
       ? await resolveFederatedChildParent({
@@ -107,16 +112,7 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
           serverName: server.name
         })
       : undefined
-  const supportsControlMail = status.capabilities?.includes(
-    ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY
-  )
-  const federationProtocolVersion =
-    supportsControlMail &&
-    status.capabilities?.includes(ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_RUNTIME_CAPABILITY)
-      ? ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION
-      : supportsControlMail
-        ? ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION
-        : 1
+  const federationProtocolVersion = federatedProtocolVersion(status.capabilities)
 
   const setupDecision = createsWorktree ? (params.setup ?? 'inherit') : 'not_applicable'
   const runId = args.bindRunId()

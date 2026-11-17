@@ -6,6 +6,7 @@ import { pairedRuntimeConnectionFromOffer } from '../../../../shared/remote-runt
 import { RemoteRuntimeRequestConnection } from '../../../../shared/remote-runtime/requests/remote-runtime-request-connection'
 import '../../../../shared/remote-runtime/requests/remote-runtime-request-socket'
 import { answerDesktopHubRequest } from './desktop-hub-answer'
+import { crossHostE2eCallHost, crossHostE2eCallLocal } from './desktop-hub-e2e-forward'
 import {
   crossHostE2eCatalog,
   formatDesktopHubList,
@@ -13,14 +14,7 @@ import {
 } from './desktop-hub-e2e-hub'
 import { getDesktopHubRegistry } from './desktop-hub-registry'
 import { OrcaRuntimeRpcServer } from '../../rpc/server/runtime-rpc'
-import {
-  pairingOf,
-  rejectionCode,
-  resultOf,
-  rpcOk,
-  stubRuntime,
-  waitFor
-} from './desktop-hub-e2e-support'
+import { pairingOf, rejectionCode, resultOf, stubRuntime, waitFor } from './desktop-hub-e2e-support'
 
 const IDENTITY = {
   appInstallationId: 'desktop-install-0001',
@@ -74,7 +68,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     wsPort: 0
   })
   const forwardedMethods: string[] = []
-  let savedOutput = ''
+  const attachOutput = { value: '' }
   let requesterB: RemoteRuntimeRequestConnection | null = null
   let other: RemoteRuntimeRequestConnection | null = null
   let hub: { close: () => void; answerPath: 'shared-control' } | null = null
@@ -95,81 +89,16 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
         answerDesktopHubRequest({
           request: event,
           catalog: () => catalog,
-          callLocal: async (_placement, method) => {
-            forwardedMethods.push(`local:${method}`)
-            if (method === 'orchestration.surface.inventory') {
-              return rpcOk({
-                machineName: 'windows-desktop',
-                agents: ['claude'],
-                projects: [],
-                folderWorkspaces: [],
-                repos: [],
-                sessions: []
-              })
-            }
-            return rpcOk({ method })
-          },
-          callHost: async (placement, method) => {
-            forwardedMethods.push(method)
-            if (placement.hostKey !== 'env-ubuntu') {
-              throw new Error(`refusing to dial ${placement.hostKey}`)
-            }
-            const probe = await requesterB!.request<{ unsubscribed: boolean }>(
-              'runtime.clientEvents.unsubscribe',
-              { subscriptionId: 'not-this-session' },
-              5_000
-            )
-            if (!probe.ok || probe.result.unsubscribed !== false) {
-              throw new Error('host B did not accept the desktop socket')
-            }
-            if (method === 'orchestration.federationAttachStart') {
-              savedOutput = runHostBHostname(worktree)
-              return rpcOk({ state: 'ready', dispatchId: 'disp_e2e', output: savedOutput })
-            }
-            if (method === 'orchestration.federationShow') {
-              return rpcOk({ state: 'ready', output: savedOutput })
-            }
-            if (method === 'orchestration.federationStop') {
-              return rpcOk({ state: 'stopped', dispatchId: 'disp_e2e' })
-            }
-            if (method === 'agent.launch') {
-              return rpcOk({
-                outcome: { kind: 'terminal', handle: 'term_visible_e2e' },
-                worktree: `path:${worktree}`
-              })
-            }
-            if (method === 'terminal.create') {
-              return rpcOk({ terminal: { handle: 'term_shell_e2e', worktree: `path:${worktree}` } })
-            }
-            if (method === 'orchestration.surface.ensureScratch') {
-              return rpcOk({
-                path: worktree,
-                worktree: 'folder:fld_e2e',
-                folderWorkspaceId: 'fld_e2e',
-                created: false
-              })
-            }
-            if (method === 'orchestration.surface.inventory') {
-              return rpcOk({
-                machineName: 'dezignerdrugz00',
-                agents: ['claude', 'codex'],
-                projects: [{ id: 'grp_e2e', name: 'Orca orchestration', parentPath: worktree }],
-                folderWorkspaces: [
-                  { id: 'fld_e2e', name: 'scratch', path: worktree, projectGroupId: 'grp_e2e' }
-                ],
-                repos: [
-                  {
-                    id: 'repo_work',
-                    name: 'work',
-                    path: `${worktree}-git`,
-                    selector: `path:${worktree}-git`
-                  }
-                ],
-                sessions: [{ handle: 'term_visible_e2e', agent: 'claude' }]
-              })
-            }
-            return rpcOk({ method })
-          }
+          callLocal: async (_placement, method) => crossHostE2eCallLocal(forwardedMethods, method),
+          callHost: async (placement, method) =>
+            crossHostE2eCallHost({
+              forwardedMethods,
+              placement,
+              method,
+              requesterB: requesterB!,
+              worktree,
+              attachOutput
+            })
         })
     })
     say(
@@ -322,17 +251,4 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     await Promise.allSettled([serverA.stop(), serverB.stop()])
     rmSync(root, { recursive: true, force: true })
   }
-}
-
-function runHostBHostname(worktree: string): string {
-  const hostname = runProcessSync({
-    program: 'sh',
-    args: ['-c', 'echo "B_CWD=$(pwd)"; hostname; cat MARKER'],
-    cwd: worktree,
-    timeoutMs: 5_000
-  })
-  if (hostname.code !== 0) {
-    throw new Error(hostname.stderr || 'hostname failed in the host B worktree')
-  }
-  return hostname.stdout.trim()
 }

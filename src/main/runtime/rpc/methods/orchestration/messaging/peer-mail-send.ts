@@ -123,7 +123,7 @@ export function sendStaysOnHomeRun(to: string | undefined, runtime: HomeRunLooku
   if (!to) {
     return false
   }
-  if (/^(run|dispatch|task):/i.test(to)) {
+  if (/^(run|dispatch|task):/i.test(to) || /^ctx_/i.test(to)) {
     return true
   }
   const db = runtime.getOrchestrationDb?.()

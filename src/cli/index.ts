@@ -207,10 +207,7 @@ export async function main(
             created: boolean
             groupName?: string
             workspaceName?: string
-          }>(
-            'orchestration.surface.ensureScratch',
-            typeof name === 'string' ? { name } : {}
-          )
+          }>('orchestration.surface.ensureScratch', typeof name === 'string' ? { name } : {})
           printResult(scratch, json, formatScratchWorkspace)
           return
         }

@@ -127,10 +127,7 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
       'JSON omits visualLayouts by default; pass --include-visual-layouts when machine-readable tab and pane topology is required.',
       '--host <name> lists tabs on a machine the desktop app is connected to. Those tabs are the same ones in the desktop Orca window.'
     ],
-    examples: [
-      'orca terminal list --json',
-      'orca terminal list --host ubuntu-server-local --json'
-    ]
+    examples: ['orca terminal list --json', 'orca terminal list --host ubuntu-server-local --json']
   },
   {
     path: ['terminal', 'show'],

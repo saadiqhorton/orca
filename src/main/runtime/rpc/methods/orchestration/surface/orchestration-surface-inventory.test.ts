@@ -17,7 +17,13 @@ describe('collectHostSurfaceInventory', () => {
         }
       ],
       listVisibleRepos: () => [
-        { id: 'repo_work', path: '/home/hostb/work', displayName: 'work', kind: 'git' }
+        { id: 'repo_work', path: '/home/hostb/work', displayName: 'work', kind: 'git' },
+        {
+          id: 'repo_folder',
+          path: '/home/hostb/orca-xhost-test',
+          displayName: 'orca-xhost-test',
+          kind: 'folder'
+        }
       ],
       listTerminals: async () => ({
         terminals: [
@@ -45,6 +51,12 @@ describe('collectHostSurfaceInventory', () => {
         name: 'work',
         path: '/home/hostb/work',
         selector: 'path:/home/hostb/work'
+      },
+      {
+        id: 'repo_folder',
+        name: 'orca-xhost-test',
+        path: '/home/hostb/orca-xhost-test',
+        selector: 'path:/home/hostb/orca-xhost-test'
       }
     ])
     expect(inventory.sessions).toEqual([

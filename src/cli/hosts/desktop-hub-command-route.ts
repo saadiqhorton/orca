@@ -1,6 +1,9 @@
 import { isDesktopHubHostValue } from './desktop-hub-host-flag'
 import { ignoresRemoteSelection } from '../dispatch/remote-selection-scope'
-import { desktopHubHostError, desktopHubRowMatches } from '../../shared/orchestration/desktop-hub-contract'
+import {
+  desktopHubHostError,
+  desktopHubRowMatches
+} from '../../shared/orchestration/desktop-hub-contract'
 import type { RuntimeClient } from '../runtime/client'
 import { RuntimeClientError } from '../runtime/types'
 import { wrapDesktopHubClient } from './desktop-hub-forwarding-client'
@@ -102,7 +105,8 @@ export async function matchDesktopHubHost(
 ): Promise<HubListRow | null> {
   let hosts: unknown
   try {
-    hosts = (await client.call<{ hosts?: unknown }>('orchestration.desktopHub.list', {})).result.hosts
+    hosts = (await client.call<{ hosts?: unknown }>('orchestration.desktopHub.list', {})).result
+      .hosts
   } catch {
     return null
   }
@@ -110,8 +114,7 @@ export async function matchDesktopHubHost(
     return null
   }
   const row = (hosts as HubListRow[]).find(
-    (candidate) =>
-      typeof candidate?.name === 'string' && desktopHubRowMatches(candidate, alias)
+    (candidate) => typeof candidate?.name === 'string' && desktopHubRowMatches(candidate, alias)
   )
   return row ?? null
 }
