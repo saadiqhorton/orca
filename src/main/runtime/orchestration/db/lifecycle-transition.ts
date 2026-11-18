@@ -166,7 +166,15 @@ export function transitionLifecycleWithDb(
     )
   }
 
-  const projection = Object.entries(params.projection ?? {})
+  // A worker that leaves ready is no longer waiting on a prompt, so its reason must not outlive the wait.
+  const clearsBlockedReason =
+    params.entity === 'worker' &&
+    params.to !== 'ready' &&
+    !(params.projection && 'blocked_reason' in params.projection)
+  const projection: [string, string | number | null][] = [
+    ...Object.entries(params.projection ?? {}),
+    ...(clearsBlockedReason ? ([['blocked_reason', null]] as [string, null][]) : [])
+  ]
   for (const [column] of projection) {
     if (!PROJECTION_COLUMNS.has(column)) {
       throw new Error(`Unsupported lifecycle projection column: ${column}`)

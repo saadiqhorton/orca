@@ -4,13 +4,14 @@ import { shouldWrapDesktopHubHost } from './desktop-hub-command-route'
 import { wrapDesktopHubClient } from './desktop-hub-forwarding-client'
 import {
   DesktopHubLocateSchema,
-  TERMINAL_HANDLE_PREFIX,
   desktopHubRowMatches,
   hostMismatchError,
   sessionNotFoundError,
   type DesktopHubLocate
 } from '../../shared/orchestration/desktop-hub-contract'
 import { ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
+import { isStructuredWorkerHandle } from '../../shared/orchestration/workers/structured-worker-handle'
+import { isTerminalHandle } from '../../shared/terminal-handle-prefix'
 
 const SELECTOR_FLAGS = ['worktree', 'terminal', 'to', 'parent-worktree'] as const
 
@@ -46,7 +47,7 @@ function collectTerminalHandles(flags: ReadonlyMap<string, string | boolean>): s
   const handles = new Set<string>()
   for (const key of SELECTOR_FLAGS) {
     const value = flags.get(key)
-    if (typeof value === 'string' && value.startsWith(TERMINAL_HANDLE_PREFIX)) {
+    if (typeof value === 'string' && isTerminalHandle(value)) {
       handles.add(value)
     }
   }
@@ -210,6 +211,10 @@ export async function routeTerminalHandlesToOwner(
       return { handled: false }
     }
     if (owner.owner === 'none') {
+      // Inventory lists only terminals, so a local structured worker is unknown to the hub; the local path resolves it.
+      if (isStructuredWorkerHandle(handle)) {
+        return { handled: false }
+      }
       throw sessionNotFoundError(handle)
     }
     located.push({ handle, owner })
@@ -258,7 +263,7 @@ export async function resolveRemoteSelectorsAcrossHosts(
     return client
   }
   const selectors = collectCrossHostSelectors(flags).filter(
-    (selector) => !(options.skipHandles && selector.startsWith(TERMINAL_HANDLE_PREFIX))
+    (selector) => !(options.skipHandles && isTerminalHandle(selector))
   )
   if (selectors.length === 0) {
     return client

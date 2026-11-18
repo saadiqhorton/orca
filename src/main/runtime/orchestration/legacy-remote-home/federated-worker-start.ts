@@ -8,6 +8,7 @@ import {
 } from '../../../../shared/orchestration/orchestration-runtime-capabilities'
 import { orchestrationMigrationData } from '../../../../shared/orchestration/orchestration-rpc-contract'
 import { OrchestrationError } from '../orchestration-error'
+import { workerStartBlockedPromptReason } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import { resolveFederatedWorkerWorktree } from './federated-remote-default-worktree'
 import {
   assertWorkerLaunchPreferencesRuntimeSupported,
@@ -271,6 +272,11 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       })
     }
   } catch (error) {
+    const blockedReason = workerStartBlockedPromptReason(error)
+    if (blockedReason !== null) {
+      db.markWorkerBlockedOnPrompt(started.dispatch.id, blockedReason)
+      throw error
+    }
     const reason = error instanceof Error ? error.message : String(error)
     if (error instanceof OrchestrationError && isKnownRemoteStartFailure(error.code)) {
       const worker = db.failWorkerStart(started.dispatch.id, 'remote_attach', reason)

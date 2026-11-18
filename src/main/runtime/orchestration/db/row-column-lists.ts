@@ -113,6 +113,7 @@ export const REMOTE_DISPATCH_ATTACHMENT_COLUMNS = [
   'depth',
   'consumer_generation',
   'last_error',
+  'blocked_reason',
   'created_at',
   'updated_at'
 ] as const satisfies readonly (keyof RemoteDispatchAttachmentRow)[]

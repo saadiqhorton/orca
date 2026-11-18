@@ -225,6 +225,7 @@ export type RemoteDispatchAttachmentRow = {
   /** Worker-host mailbox generation; the home's dispatch_contexts row is not visible here. */
   consumer_generation: number
   last_error: string | null
+  blocked_reason: string | null
   created_at: string
   updated_at: string
 }

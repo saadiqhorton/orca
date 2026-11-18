@@ -5,12 +5,12 @@ import {
   DESKTOP_HUB_UNAVAILABLE_MESSAGE,
   DesktopHubError,
   DesktopHubPlacementSchema,
-  TERMINAL_HANDLE_PREFIX,
   desktopHubHostError,
   type DesktopHubHostRow,
   type DesktopHubPlacement,
   type DesktopHubRequestEvent
 } from '../../../../shared/orchestration/desktop-hub-contract'
+import { isTerminalHandle } from '../../../../shared/terminal-handle-prefix'
 import { readDesktopHubPlacement, writeDesktopHubPlacement } from './desktop-hub-placement-store'
 
 function desktopHubAskTimeoutMessage(
@@ -37,7 +37,7 @@ function collectTerminalHandles(value: unknown, depth: number, found: Set<string
     return
   }
   for (const [key, child] of Object.entries(value)) {
-    if (key === 'handle' && typeof child === 'string' && child.startsWith(TERMINAL_HANDLE_PREFIX)) {
+    if (key === 'handle' && typeof child === 'string' && isTerminalHandle(child)) {
       found.add(child)
     } else {
       collectTerminalHandles(child, depth - 1, found)
