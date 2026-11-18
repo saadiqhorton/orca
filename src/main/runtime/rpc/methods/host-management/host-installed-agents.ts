@@ -30,6 +30,7 @@ function refresh(key: string, runtime: InventoryRuntime): void {
     .then((agents) => {
       cache.set(key, { agents, checkedAt: Date.now() })
     })
+    .catch(() => undefined)
     .finally(() => {
       refreshing.delete(key)
     })
