@@ -65,9 +65,9 @@ type BoundHub = {
   pairedDeviceId: string
 }
 
-const registries = new WeakMap<object, DesktopHubRegistry>()
+const registries = new WeakMap<WeakKey, DesktopHubRegistry>()
 
-export function getDesktopHubRegistry(runtime: object): DesktopHubRegistry {
+export function getDesktopHubRegistry(runtime: WeakKey): DesktopHubRegistry {
   const existing = registries.get(runtime)
   if (existing) {
     return existing

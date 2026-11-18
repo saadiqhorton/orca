@@ -146,6 +146,7 @@ describe('routeTerminalHandlesToOwner', () => {
       hostKey: 'env-ubuntu'
     })
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fake client implements only the calls routing makes.
       routeTerminalHandlesToOwner(client as never, ['terminal', 'read'], flags)
     ).rejects.toMatchObject({ code: 'host_mismatch' })
   })
@@ -157,6 +158,7 @@ describe('routeTerminalHandlesToOwner', () => {
       name: 'ubuntu-server-local',
       hostKey: 'env-ubuntu'
     })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fake client implements only the calls routing makes.
     const routed = await routeTerminalHandlesToOwner(client as never, ['terminal', 'read'], flags)
     expect(routed.handled).toBe(true)
     expect(routed.client?.isRemote).toBe(true)

@@ -3,7 +3,8 @@ import { homedir } from 'node:os'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
 import {
   installOrcaHostInstructions,
-  settingsWriteGlobalSlice
+  settingsWriteGlobalSlice,
+  type GlobalInstructionSettingsSource
 } from '../../../../orchestration/desktop-hub/orca-host-instruction-install'
 import {
   orchestrationScratchPaths,
@@ -13,7 +14,7 @@ import {
 type ScratchGroup = { id: string; name: string }
 type ScratchFolder = { id: string; name: string; folderPath: string; projectGroupId: string }
 
-export type OrchestrationScratchRuntime = {
+export type OrchestrationScratchRuntime = GlobalInstructionSettingsSource & {
   listVisibleProjectGroups: () => ScratchGroup[]
   listVisibleFolderWorkspaces: () => ScratchFolder[]
   createProjectGroup: (input: {

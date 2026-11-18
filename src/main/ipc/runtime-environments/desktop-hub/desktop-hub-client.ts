@@ -17,7 +17,8 @@ import {
 import {
   installOrcaHostInstructions,
   orcaHostInstructionPath,
-  settingsWriteGlobalSlice
+  settingsWriteGlobalSlice,
+  type GlobalInstructionSettingsSource
 } from '../../../runtime/orchestration/desktop-hub/orca-host-instruction-install'
 import { openHubSubscription } from './desktop-hub-subscribe'
 
@@ -25,7 +26,7 @@ type DesktopHubClientOptions = {
   userDataPath: string
   machineName: () => string
   localFingerprint: () => string
-  settingsHost?: object
+  settingsHost?: GlobalInstructionSettingsSource
   callLocal: (
     method: string,
     params: unknown,
@@ -99,7 +100,7 @@ type DesktopRelayRpc = {
 
 /** Phone host catalog and the orchestration hub share the desktop's pairing sockets. */
 export function installDesktopConnectedSurfaces(
-  runtime: {
+  runtime: GlobalInstructionSettingsSource & {
     readMachineName(): string
     getOrchestrationDb(): { getOrCreateLocalMutationCallerFingerprint(): string }
   },

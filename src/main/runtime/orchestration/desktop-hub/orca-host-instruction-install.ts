@@ -25,22 +25,28 @@ export function writeGlobalAgentInstructionsEnabled(
   return settings?.orcaWriteGlobalAgentInstructions !== false
 }
 
-export function settingsWriteGlobalSlice(host: object | undefined):
-  | {
-      orcaWriteGlobalAgentInstructions?: boolean
-    }
-  | undefined {
-  if (!host) {
+type GlobalInstructionSettings = { orcaWriteGlobalAgentInstructions?: boolean }
+
+export type GlobalInstructionSettingsSource = {
+  getSettings?: () => GlobalInstructionSettings
+  requireStore?: () => { getSettings: () => GlobalInstructionSettings }
+}
+
+export function settingsWriteGlobalSlice(
+  source: GlobalInstructionSettingsSource | undefined
+): GlobalInstructionSettings | undefined {
+  if (!source) {
     return undefined
   }
-  const rec = host as {
-    getSettings?: () => { orcaWriteGlobalAgentInstructions?: boolean }
-    store?: { getSettings?: () => { orcaWriteGlobalAgentInstructions?: boolean } }
+  if (typeof source.getSettings === 'function') {
+    return source.getSettings()
   }
-  if (typeof rec.getSettings === 'function') {
-    return rec.getSettings()
+  try {
+    return source.requireStore?.().getSettings()
+  } catch {
+    // Why: a runtime without a store yet falls back to the default (on).
+    return undefined
   }
-  return rec.store?.getSettings?.()
 }
 
 export async function writeOrcaHostInstructionFile(

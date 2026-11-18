@@ -25,7 +25,8 @@ import {
 import {
   installOrcaHostInstructions,
   orcaHostInstructionPath,
-  settingsWriteGlobalSlice
+  settingsWriteGlobalSlice,
+  type GlobalInstructionSettingsSource
 } from '../../../orchestration/desktop-hub/orca-host-instruction-install'
 import { getAppEnvironment, hasAppEnvironment } from '../../../../../shared/app-environment'
 
@@ -131,15 +132,18 @@ type LocalTerminalRuntime = {
   ) => Promise<{ terminals: { handle: string }[] }>
 }
 
-async function ownsHandleLocally(runtime: object, handle: string): Promise<boolean> {
+function listsLocalTerminals(runtime: HubRuntime): runtime is HubRuntime & LocalTerminalRuntime {
+  return 'listTerminals' in runtime && typeof runtime.listTerminals === 'function'
+}
+
+async function ownsHandleLocally(runtime: HubRuntime, handle: string): Promise<boolean> {
+  if (!listsLocalTerminals(runtime)) {
+    return false
+  }
   try {
-    const { terminals } = await (runtime as LocalTerminalRuntime).listTerminals(
-      undefined,
-      undefined,
-      {
-        includeVisualLayouts: false
-      }
-    )
+    const { terminals } = await runtime.listTerminals(undefined, undefined, {
+      includeVisualLayouts: false
+    })
     return terminals.some((terminal) => terminal.handle === handle)
   } catch {
     return false
@@ -229,7 +233,7 @@ async function listDesktopHub(ctx: { runtime: object; pairedDeviceId?: string })
 
 async function rememberListedOrcaHosts(
   hosts: DesktopHubHostRow[],
-  runtime?: object
+  runtime?: GlobalInstructionSettingsSource
 ): Promise<void> {
   const names = hosts.map((row) => row.name).filter((name) => name.length > 0)
   rememberOrcaHostNames(names)
@@ -249,7 +253,7 @@ async function rememberListedOrcaHosts(
 }
 
 /** The desktop process holds the catalog; a remote asks the hub instead of reading its own store. */
-export function inventoryUsesLocalDesktopRuntime(runtime: object): boolean {
+export function inventoryUsesLocalDesktopRuntime(runtime: WeakKey): boolean {
   return Boolean(readDesktopHubCatalogProvider()) && !getDesktopHubRegistry(runtime).hasVolunteer()
 }
 
