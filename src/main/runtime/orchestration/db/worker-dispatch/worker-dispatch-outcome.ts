@@ -96,6 +96,21 @@ export function markWorkerBlockedOnPrompt(
   }
 }
 
+export function clearWorkerBlockedOnPrompt(this: OrchestrationDb, dispatchId: string): boolean {
+  const worker = this.getWorkerDispatch(dispatchId)
+  if (worker?.state !== 'ready' || worker.blocked_reason === null) {
+    return false
+  }
+  transitionLifecycleWithDb(this.db, {
+    entity: 'worker',
+    id: dispatchId,
+    from: 'ready',
+    to: 'ready',
+    projection: { blocked_reason: null, updated_at: new Date().toISOString() }
+  })
+  return true
+}
+
 export function failWorkerStart(
   this: OrchestrationDb,
   dispatchId: string,
@@ -219,6 +234,7 @@ export type WorkerDispatchOutcomeMethods = {
   retainWorkerLaunchObservation: typeof retainWorkerLaunchObservation
   markWorkerDispatchReady: typeof markWorkerDispatchReady
   markWorkerBlockedOnPrompt: typeof markWorkerBlockedOnPrompt
+  clearWorkerBlockedOnPrompt: typeof clearWorkerBlockedOnPrompt
   failWorkerStart: typeof failWorkerStart
   markWorkerStartUnknown: typeof markWorkerStartUnknown
   getWorkerDispatch: typeof getWorkerDispatch
@@ -229,6 +245,7 @@ export function attachWorkerDispatchOutcome(ctor: { prototype: object }): void {
     retainWorkerLaunchObservation,
     markWorkerDispatchReady,
     markWorkerBlockedOnPrompt,
+    clearWorkerBlockedOnPrompt,
     failWorkerStart,
     markWorkerStartUnknown,
     getWorkerDispatch

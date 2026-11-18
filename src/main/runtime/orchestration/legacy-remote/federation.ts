@@ -5,6 +5,7 @@ import {
   isWorkerStartBlockedPromptError,
   throwIfWorkerStartBlockedOnPrompt
 } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+import { isStartupDialogBlockedReason } from '../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import { buildDispatchPreamble } from '../workers/launch/worker-dispatch-preamble'
 import { sendAgentTurn } from '../turn-delivery/send-agent-turn'
 import { createWorkerBriefWriteGuard } from '../../terminal/wait/launched-agent-write-guard'
@@ -207,6 +208,20 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           if (setup.state === 'failed') {
             failedStage = 'setup_wait'
           }
+          if (isStartupDialogBlockedReason(wait.blockedReason) && setup.state !== 'failed') {
+            // The tab stays open at the prompt, so the attachment stays ready and blocked instead of failing.
+            prepareFederatedAttachmentAuthority({
+              runtime,
+              db,
+              dispatchId: params.dispatchId,
+              worktreeId: worktree.id,
+              terminalHandle,
+              setup,
+              effects,
+              reusesTerminal: Boolean(params.terminal)
+            })
+            db.markRemoteAttachmentBlockedOnPrompt(params.dispatchId, wait.blockedReason)
+          }
           throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
           throw new Error(
             wait.blockedReason
@@ -271,7 +286,10 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           residualResources: []
         }
       } catch (error) {
-        const failed = failFederatedAttachmentWithReceipt({
+        if (isWorkerStartBlockedPromptError(error)) {
+          throw error
+        }
+        return failFederatedAttachmentWithReceipt({
           db,
           dispatchId: params.dispatchId,
           runtimeEpoch: runtime.getRuntimeId(),
@@ -280,10 +298,6 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           setup,
           launch: launch.receipt
         })
-        if (isWorkerStartBlockedPromptError(error)) {
-          throw error
-        }
-        return failed
       } finally {
         releaseTerminalClaim()
       }

@@ -23,3 +23,11 @@ export function throwIfWorkerStartBlockedOnPrompt(
 export function isWorkerStartBlockedPromptError(error: unknown): boolean {
   return error instanceof OrchestrationError && error.code === 'agent_blocked_on_prompt'
 }
+
+export function workerStartBlockedPromptReason(error: unknown): string | null {
+  if (!isWorkerStartBlockedPromptError(error)) {
+    return null
+  }
+  const data = (error as OrchestrationError).data as { blockedReason?: unknown } | undefined
+  return typeof data?.blockedReason === 'string' ? data.blockedReason : null
+}
