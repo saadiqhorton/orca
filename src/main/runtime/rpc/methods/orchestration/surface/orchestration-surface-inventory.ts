@@ -89,7 +89,7 @@ function listHostRepos(runtime: InventoryRuntime): HostSurfaceInventory['repos']
   }))
 }
 
-async function listHostAgents(runtime: InventoryRuntime): Promise<string[]> {
+export async function listHostAgents(runtime: InventoryRuntime): Promise<string[]> {
   try {
     const host = runtime.resolveAgentDetectionHost
       ? await runtime.resolveAgentDetectionHost(null)

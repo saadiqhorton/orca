@@ -48,3 +48,22 @@ export function orchestrationTiersFor(
   }
   return tiers
 }
+
+export type OrchestrationReadiness = 'ready' | 'prompts-only'
+
+/** Ready when a detected agent takes orchestration instructions; prompts only when all it has is prompt delivery. */
+export function orchestrationReadinessFor(
+  agents: readonly string[] | undefined
+): OrchestrationReadiness | null {
+  const tiers = Object.values(orchestrationTiersFor(agents ?? []))
+  if (tiers.includes(2)) {
+    return 'ready'
+  }
+  return tiers.includes(1) ? 'prompts-only' : null
+}
+
+export function orchestrationTierTwoAgents(agents: readonly string[]): TuiAgent[] {
+  return (Object.keys(orchestrationTiersFor(agents)) as TuiAgent[]).filter(
+    (agent) => orchestrationTierFor(agent) === 2
+  )
+}

@@ -261,6 +261,7 @@ export function SshStatusSegment({
             detail={runtimeHostConnectionDetail(host.remoteControl, t)}
             diagnostics={host.remoteControl}
             appVersion={host.appVersion}
+            installedAgents={host.status?.installedAgents}
             blocked={host.blocked}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}
@@ -283,6 +284,7 @@ export function SshStatusSegment({
             detail={runtimeHostConnectionDetail(host.remoteControl, t)}
             diagnostics={host.remoteControl}
             appVersion={host.appVersion}
+            installedAgents={host.status?.installedAgents}
             blocked={host.blocked}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}

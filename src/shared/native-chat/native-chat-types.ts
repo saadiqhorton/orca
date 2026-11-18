@@ -20,6 +20,7 @@ import type {
 import type { AgentType } from '../agent-status/contracts/agent-status-types'
 import type { NativeChatToolMetadata } from './tools/native-chat-tool-identity'
 import type { AgentMessageSource } from '../agent-session/agent-session-message-source'
+import type { AgentChatPermissionMode } from '../agent-launch/permissions/agent-chat-permission-mode'
 
 export const NATIVE_CHAT_SOURCES = ['transcript', 'hook', 'scrape'] as const
 export type NativeChatSource = (typeof NATIVE_CHAT_SOURCES)[number]
@@ -251,6 +252,8 @@ export type NativeChatMessage = AgentJournalProducerLinkage & {
   agentHandoff?: true
   /** On a worker's creation fact: a message continued a finished worker, in its reopened conversation or a fresh one. */
   agentFollowUp?: 'reopened' | 'fresh'
+  /** On a creation fact: the permission the started agent runs with. */
+  agentPermissionMode?: AgentChatPermissionMode
   /** Accepted but not yet handed to the agent: drawn after everything the agent has done. */
   queued?: true
   /** Client-only terminal echo placement relative to the current streaming reply. */
