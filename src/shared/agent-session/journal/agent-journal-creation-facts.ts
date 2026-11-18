@@ -1,4 +1,5 @@
 import type { AgentMessageSender } from '../agent-session-message-source'
+import type { AgentChatPermissionMode } from '../../agent-launch/permissions/agent-chat-permission-mode'
 
 /** Display-only creation fact; survives removal of the orchestration Task and Dispatch. */
 export type AgentJournalAgentStartItem = {
@@ -6,6 +7,8 @@ export type AgentJournalAgentStartItem = {
   dispatchId: string
   worker: AgentMessageSender
   task: string
+  /** The permission the started agent runs with; absent when unknown or the agent's own. */
+  permissionMode?: AgentChatPermissionMode
   /** A message to a finished worker continued it: the Dispatch it followed, and whether its conversation reopened. */
   followUp?: { of: string; reopened: boolean }
 }
@@ -17,4 +20,5 @@ export type AgentJournalAgentHandoffItem = {
   launchId: string
   agent: AgentMessageSender
   task: string
+  permissionMode?: AgentChatPermissionMode
 }

@@ -5,6 +5,7 @@ import { ORCA_SESSION_ADDRESS_PREFIX } from '../../../../../shared/orca-session-
 import type { AgentLaunchParams } from '../../../../../shared/rpc-contract/agent-launch/agent-launch-params'
 import {
   prepareAgentCreationCard,
+  startedAgentPermissionMode,
   startedAgentSender
 } from '../../../orchestration/workers/launch/worker-start-card'
 import type { RpcContext } from '../../core'
@@ -50,11 +51,13 @@ function prepareHandoffRecord(
       outcome.kind === 'structured'
         ? `${ORCA_SESSION_ADDRESS_PREFIX}${outcome.sessionId}`
         : outcome.handle
+    const permissionMode = startedAgentPermissionMode(context.runtime, params.agent)
     publish(() => ({
       kind: 'agent-handoff',
       launchId: params.operationId,
       agent: startedAgentSender(context.runtime, address, params.agent),
-      task
+      task,
+      ...(permissionMode ? { permissionMode } : {})
     }))
   }
 }

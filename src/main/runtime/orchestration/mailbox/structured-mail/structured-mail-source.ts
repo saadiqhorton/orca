@@ -100,10 +100,35 @@ export function structuredMailSource(input: {
       messages: input.batch.map((message) => ({
         messageId: message.id,
         runId: message.run_id,
-        from: message.from_handle
+        from: message.from_handle,
+        ...blockedPromptStop(message.payload)
       }))
     }
   }
+}
+
+/** A turn stop's structured prompt block, read from the payload Orca wrote; text is never parsed. */
+function blockedPromptStop(payload: string | null): {
+  stopKind?: 'blocked-on-prompt'
+  blockedReason?: string
+} {
+  try {
+    const parsed: unknown = JSON.parse(payload ?? 'null')
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      (parsed as { stopKind?: unknown }).stopKind === 'blocked-on-prompt' &&
+      typeof (parsed as { blockedReason?: unknown }).blockedReason === 'string'
+    ) {
+      return {
+        stopKind: 'blocked-on-prompt',
+        blockedReason: (parsed as { blockedReason: string }).blockedReason
+      }
+    }
+  } catch {
+    // A payload that is not JSON carries no stop.
+  }
+  return {}
 }
 
 /** One orchestration message as one chat message: the whole message, with who it is from.

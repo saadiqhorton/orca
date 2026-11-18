@@ -18,6 +18,7 @@ import type {
   AgentJournalRenderItem
 } from './agent-session-journal-types'
 import { AGENT_JOURNAL_PROMPT_INTENTS } from './agent-session-journal-types'
+import type { AgentChatPermissionMode } from '../../agent-launch/permissions/agent-chat-permission-mode'
 
 const BoundedPayload = z.object({
   head: z.string(),
@@ -194,17 +195,27 @@ const TurnLifecycleFields = {
   durationMs: z.number().finite().nonnegative().optional()
 }
 
+// Literal rather than the shared constant: that module imports this one back, so a runtime import would cycle.
+const AgentChatPermissionModeSchema = z.enum([
+  'ask',
+  'accept-edits',
+  'auto',
+  'full-access'
+] satisfies readonly AgentChatPermissionMode[])
+
 const KnownItemBody = z.discriminatedUnion('kind', [
   MessageBody,
   z.object({
     kind: z.literal('agent-start'),
     dispatchId: z.string().min(1),
-    task: z.string()
+    task: z.string(),
+    permissionMode: AgentChatPermissionModeSchema.optional()
   }),
   z.object({
     kind: z.literal('agent-handoff'),
     launchId: z.string().min(1),
-    task: z.string()
+    task: z.string(),
+    permissionMode: AgentChatPermissionModeSchema.optional()
   }),
   z.object({
     kind: z.literal('tool-call'),

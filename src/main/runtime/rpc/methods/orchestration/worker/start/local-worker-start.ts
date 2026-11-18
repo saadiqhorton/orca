@@ -38,7 +38,10 @@ import { releaseRetriedWorkerTerminal } from '../release/retried-worker-terminal
 import { requireWorkerAuthority, type WorkerEffect } from './placement/worker-placement-topology'
 import { deliverAndSettleWorkerStartReadiness } from './readiness/worker-start-readiness-settlement'
 import type { WorkerStartMutation } from './worker-start-mutation'
-import { prepareWorkerStartCard } from '../../../../../orchestration/workers/launch/worker-start-card'
+import {
+  prepareWorkerStartCard,
+  startedAgentPermissionMode
+} from '../../../../../orchestration/workers/launch/worker-start-card'
 import { rebindReusedStructuredWorker } from '../../structured-workers/orchestration-structured-worker-session'
 import { placedWorkerParty, type WorkerFollowUp } from '../follow-up/worker-follow-up-placement'
 
@@ -288,7 +291,8 @@ export async function startLocalWorker(args: {
       workerAddress: terminalHandle,
       task: task.spec,
       agent: agent ?? null,
-      followUp: args.followUp && { of: args.followUp.of, reopened: Boolean(placed?.reopened) }
+      followUp: args.followUp && { of: args.followUp.of, reopened: Boolean(placed?.reopened) },
+      permissionMode: startedAgentPermissionMode(runtime, agent ?? null)
     })
   }
   return result

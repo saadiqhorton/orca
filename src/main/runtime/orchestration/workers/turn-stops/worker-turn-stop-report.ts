@@ -237,7 +237,10 @@ export function reportWorkerTurnStop(
     dispatchId,
     handle: stop.from,
     stopReason: stop.reason,
-    ...(stop.approval ? { approval: stop.approval } : {})
+    ...(stop.approval ? { approval: stop.approval } : {}),
+    ...(stop.blockedReason
+      ? { stopKind: 'blocked-on-prompt' as const, blockedReason: stop.blockedReason }
+      : {})
   }
   if (target.kind === 'local') {
     const { dispatch } = target

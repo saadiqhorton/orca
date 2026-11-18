@@ -4,6 +4,7 @@ import { getPublishedHostDescriptor } from '../../../hosts/platform-probe/host-d
 import { StatusGetParams } from '../../../../../shared/rpc-contract/host-management/status-params'
 import { readHostMachineWithin } from '../../../hosts/platform-probe/runtime-host-machine'
 import { MACHINE_NAME_PUBLISH_WAIT_MS } from '../../../hosts/platform-probe/runtime-machine-name'
+import { cachedHostInstalledAgents } from './host-installed-agents'
 
 export const STATUS_METHODS = [
   defineMethod({
@@ -23,9 +24,11 @@ export const STATUS_METHODS = [
       ])
       const snapshot = getRemoteServerUpdaterSnapshot(runtime.getRuntimeId())
       const hostDescriptor = getPublishedHostDescriptor(runtime.getRuntimeId())
+      const installedAgents = cachedHostInstalledAgents(runtime)
       return {
         ...runtime.getStatus(),
         ...(hostDescriptor ? { hostDescriptor } : {}),
+        ...(installedAgents ? { installedAgents } : {}),
         ...(hostMachine ? { hostMachine } : {}),
         ...(pairedDeviceId ? { pairedDeviceId } : {}),
         appVersion: snapshot.appVersion,
