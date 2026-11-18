@@ -91,6 +91,8 @@ Scripts and orchestrators can branch on the exit status of `orca orchestration`,
 
 Exit 5 means the tab is waiting on a trust, hooks, or security prompt. Open the tab in the desktop Orca window and answer it there; never answer with keystrokes.
 
+`--host` on `agent launch`, `terminal create`, and `orchestration worker-start` without `--worktree` uses `~/orca-orchestration` (the visible **Orca orchestration** project). Name a workspace or repo only when the task should run in that checkout. Those tabs always land in a group the desktop shows.
+
 ## Runtime commands
 
 ```bash

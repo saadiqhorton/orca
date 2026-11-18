@@ -40,7 +40,8 @@ export const ENVIRONMENT_COMMAND_SPECS: CommandSpec[] = [
     notes: [
       'One command an agent can run to see the desktop-connected fleet: each host, whether it is connected, the Orca projects and folder workspaces on it, which agent CLIs are installed, and live terminal/agent tabs.',
       'Then act with `orca agent launch --host <name>`, `orca terminal create --host <name>`, `orca terminal list --host <name>`, `orca terminal send --host <name>`, `orca worktree create --host <name> --name <name>`, or `orca orchestration send --host <name>`. Those commands open or drive real tabs in the desktop Orca window.',
-      'Do not use SSH. needs_sign_in and unreachable hosts are listed with that status and are not dialed.'
+      'Do not use SSH. needs_sign_in and unreachable hosts are listed with that status and are not dialed.',
+      'Host commands use exit 2 host_mismatch, 3 unknown_host or session_not_found, 4 host_unreachable / host_offline / needs_sign_in, 5 agent_blocked_on_prompt, 6 incompatible_runtime.'
     ],
     examples: ['orca host inventory', 'orca host inventory --json']
   },

@@ -28,6 +28,16 @@ describe('cliErrorExitCode', () => {
   it('keeps other commands at exit 1', () => {
     const browser = ['browser', 'click']
     expect(cliErrorExitCode(new RuntimeClientError('incompatible_runtime', 'x'), browser)).toBe(1)
+    expect(
+      cliErrorExitCode(new RuntimeClientError('incompatible_runtime', 'x'), ['worktree', 'create'])
+    ).toBe(1)
+  })
+
+  it('maps incompatible_runtime to 6 for agent, terminal, and host families', () => {
+    const error = new RuntimeClientError('incompatible_runtime', 'x')
+    expect(cliErrorExitCode(error, ['agent', 'launch'])).toBe(6)
+    expect(cliErrorExitCode(error, ['terminal', 'create'])).toBe(6)
+    expect(cliErrorExitCode(error, ['host', 'inventory'])).toBe(6)
   })
 
   it('exits 1 for errors without a code', () => {
