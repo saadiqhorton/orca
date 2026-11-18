@@ -7,6 +7,7 @@ function runtimeWith(options: {
   worktrees: { id: string; hostId?: string; lastActivityAt?: number }[]
   folders: { id: string; folderPath: string; lastActivityAt: number; executionHostId?: string }[]
 }) {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: test fake supplies only the members placement reads.
   return {
     listVisibleProjectGroups: () => [],
     listVisibleFolderWorkspaces: () =>
@@ -23,7 +24,6 @@ function runtimeWith(options: {
     createFolderWorkspace: async () => {
       throw new Error('unexpected')
     }
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: test fake supplies only the members placement reads.
   } as unknown as Parameters<typeof resolveOrchestrationSessionPlacement>[0]
 }
 
