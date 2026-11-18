@@ -1,51 +1,60 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import { resolveOrchestrationSessionPlacement } from './orchestration-session-placement'
 
-const home = '/home/tester'
+const homes: string[] = []
 
-function runtimeWith(options: {
-  worktrees: { id: string; hostId?: string; lastActivityAt?: number }[]
-  folders: { id: string; folderPath: string; lastActivityAt: number; executionHostId?: string }[]
-}) {
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: test fake supplies only the members placement reads.
-  return {
-    listVisibleProjectGroups: () => [],
-    listVisibleFolderWorkspaces: () =>
-      options.folders.map((folder) => ({
-        name: folder.id,
-        projectGroupId: 'group',
-        isArchived: false,
-        ...folder
-      })),
-    listManagedWorktrees: async () => ({ worktrees: options.worktrees }),
-    createProjectGroup: async () => {
-      throw new Error('unexpected')
-    },
-    createFolderWorkspace: async () => {
-      throw new Error('unexpected')
+afterEach(async () => {
+  await Promise.all(homes.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
+function runtimeWith(home: string) {
+  const groups: { id: string; name: string }[] = []
+  const folders: { id: string; name: string; folderPath: string; projectGroupId: string }[] = [
+    {
+      id: 'fld_work',
+      name: 'work',
+      folderPath: path.join(home, 'work'),
+      projectGroupId: 'grp_hidden'
     }
-  } as unknown as Parameters<typeof resolveOrchestrationSessionPlacement>[0]
+  ]
+  return {
+    listVisibleProjectGroups: () => groups,
+    listVisibleFolderWorkspaces: () => folders,
+    listManagedWorktrees: async () => ({
+      worktrees: [{ id: `repo::${path.join(home, 'work')}`, lastActivityAt: 9_999 }]
+    }),
+    createProjectGroup: async (input: { name: string }) => {
+      const group = { id: 'grp_orch', name: input.name }
+      groups.push(group)
+      return group
+    },
+    createFolderWorkspace: async (input: {
+      projectGroupId: string
+      name?: string
+      folderPath?: string | null
+    }) => {
+      const folder = {
+        id: 'fld_scratch',
+        name: input.name ?? 'scratch',
+        folderPath: input.folderPath ?? path.join(home, 'orca-orchestration'),
+        projectGroupId: input.projectGroupId
+      }
+      folders.push(folder)
+      return { folderWorkspace: folder }
+    }
+  }
 }
 
 describe('resolveOrchestrationSessionPlacement', () => {
-  it('places on the most recently active non-scratch workspace of this host', async () => {
-    const placed = await resolveOrchestrationSessionPlacement(
-      runtimeWith({
-        worktrees: [
-          { id: 'repo::/a', lastActivityAt: 100 },
-          { id: 'repo::/remote', hostId: 'ssh:other', lastActivityAt: 900 }
-        ],
-        folders: [
-          { id: 'fld_recent', folderPath: '/home/tester/notes', lastActivityAt: 500 },
-          {
-            id: 'fld_scratch',
-            folderPath: '/home/tester/orca-orchestration/scratch',
-            lastActivityAt: 999
-          }
-        ]
-      }),
-      home
-    )
-    expect(placed).toEqual({ worktree: 'folder:fld_recent', source: 'recent-folder' })
+  it('defaults to the visible Orca orchestration scratch folder, not a more recent real repo', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'orca-place-'))
+    homes.push(home)
+    const placed = await resolveOrchestrationSessionPlacement(runtimeWith(home), home)
+    expect(placed.source).toBe('scratch')
+    expect(placed.worktree).toBe('folder:fld_scratch')
+    expect(placed.worktree).not.toContain('work')
   })
 })

@@ -6,7 +6,7 @@ import type { RpcContext } from '../../core'
 import { resolveOrchestrationSessionPlacement } from '../orchestration/surface/orchestration-session-placement'
 import { assertAgentLaunchTargetAuthorized } from './agent-launch-target-authorization'
 
-/** Resolves an orchestration-session target to the host's own workspace before admission, then authorizes it. */
+/** Resolves an orchestration-session target to the visible Orca orchestration scratch folder before admission. */
 export async function placeAuthorizedAgentLaunch<
   T extends { target: AgentLaunchRequestParams['target'] }
 >(
