@@ -152,5 +152,12 @@
     "source_failure": "r02 real S07 reverse worker-start headless group",
     "target": "dockhand",
     "expect_tab": true
+  },
+  "R09": {
+    "id": "R09",
+    "kind": "regression",
+    "feature": "visible-tabs",
+    "text": "Any scenario that expects a tab fails if that tab is hidden/headless. orca terminal create --host and orca agent launch --host must land in a desktop-visible group, never headless-terminals: from a hidden most-recent workspace.",
+    "source_failure": "r06 PR#2 S02/S04 tab in headless-terminals: from most-recent hidden workspace"
   }
 }

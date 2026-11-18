@@ -262,13 +262,21 @@ def judge(spec, facts, final, cmds, metrics, wall, new_target_terms):
         elif not no_tab:
             ok = False
             reasons.append("unknown host created a tab")
+    visible_tab = None
+    if spec.get("expect_tab"):
+        visible_tab = any(
+            t.get("tabId") and not str(t.get("group") or "").startswith("headless")
+            for t in new_target_terms.values()
+        )
+        if not visible_tab:
+            ok = False
+            reasons.append("target tab is missing or headless")
     bar = {"result": ok,
            "le_6_orca_cmds": metrics["orca_invocations"] <= 6,
            "zero_wrong_host": not metrics["wrong_host_errors"],
            "no_hang": not metrics["hangs_over_60s"],
            "no_ssh": not metrics["ssh_used"],
-           "visible_tab": (any(t.get("tabId") and not str(t.get("group") or "").startswith("headless") for t in new_target_terms.values())
-                           if spec.get("expect_tab") else None)}
+           "visible_tab": visible_tab}
     return ok, reasons, bar
 
 

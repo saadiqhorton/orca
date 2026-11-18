@@ -3,7 +3,8 @@
 
 Proves: EACCES path probes do not crash; S08 unknown_host + no tab is PASS;
 template version from manifest, resources, ssh/runtime active record; S03 marker
-from a real ls listing; box-rig R07 cds into ~/work; overlay agrees in both modes.
+from a real ls listing; box-rig R07 cds into ~/work; overlay agrees in both modes;
+expect_tab + headless group fails the judge and R09.
 """
 from __future__ import annotations
 
@@ -115,6 +116,68 @@ class S08RefusalIsPass(IsolatedEnv):
         )
         self.assertTrue(result["pass"])
         self.assertTrue(result["bar"]["zero_wrong_host"])
+
+
+class HiddenTabFails(IsolatedEnv):
+    def test_harness_judge_expect_tab_headless_fails(self):
+        spec = {"expect_tab": True, "success": {}}
+        cmds = [
+            {
+                "cmd": "orca terminal create --host ubuntu-server-local --json",
+                "exit": 0,
+                "secs": 0.2,
+                "out": "ok",
+            }
+        ]
+        metrics = harness.analyse(cmds, "ok", spec["success"])
+        terms = {
+            "term_x": {
+                "tabId": "tab_1",
+                "group": "headless-terminals:folder:fld_work",
+            }
+        }
+        ok, reasons, bar = harness.judge(spec, {}, "ok", cmds, metrics, 1.0, terms)
+        self.assertFalse(ok, reasons)
+        self.assertFalse(bar["visible_tab"])
+        self.assertTrue(any("headless" in r for r in reasons))
+
+    def test_overlay_expect_tab_headless_fails(self):
+        spec = json.loads((SCRIPTS / "scenarios.json").read_text())["S02"]
+        payload = {
+            "pass": True,
+            "fail_reasons": [],
+            "bar": {"result": True, "zero_wrong_host": True, "no_ssh": True, "visible_tab": False},
+            "metrics": {"orca_invocations": 1, "ssh_used": [], "wrong_host_errors": []},
+            "final_answer": "load average",
+            "commands": [],
+        }
+        overlay = live_drive.overlay_from_harness(
+            payload, spec, {"out": "ok", "secs": 1.0, "exit": 0}, evidence=["s02"]
+        )
+        self.assertFalse(overlay["pass"])
+        self.assertTrue(any("headless" in r for r in overlay["reasons"]))
+
+    def test_r09_fails_when_expect_tab_scenario_is_headless(self):
+        specs = json.loads((SCRIPTS / "scenarios.json").read_text())
+        results = {
+            "S02": {
+                "pass": True,
+                "bar": {"visible_tab": False},
+            }
+        }
+        r09 = live_drive.r09_from_results(results, specs, via="selftest")
+        self.assertFalse(r09["pass"])
+        self.assertTrue(any("S02" in r for r in r09["reasons"]))
+
+    def test_r09_passes_when_expect_tab_scenarios_are_visible(self):
+        specs = json.loads((SCRIPTS / "scenarios.json").read_text())
+        results = {
+            sid: {"pass": True, "bar": {"visible_tab": True}}
+            for sid, spec in specs.items()
+            if spec.get("expect_tab")
+        }
+        r09 = live_drive.r09_from_results(results, specs, via="selftest")
+        self.assertTrue(r09["pass"], r09["reasons"])
 
 
 class TemplateAndMode(IsolatedEnv):

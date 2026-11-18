@@ -922,7 +922,7 @@ def box_drive(
             f"--worktree {wt} --round verify --env-name rig --fact {facts} "
             f"--fact target_agent=claude --fact stub=1 --out {remote_out}"
         )
-        if sid in ("R07", "R08"):
+        if sid in ("R07", "R08", "R09"):
             continue
         r = run([*ssh, src, cmd], timeout=480)
         pull = run([*ssh, src, f"cat {remote_out}.json"], timeout=30)
@@ -977,7 +977,46 @@ def box_drive(
             results["R08"] = {**s07, "via": "box-rig-s07"}
         else:
             results["R08"] = no_live_result("R08", "box rig did not run reverse S07")
+    if "R09" in wanted:
+        results["R09"] = r09_from_results(results, specs, via="box-rig")
     return results
+
+
+def hidden_expect_tab_ids(
+    results: dict[str, dict[str, Any]], specs: dict[str, Any]
+) -> list[str]:
+    hidden: list[str] = []
+    for sid, spec in specs.items():
+        if not spec.get("expect_tab"):
+            continue
+        row = results.get(sid)
+        if not row:
+            continue
+        bar = row.get("bar") or {}
+        if bar.get("visible_tab") is not True:
+            hidden.append(sid)
+    return hidden
+
+
+def r09_from_results(
+    results: dict[str, dict[str, Any]], specs: dict[str, Any], *, via: str
+) -> dict[str, Any]:
+    hidden = hidden_expect_tab_ids(results, specs)
+    return {
+        "pass": not hidden,
+        "reasons": [f"{sid} tab is hidden/headless" for sid in hidden],
+        "orca_cmds": 0,
+        "bar": {"visible_tab": not hidden},
+        "evidence": [
+            "expect_tab scenarios: "
+            + ", ".join(sid for sid, spec in specs.items() if spec.get("expect_tab"))
+        ],
+        "ssh": [],
+        "wrong_host": [],
+        "final": "",
+        "wall_s": 0,
+        "via": via,
+    }
 
 
 def no_live_result(sid: str, reason: str) -> dict[str, Any]:
@@ -1069,6 +1108,8 @@ def drive(
             ran = run_scripted(skill_dir, root, ev, sid, spec, sid_facts)
             ran["via"] = "desktop-cli"
             results[sid] = ran
+        if "R09" in wanted:
+            results["R09"] = r09_from_results(results, specs, via="desktop-cli")
         return {"mode": mode, "inventory": inv, "results": results, "start": start_info}
 
     boxed = box_drive(skill_dir, ev, wanted, specs)

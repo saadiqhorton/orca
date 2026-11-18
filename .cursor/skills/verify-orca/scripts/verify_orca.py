@@ -436,6 +436,10 @@ VITEST_FILES = [
     "src/cli/terminals/terminal-send-startup-dialog.test.ts",
     "src/cli/agents/cli-launch-presentation.test.ts",
     "src/main/runtime/rpc/methods/orchestration/surface/ensure-orchestration-scratch.test.ts",
+    "src/main/runtime/rpc/methods/orchestration/surface/orchestration-session-placement.test.ts",
+    "src/cli/agents/agent-launch-process.test.ts",
+    "src/cli/output/cli-exit-code.test.ts",
+    "src/cli/discovery/root-help-text.test.ts",
     "src/main/runtime/terminal/output/newest-terminal-read.test.ts",
 ]
 
@@ -727,7 +731,7 @@ def stand_in_suite(
     ]
     orch_miss = grep_ok(orch, trigger_needles)
     cli_miss = grep_ok(cli, trigger_needles)
-    preamble_ok = all(s in preamble_src for s in ("never ssh", "Connected machines", "orca host inventory --json", "You run inside Orca."))
+    preamble_ok = all(s in preamble_src for s in ("Never use ssh", "orca host inventory --json", "You are running inside Orca"))
     r01_ok = not orch_miss and not cli_miss and preamble_ok and vt_ok
     r02_ok = (
         vt_ok
@@ -765,6 +769,16 @@ def stand_in_suite(
         and "orca-orchestration:folder:" in (read_text_safe(r08_src) or "")
         and "headless-terminals:" in (read_text_safe(r08_src) or "")
     )
+    r09_src = root / "src/main/runtime/rpc/methods/orchestration/surface/orchestration-session-placement.test.ts"
+    r09_place = read_text_safe(r09_src) or ""
+    r09_judge = read_text_safe(SKILL_DIR / "harness" / "run_scenario.py") or ""
+    r09_ok = (
+        vt_ok
+        and path_exists(r09_src)
+        and "defaults to the visible Orca orchestration scratch" in r09_place
+        and "not a more recent real repo" in r09_place
+        and "target tab is missing or headless" in r09_judge
+    )
 
     mapping = {
         "R01": (r01_ok, 0, ["skill YAML + preamble + instruction-install tests"] + ([] if r01_ok else orch_miss + cli_miss), unverified_live),
@@ -775,6 +789,7 @@ def stand_in_suite(
         "R06": (r06_ok, 1, ["cliLaunchPresentation omits background; e2e term_visible_e2e"], ["desktop window screenshot"]),
         "R07": (r07_ok, 0, ["real parseExtraAgentArgs + resolveAgentStartupPlanInputs + buildAgentStartupPlan"], ["live Claude after inventory"]),
         "R08": (r08_ok, 0, ["getHeadlessMobileSessionGroupId(folder:) is not headless-terminals:"], ["live reverse worker-start group"]),
+        "R09": (r09_ok, 0, ["--host defaults to visible scratch; expect_tab fails when headless"], ["live S02/S04 tab strip"]),
     }
 
     for sid in wanted:
@@ -930,7 +945,7 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
             )
             write_scenario_files(ev, results[sid])
             continue
-        if sid in ("R07", "R08") and live.get("mode") != "none" and sid in live_results:
+        if sid in ("R07", "R08", "R09") and live.get("mode") != "none" and sid in live_results:
             lr = live_results[sid]
             if not lr.get("pass"):
                 existing = results.get(sid)

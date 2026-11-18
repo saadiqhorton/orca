@@ -44,7 +44,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Blocked startup](./blocked-startup.md) — R03 Hooks need review.
 - [Selector resolve](./selector-resolve.md) — R04 folder:/term_ without `--host`.
 - [Typecheck gate](./typecheck-gate.md) — R05 compile before push.
-- [Visible tabs](./visible-tabs.md) — R06 `--host` surfaces not headless; R08 reverse worker-start.
+- [Visible tabs](./visible-tabs.md) — R06 `--host` surfaces not headless; R08 reverse worker-start; R09 expected tabs must not be headless.
 - [Claude launch after inventory](./claude-launch-after-inventory.md) — R07 Orca-owned Claude argv.
 
 ## Permanent scenario rule
