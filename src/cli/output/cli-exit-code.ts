@@ -7,8 +7,9 @@ const PLUGIN_EXIT_CODES: Readonly<Record<string, number>> = {
 }
 
 // Stable contract for orchestration scripts; documented in docs/site/content/docs/cli/reference.mdx.
+const ORCHESTRATION_COMMAND_FAMILIES = new Set(['orchestration', 'terminal', 'agent', 'host'])
+
 const ORCHESTRATION_EXIT_CODES: Readonly<Record<string, number>> = {
-  invalid_argument: 2,
   host_mismatch: 2,
   unknown_host: 3,
   session_not_found: 3,
@@ -28,5 +29,8 @@ export function cliErrorExitCode(error: unknown, commandPath: readonly string[])
   if (commandPath[0] === 'plugin') {
     return PLUGIN_EXIT_CODES[code] ?? 1
   }
-  return ORCHESTRATION_EXIT_CODES[code] ?? 1
+  if (ORCHESTRATION_COMMAND_FAMILIES.has(commandPath[0] ?? '')) {
+    return ORCHESTRATION_EXIT_CODES[code] ?? 1
+  }
+  return 1
 }

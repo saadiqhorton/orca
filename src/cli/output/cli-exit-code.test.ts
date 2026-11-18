@@ -6,7 +6,7 @@ const orchestration = ['orchestration', 'worker-start']
 
 describe('cliErrorExitCode', () => {
   it.each([
-    ['invalid_argument', 2],
+    ['invalid_argument', 1],
     ['unknown_host', 3],
     ['session_not_found', 3],
     ['host_unreachable', 4],
@@ -23,6 +23,11 @@ describe('cliErrorExitCode', () => {
     expect(cliErrorExitCode(new RuntimeClientError('plugin_invalid', 'x'), plugin)).toBe(2)
     expect(cliErrorExitCode(new RuntimeClientError('approval_stale', 'x'), plugin)).toBe(3)
     expect(cliErrorExitCode(new RuntimeClientError('incompatible_runtime', 'x'), plugin)).toBe(1)
+  })
+
+  it('keeps other commands at exit 1', () => {
+    const browser = ['browser', 'click']
+    expect(cliErrorExitCode(new RuntimeClientError('incompatible_runtime', 'x'), browser)).toBe(1)
   })
 
   it('exits 1 for errors without a code', () => {
