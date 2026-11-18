@@ -63,7 +63,7 @@ export function orchestrationReadinessFor(
 }
 
 export function orchestrationTierTwoAgents(agents: readonly string[]): TuiAgent[] {
-  return (Object.keys(orchestrationTiersFor(agents)) as TuiAgent[]).filter(
-    (agent) => orchestrationTierFor(agent) === 2
-  )
+  return [...new Set(agents)]
+    .filter(isTuiAgent)
+    .filter((agent) => orchestrationTierFor(agent) === 2)
 }

@@ -171,9 +171,12 @@ export function transitionLifecycleWithDb(
     params.entity === 'worker' &&
     params.to !== 'ready' &&
     !(params.projection && 'blocked_reason' in params.projection)
+  const clearedBlockedReason: [string, null][] = clearsBlockedReason
+    ? [['blocked_reason', null]]
+    : []
   const projection: [string, string | number | null][] = [
     ...Object.entries(params.projection ?? {}),
-    ...(clearsBlockedReason ? ([['blocked_reason', null]] as [string, null][]) : [])
+    ...clearedBlockedReason
   ]
   for (const [column] of projection) {
     if (!PROJECTION_COLUMNS.has(column)) {

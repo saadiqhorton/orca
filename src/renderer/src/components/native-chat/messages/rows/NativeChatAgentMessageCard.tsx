@@ -129,10 +129,7 @@ export function NativeChatAgentMessageCard({
           {heading(from, message, t)}
         </span>
         {blockedReason ? (
-          <Badge
-            variant="outline"
-            className="pointer-events-none h-4 min-w-0 px-1.5 text-2xs font-normal border-status-warning-border bg-status-warning-background text-status-warning-text"
-          >
+          <Badge variant="warningLabel" className="pointer-events-none min-w-0">
             {t(
               'components.native-chat.agentMessage.blockedOnPrompt',
               'Blocked on prompt: {{reason}}',
@@ -143,10 +140,7 @@ export function NativeChatAgentMessageCard({
           </Badge>
         ) : null}
         {message.agentPermissionMode ? (
-          <Badge
-            variant="outline"
-            className="pointer-events-none h-4 shrink-0 px-1.5 text-2xs font-normal text-muted-foreground"
-          >
+          <Badge variant="metaLabel" className="pointer-events-none shrink-0">
             {nativeChatPermissionModeLabel(message.agentPermissionMode, t)}
           </Badge>
         ) : null}

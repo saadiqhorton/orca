@@ -117,13 +117,12 @@ function blockedPromptStop(payload: string | null): {
     if (
       parsed &&
       typeof parsed === 'object' &&
-      (parsed as { stopKind?: unknown }).stopKind === 'blocked-on-prompt' &&
-      typeof (parsed as { blockedReason?: unknown }).blockedReason === 'string'
+      'stopKind' in parsed &&
+      parsed.stopKind === 'blocked-on-prompt' &&
+      'blockedReason' in parsed &&
+      typeof parsed.blockedReason === 'string'
     ) {
-      return {
-        stopKind: 'blocked-on-prompt',
-        blockedReason: (parsed as { blockedReason: string }).blockedReason
-      }
+      return { stopKind: 'blocked-on-prompt', blockedReason: parsed.blockedReason }
     }
   } catch {
     // A payload that is not JSON carries no stop.
