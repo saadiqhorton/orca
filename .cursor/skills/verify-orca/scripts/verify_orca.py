@@ -446,6 +446,8 @@ VITEST_FILES = [
     "src/cli/hosts/execution-host-flag.test.ts",
     "src/main/runtime/rpc/methods/agent-launch/agent-launch-first-turn-watch.test.ts",
     "src/main/runtime/rpc/methods/agent-launch/agent-launch-codex-model-gate.test.ts",
+    "src/main/runtime/rpc/methods/agent-launch/agent-launch-replay-codex-gate.test.ts",
+    "src/main/runtime/rpc/methods/orchestration/worker/start/worker-start-blocked-prompt.test.ts",
     "src/main/runtime/rpc/methods/orchestration/worker/stop/worker-stop-missing-folder.test.ts",
     "src/cli/agents/agent-launch-request.test.ts",
     "src/cli/workspaces/worktree-selector-recovery.test.ts",

@@ -142,6 +142,61 @@ class HiddenTabFails(IsolatedEnv):
         self.assertTrue(ok, reasons)
         self.assertTrue(bar["visible_tab"])
 
+    def test_listed_headless_remote_repo_is_visible(self):
+        spec = {"expect_tab": True, "success": {}}
+        cmds = [
+            {
+                "cmd": "orca agent launch --host ubuntu-server-local --json",
+                "exit": 0,
+                "secs": 0.2,
+                "out": "ok",
+            }
+        ]
+        metrics = harness.analyse(cmds, "ok", spec["success"])
+        terms = {
+            "term_x": {
+                "tabId": None,
+                "group": "headless-terminals:folder:fld_clawd",
+                "worktree": "id:repo-clawd::/home/hostb/clawd",
+            }
+        }
+        listed = {"/home/hostb/clawd", "id:repo-clawd"}
+        ok, reasons, bar = harness.judge(spec, {}, "ok", cmds, metrics, 1.0, terms, listed)
+        self.assertTrue(ok, reasons)
+        self.assertTrue(bar["visible_tab"])
+        overlay = live_drive.overlay_from_harness(
+            {
+                "pass": True,
+                "fail_reasons": [],
+                "bar": {"visible_tab": False, "zero_wrong_host": True},
+                "metrics": {"orca_invocations": 1, "ssh_used": [], "wrong_host_errors": []},
+                "new_target_terminals": terms,
+                "listed_workspaces": sorted(listed),
+            },
+            spec,
+            {"out": "ok", "secs": 1.0, "exit": 0},
+            evidence=["listed-headless"],
+        )
+        self.assertTrue(overlay["pass"], overlay["reasons"])
+
+    def test_reverse_s07_listed_headless_tab_is_visible(self):
+        listed = {"/home/hostb/clawd", "id:repo-clawd"}
+        row = {
+            "tabId": None,
+            "group": "headless-terminals:folder:fld_clawd",
+            "worktree": "id:repo-clawd::/home/hostb/clawd",
+        }
+        tab = {**row, "visible": live_drive.tab_is_visible(row, listed)}
+        headless = [
+            t
+            for t in [tab]
+            if not t.get("visible")
+            and str(t.get("group") or "").startswith(live_drive.HEADLESS_PREFIX)
+        ]
+        visible = [t for t in [tab] if t.get("visible")]
+        self.assertTrue(visible)
+        self.assertFalse(headless)
+
     def test_harness_judge_expect_tab_headless_fails(self):
         spec = {"expect_tab": True, "success": {}}
         cmds = [

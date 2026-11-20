@@ -258,12 +258,12 @@ def worktree_is_listed(worktree, listed):
 
 
 def tab_is_visible(tab, listed=None):
+    if worktree_is_listed(tab.get("worktree"), listed):
+        return True
     group = str(tab.get("group") or "")
     if group.startswith("headless"):
         return False
-    if tab.get("tabId"):
-        return True
-    return worktree_is_listed(tab.get("worktree"), listed)
+    return bool(tab.get("tabId"))
 
 
 def host_inventory():
@@ -523,7 +523,8 @@ def main():
     res.update({"wall_s": wall, "completed": bool(sess.get("done")), "timed_out": wall >= a.timeout - 5 and not sess.get("done"),
                 "source_blocked": blocked, "source_handle": source_handle, "final_answer": sess["final"], "commands": sess["commands"],
                 "metrics": metrics, "new_target_terminals": new_terms, "hub_after": hub_after, "pass": ok and not blocked,
-                "fail_reasons": reasons, "bar": bar, "facts": facts})
+                "fail_reasons": reasons, "bar": bar, "facts": facts,
+                "listed_workspaces": sorted(listed) if listed else []})
     # cleanup: never touch terminals that existed before; keep a clearly named demo if asked
     closed = []
     if not a.keep_target_tabs and T:

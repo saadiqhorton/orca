@@ -314,12 +314,12 @@ def worktree_is_listed(worktree: Any, listed: set[str] | None) -> bool:
 
 
 def tab_is_visible(row: dict[str, Any], listed: set[str] | None = None) -> bool:
+    if worktree_is_listed(row.get("worktree"), listed):
+        return True
     group = str(row.get("group") or "")
     if group.startswith(HEADLESS_PREFIX):
         return False
-    if row.get("tabId"):
-        return True
-    return worktree_is_listed(row.get("worktree"), listed)
+    return bool(row.get("tabId"))
 
 
 def visible_new_tabs(
@@ -761,9 +761,13 @@ def reverse_worker_start(ev: Path, host_a: str, host_b: str) -> dict[str, Any]:
     combined = "\n".join(x["out"] for x in (create, send)) + "\n" + list_txt
     (ev / "transcripts" / "r08-reverse-worker-start.log").parent.mkdir(parents=True, exist_ok=True)
     (ev / "transcripts" / "r08-reverse-worker-start.log").write_text(combined)
-    headless = [t for t in tabs if str(t.get("group") or "").startswith(HEADLESS_PREFIX)]
     visible = [t for t in tabs if t.get("visible")]
-    ok = bool(visible) and not headless and not extra_args_violation(combined)
+    headless = [
+        t
+        for t in tabs
+        if not t.get("visible") and str(t.get("group") or "").startswith(HEADLESS_PREFIX)
+    ]
+    ok = bool(visible) and not extra_args_violation(combined)
     return {
         "pass": ok,
         "source_handle": handle,
@@ -849,11 +853,19 @@ def overlay_from_harness(
 ) -> dict[str, Any]:
     """Map harness JSON onto verify-orca. S08 unknown_host + no tab follows harness bar.zero_wrong_host."""
     bar = payload.get("bar") or {}
-    visible_ok = True if not spec.get("expect_tab") else bar.get("visible_tab") is True
+    terms = payload.get("new_target_terminals") or {}
+    listed = set(payload.get("listed_workspaces") or [])
+    if spec.get("expect_tab"):
+        if isinstance(terms, dict) and terms:
+            visible_ok = any(tab_is_visible(t, listed) for t in terms.values() if isinstance(t, dict))
+        else:
+            visible_ok = bar.get("visible_tab") is True
+    else:
+        visible_ok = True
     passed = bool(payload.get("pass")) and visible_ok
     reasons = list(payload.get("fail_reasons") or [])
     if spec.get("expect_tab") and not visible_ok:
-        reasons.append("target tab group is missing or starts with headless-terminals:")
+        reasons.append("target tab is missing, not listed on the desktop, or headless")
     if extra_args_violation(extra_out + json.dumps(payload)):
         passed = False
         reasons.append("Claude extra-args allowlist / agent_session_operation_unknown")
