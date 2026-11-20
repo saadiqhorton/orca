@@ -266,6 +266,8 @@ export const AGENT_LAUNCH_METHODS = [
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
+      // CLI always sends launchReplay; gate before admission so gpt-6-luna on 0.154 is refused, not recorded.
+      await assertRequestedCodexModelSupported(requested)
       const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, context)
       try {
         return withSessionPlacement(

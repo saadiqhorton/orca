@@ -1,7 +1,8 @@
 import type { AgentLaunchResult } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
 import {
   agentTurnFailedBlockedReason,
-  classifyAgentLaunchFirstTurnFailure
+  classifyAgentLaunchFirstTurnFailure,
+  isAgentFirstTurnActivity
 } from '../../../../../shared/orchestration/agent-launch-first-turn'
 
 const FIRST_TURN_WATCH_MS = 3_000
@@ -11,6 +12,14 @@ type TerminalReader = {
     handle: string,
     opts?: { screen?: boolean }
   ) => Promise<{ tail?: unknown; screen?: unknown; text?: string }>
+  getTerminalProcessIncarnation?: (handle: string) => unknown
+}
+
+function terminalHasExited(runtime: TerminalReader, handle: string): boolean {
+  return (
+    typeof runtime.getTerminalProcessIncarnation === 'function' &&
+    runtime.getTerminalProcessIncarnation(handle) == null
+  )
 }
 
 export async function watchTerminalFirstTurnFailure(
@@ -22,24 +31,26 @@ export async function watchTerminalFirstTurnFailure(
     return null
   }
   const deadline = now() + FIRST_TURN_WATCH_MS
+  let lastOutput = ''
   while (now() <= deadline) {
-    let output = ''
+    let output = lastOutput
     try {
       const read = await runtime.readTerminal(handle, { screen: true })
       output = flattenTerminalRead(read)
+      lastOutput = output
     } catch {
-      return null
+      return classifyAgentLaunchFirstTurnFailure(lastOutput)
     }
     const reason = classifyAgentLaunchFirstTurnFailure(output)
     if (reason) {
       return reason
     }
-    if (output.trim().length > 0) {
+    if (isAgentFirstTurnActivity(output) || terminalHasExited(runtime, handle)) {
       return null
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  return null
+  return classifyAgentLaunchFirstTurnFailure(lastOutput)
 }
 
 export async function watchAgentLaunchFirstTurn(

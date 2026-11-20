@@ -8,6 +8,9 @@ const FATAL_PATTERNS: readonly { reason: string; pattern: RegExp }[] = [
   { reason: 'invalid_model', pattern: /\binvalid[_ ]model\b/i }
 ]
 
+/** Real turn work — not the Codex banner that prints before a 400. */
+const FIRST_TURN_ACTIVITY = /\b(?:thinking|exploring|i'll|i will|tokens?\s+used|tool[_ ]calls?)\b/i
+
 export function classifyAgentLaunchFirstTurnFailure(output: string): string | null {
   const text = output.trim()
   if (!text) {
@@ -22,6 +25,14 @@ export function classifyAgentLaunchFirstTurnFailure(output: string): string | nu
     return 'model_not_found'
   }
   return null
+}
+
+export function isAgentFirstTurnActivity(output: string): boolean {
+  const text = output.trim()
+  if (!text || classifyAgentLaunchFirstTurnFailure(text)) {
+    return false
+  }
+  return FIRST_TURN_ACTIVITY.test(text)
 }
 
 export function agentTurnFailedBlockedReason(reason: string): string {

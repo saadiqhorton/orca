@@ -41,4 +41,24 @@ describe('throwIfWorkerFirstTurnFailed', () => {
       )
     ).resolves.toBeUndefined()
   })
+
+  it('fails a worker when model_not_found arrives after the Codex banner', async () => {
+    const screens = [
+      '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task',
+      '>_ OpenAI Codex (v0.154.0)\nERROR: 400 model_not_found gpt-6-luna'
+    ]
+    let i = 0
+    await expect(
+      throwIfWorkerFirstTurnFailed(
+        {
+          readTerminal: async () => ({
+            text: screens[Math.min(i++, screens.length - 1)] ?? screens[0]!
+          })
+        },
+        'term_worker'
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_blocked_on_prompt'
+    })
+  })
 })

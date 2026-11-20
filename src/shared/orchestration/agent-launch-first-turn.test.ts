@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   agentTurnFailedBlockedReason,
-  classifyAgentLaunchFirstTurnFailure
+  classifyAgentLaunchFirstTurnFailure,
+  isAgentFirstTurnActivity
 } from './agent-launch-first-turn'
+
+const CODEX_BANNER = `>_ OpenAI Codex (v0.154.0)
+  model: gpt-6-luna
+  To get started, describe a task`
 
 describe('classifyAgentLaunchFirstTurnFailure', () => {
   it('treats Codex model_not_found as a fatal first turn', () => {
@@ -19,5 +24,14 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
   it('ignores ordinary agent output', () => {
     expect(classifyAgentLaunchFirstTurnFailure('thinking about the repo')).toBeNull()
     expect(classifyAgentLaunchFirstTurnFailure('')).toBeNull()
+  })
+
+  it('does not treat the Codex banner as a fatal error or as turn activity', () => {
+    expect(classifyAgentLaunchFirstTurnFailure(CODEX_BANNER)).toBeNull()
+    expect(isAgentFirstTurnActivity(CODEX_BANNER)).toBe(false)
+  })
+
+  it('treats thinking as first-turn activity', () => {
+    expect(isAgentFirstTurnActivity('thinking about the repo')).toBe(true)
   })
 })

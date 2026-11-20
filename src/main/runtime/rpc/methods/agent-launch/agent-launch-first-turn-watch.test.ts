@@ -39,4 +39,24 @@ describe('watchAgentLaunchFirstTurn', () => {
     )
     expect(result.prompt?.outcome).toBe('handed-to-terminal')
   })
+
+  it('fails when model_not_found arrives after the Codex banner', async () => {
+    const screens = [
+      '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task',
+      '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\nERROR: 400 model_not_found gpt-6-luna'
+    ]
+    let i = 0
+    const result = await watchAgentLaunchFirstTurn(
+      {
+        readTerminal: async () => ({
+          text: screens[Math.min(i++, screens.length - 1)] ?? screens[0]!
+        })
+      },
+      launched()
+    )
+    expect(result.prompt).toMatchObject({
+      outcome: 'agent_blocked_on_prompt',
+      blockedReason: 'agent_turn_failed:model_not_found'
+    })
+  })
 })
