@@ -996,7 +996,7 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
     )
     for sid in wanted:
         spec = specs[sid]
-        if sid.startswith("S"):
+        if sid.startswith("S") or sid in ("R10", "R11", "R12", "R13", "R14", "R15"):
             lr = live_results.get(sid)
             if not lr:
                 lr = {

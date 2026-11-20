@@ -222,7 +222,56 @@ def analyse(cmds, final, prompt_text):
             "hangs_over_60s": hangs, "ssh_used": ssh}
 
 
-def judge(spec, facts, final, cmds, metrics, wall, new_target_terms):
+def desktop_listed_workspaces(inv):
+    listed = set()
+    hosts = (inv or {}).get("hosts") or (inv or {}).get("result", {}).get("hosts") or []
+    for host in hosts if isinstance(hosts, list) else []:
+        if not isinstance(host, dict):
+            continue
+        body = host.get("inventory") if isinstance(host.get("inventory"), dict) else host
+        for repo in body.get("repos") or []:
+            if not isinstance(repo, dict):
+                continue
+            for key in ("path", "selector", "id", "name"):
+                if repo.get(key):
+                    listed.add(str(repo[key]))
+            if repo.get("id"):
+                listed.add("id:" + str(repo["id"]))
+        for folder in body.get("folderWorkspaces") or []:
+            if not isinstance(folder, dict):
+                continue
+            for key in ("path", "selector", "id", "name"):
+                if folder.get(key):
+                    listed.add(str(folder[key]))
+            if folder.get("id"):
+                listed.add("folder:" + str(folder["id"]))
+    return listed
+
+
+def worktree_is_listed(worktree, listed):
+    wt = str(worktree or "")
+    if not wt or not listed:
+        return False
+    if wt in listed:
+        return True
+    return any(token and (token in wt or wt in token) for token in listed)
+
+
+def tab_is_visible(tab, listed=None):
+    group = str(tab.get("group") or "")
+    if group.startswith("headless"):
+        return False
+    if tab.get("tabId"):
+        return True
+    return worktree_is_listed(tab.get("worktree"), listed)
+
+
+def host_inventory():
+    r = orca(["host", "inventory", "--json"], timeout=40)
+    return jparse(r["out"]) or {}
+
+
+def judge(spec, facts, final, cmds, metrics, wall, new_target_terms, listed=None):
     s = spec.get("success", {})
     fin = final or ""
     reasons = []
@@ -264,10 +313,7 @@ def judge(spec, facts, final, cmds, metrics, wall, new_target_terms):
             reasons.append("unknown host created a tab")
     visible_tab = None
     if spec.get("expect_tab"):
-        visible_tab = any(
-            t.get("tabId") and not str(t.get("group") or "").startswith("headless")
-            for t in new_target_terms.values()
-        )
+        visible_tab = any(tab_is_visible(t, listed) for t in new_target_terms.values())
         if not visible_tab:
             ok = False
             reasons.append("target tab is missing or headless")
@@ -470,7 +516,8 @@ def main():
         if h not in new_terms:
             new_terms[h] = dict(v, gone_by_end=True)
     metrics = analyse(sess["commands"], sess["final"], spec["text"])
-    ok, reasons, bar = judge(spec, facts, sess["final"], sess["commands"], metrics, wall, new_terms)
+    listed = desktop_listed_workspaces(host_inventory()) if spec.get("expect_tab") else None
+    ok, reasons, bar = judge(spec, facts, sess["final"], sess["commands"], metrics, wall, new_terms, listed)
     if blocked:
         reasons.append("source agent blocked on startup dialog: %s" % blocked["reason"])
     res.update({"wall_s": wall, "completed": bool(sess.get("done")), "timed_out": wall >= a.timeout - 5 and not sess.get("done"),

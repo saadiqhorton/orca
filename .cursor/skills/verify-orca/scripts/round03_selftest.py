@@ -119,6 +119,29 @@ class S08RefusalIsPass(IsolatedEnv):
 
 
 class HiddenTabFails(IsolatedEnv):
+    def test_listed_remote_repo_without_tab_id_is_visible(self):
+        spec = {"expect_tab": True, "success": {}}
+        cmds = [
+            {
+                "cmd": "orca agent launch --host ubuntu-server-local --json",
+                "exit": 0,
+                "secs": 0.2,
+                "out": "ok",
+            }
+        ]
+        metrics = harness.analyse(cmds, "ok", spec["success"])
+        terms = {
+            "term_x": {
+                "tabId": None,
+                "group": "dockhand-group",
+                "worktree": "id:repo-clawd::/home/hostb/clawd",
+            }
+        }
+        listed = {"/home/hostb/clawd", "id:repo-clawd"}
+        ok, reasons, bar = harness.judge(spec, {}, "ok", cmds, metrics, 1.0, terms, listed)
+        self.assertTrue(ok, reasons)
+        self.assertTrue(bar["visible_tab"])
+
     def test_harness_judge_expect_tab_headless_fails(self):
         spec = {"expect_tab": True, "success": {}}
         cmds = [
