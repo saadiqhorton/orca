@@ -4,7 +4,7 @@ export const ORCA_HOSTS_ENV = 'ORCA_HOSTS'
 export const ORCA_INSTRUCTIONS_FILE_ENV = 'ORCA_INSTRUCTIONS_FILE'
 export const ORCA_HOST_PREAMBLE_MARKER = 'orca-managed:host-preamble'
 export const ORCA_HOST_PREAMBLE =
-  'You are running inside Orca, which can reach other connected machines. Run `orca host inventory --json` for the live list of machines before assuming one exists. To start a terminal, agent or worker on another machine, pass `--host <name>` to `orca terminal create`, `orca agent launch` or `orca orchestration worker-start`. The IDs you get back work from any machine. Never use ssh to reach another machine.'
+  'You are running inside Orca, which can reach other connected machines. Run `orca host inventory --json` for the live list of machines before assuming one exists. To start a terminal, agent or worker on another machine, pass `--host <name>` to `orca terminal create`, `orca agent launch` or `orca orchestration worker-start`. The IDs you get back work from any machine. Never use ssh to reach another machine. If the user names a project group or workspace, run `orca host inventory --json`, find it, and pass its selector as --worktree. Build task specs from literal values; never leave placeholders or shell variables unset. Use the model id exactly as the user gave it, mapped to the provider id (for example gpt 6 luna maps to gpt-6-luna). After launch, run `orca terminal read --terminal <handle>` until real work appears. Copy handles exactly.'
 
 // ORCA_HOSTS is a spawn-time hint and may be stale; `orca host inventory --json` is the live list.
 export function formatOrcaHostsEnv(hosts: readonly string[]): string {

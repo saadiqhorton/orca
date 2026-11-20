@@ -46,6 +46,12 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Typecheck gate](./typecheck-gate.md) — R05 compile before push.
 - [Visible tabs](./visible-tabs.md) — R06 `--host` surfaces not headless; R08 reverse worker-start; R09 expected tabs must not be headless.
 - [Claude launch after inventory](./claude-launch-after-inventory.md) — R07 Orca-owned Claude argv.
+- [Group target](./group-target.md) — R10 `--group` / `group:` selector.
+- [Placement order](./placement-order.md) — R11 named → same-group → scratch.
+- [Scratch persist](./scratch-persist.md) — R12 reuse `~/orca-orchestration` on managed SSH.
+- [Stop recovery](./stop-recovery.md) — R13 missing-folder stop and `--retry-of`.
+- [First-turn status](./first-turn-status.md) — R14 fatal first turn is not launch success.
+- [Host same machine](./host-same-machine.md) — R15 `--host` prefers the paired server.
 
 ## Permanent scenario rule
 

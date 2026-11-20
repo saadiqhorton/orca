@@ -3,14 +3,9 @@
  * operationId adds durable at-most-once execution and recorded replay; unknown outcomes refuse, while stranded-surface recovery remains separate. */
 
 import { agentLaunchFeatureRequirement } from '../../startup/agent-launch-feature-requirement'
-import { AgentLaunchTabClosedError } from '../../../../../shared/agent-launch/contracts/agent-launch-tab-closed'
 import { computeAgentLaunchFingerprint } from '../../../../../shared/agent-launch/contracts/agent-launch-operation'
 import type { AgentLaunchResult } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
 import { agentSessionOperationKey } from '../../../../../shared/agent-session/lifecycle/agent-session-operation-ledger'
-import {
-  WorktreeCreateCollisionError,
-  WORKTREE_CREATE_COLLISION_CODE
-} from '../../../../../shared/new-workspace/worktree-create-collision'
 import { executeAgentLaunch } from '../../../../agent-launch/agent-launch-executor'
 import { trackTerminalSpawnDispatch } from '../../../../agent-launch/agent-launch-not-started'
 import type { OrcaRuntimeService } from '../../../orca-runtime'
@@ -23,7 +18,8 @@ import {
 import {
   AgentLaunchExecutionError,
   agentLaunchRefusalError,
-  agentLaunchTabClosedAnswer,
+  rethrowOptionalIdentityLaunchError,
+  rethrowRecordedAgentLaunchError,
   settleLaunchWhoseTabWasClosed,
   settleQuietly,
   withEarlyTab
@@ -48,7 +44,12 @@ import {
 import { agentLaunchWorkspaceFactory } from './agent-launch-worktree-creation'
 import { supportsAgentLaunch } from './agent-launch-target-authorization'
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
-import { placeAuthorizedAgentLaunch } from './agent-launch-orchestration-placement'
+import {
+  placeAuthorizedAgentLaunch,
+  withSessionPlacement
+} from './agent-launch-orchestration-placement'
+import { watchAgentLaunchFirstTurn } from './agent-launch-first-turn-watch'
+import { assertCodexModelSupported } from './agent-launch-codex-model-gate'
 import {
   publishEarlyTab,
   withPlacement,
@@ -66,6 +67,7 @@ async function runAgentLaunch(
   replaySafe?: ReplaySafeLaunch
 ): Promise<AgentLaunchResult> {
   const callerNavigationId = agentLaunchCallerNavigationId(intent.target, context)
+  await assertCodexModelSupported(intent)
   const result = await executeAgentLaunch({
     runtime: context.runtime,
     intent,
@@ -91,7 +93,7 @@ async function runAgentLaunch(
       selectLaunchedTab(context, surface, view.presentation, callerNavigationId)
     }
   })
-  return withPlacement(result, view)
+  return watchAgentLaunchFirstTurn(context.runtime, withPlacement(result, view))
 }
 
 /** Legacy unnamed launches retain the 60-second create dedupe cache (repo/mutation id, no caller partition).
@@ -265,26 +267,14 @@ export const AGENT_LAUNCH_METHODS = [
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
-      const params = await placeAuthorizedAgentLaunch(requested, context)
+      const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, context)
       try {
-        return await runReplaySafeAgentLaunch(params, context)
+        return withSessionPlacement(
+          await runReplaySafeAgentLaunch(params, context),
+          sessionPlacement
+        )
       } catch (error) {
-        // Nested failures cannot authorize another workspace, regardless of their message or code.
-        if (error instanceof AgentLaunchExecutionError) {
-          if (error.cause instanceof WorktreeCreateCollisionError) {
-            throw Object.assign(new Error(error.cause.message, { cause: error.cause }), {
-              code: WORKTREE_CREATE_COLLISION_CODE
-            })
-          }
-          if (error.cause instanceof AgentLaunchTabClosedError) {
-            throw agentLaunchTabClosedAnswer(context)
-          }
-          if (error.failedWithoutEffects) {
-            throw error.cause
-          }
-          throw new Error('agent_session_operation_unknown', { cause: error.cause })
-        }
-        throw error
+        rethrowRecordedAgentLaunchError(error, context)
       }
     }
   }),
@@ -307,17 +297,11 @@ export async function launchAgentOnHost(
   if (!supportsAgentLaunch(host)) {
     throw new Error('agent_launch_unsupported')
   }
-  const params = await placeAuthorizedAgentLaunch(requested, host)
+  const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, host)
   if (!operationId) {
-    return runLegacyAgentLaunch(params, host)
+    return withSessionPlacement(await runLegacyAgentLaunch(params, host), sessionPlacement)
   }
-  return runReplaySafeAgentLaunch({ ...params, operationId }, host).catch((error: unknown) => {
-    // Preserve the original error contract for callers of the optional-identity method.
-    if (error instanceof AgentLaunchExecutionError) {
-      throw error.cause instanceof AgentLaunchTabClosedError
-        ? agentLaunchTabClosedAnswer(host)
-        : error.cause
-    }
-    throw error
-  })
+  return runReplaySafeAgentLaunch({ ...params, operationId }, host)
+    .then((result) => withSessionPlacement(result, sessionPlacement))
+    .catch((error: unknown) => rethrowOptionalIdentityLaunchError(error, host))
 }

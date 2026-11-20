@@ -1,0 +1,68 @@
+import type { AgentLaunchResult } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
+import {
+  agentTurnFailedBlockedReason,
+  classifyAgentLaunchFirstTurnFailure
+} from '../../../../../shared/orchestration/agent-launch-first-turn'
+
+const FIRST_TURN_WATCH_MS = 3_000
+
+type TerminalReader = {
+  readTerminal?: (
+    handle: string,
+    opts?: { screen?: boolean }
+  ) => Promise<{ tail?: unknown; screen?: unknown; text?: string }>
+}
+
+export async function watchAgentLaunchFirstTurn(
+  runtime: TerminalReader,
+  result: AgentLaunchResult,
+  now = Date.now
+): Promise<AgentLaunchResult> {
+  const prompt = result.prompt
+  if (
+    result.outcome.kind !== 'terminal' ||
+    prompt?.outcome === 'agent_blocked_on_prompt' ||
+    prompt?.outcome === 'timed_out' ||
+    !runtime.readTerminal
+  ) {
+    return result
+  }
+  const handle = result.outcome.handle
+  const deadline = now() + FIRST_TURN_WATCH_MS
+  while (now() <= deadline) {
+    let output = ''
+    try {
+      const read = await runtime.readTerminal(handle, { screen: true })
+      output = flattenTerminalRead(read)
+    } catch {
+      return result
+    }
+    const reason = classifyAgentLaunchFirstTurnFailure(output)
+    if (reason) {
+      return {
+        ...result,
+        prompt: {
+          delivery: prompt?.delivery ?? 'submit',
+          outcome: 'agent_blocked_on_prompt',
+          blockedReason: agentTurnFailedBlockedReason(reason),
+          next: `The agent failed on its first turn (${reason}). This launch is not success; the tab may still be open.`
+        }
+      }
+    }
+    if (output.trim().length > 0) {
+      return result
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return result
+}
+
+function flattenTerminalRead(read: { tail?: unknown; screen?: unknown; text?: string }): string {
+  if (typeof read.text === 'string') {
+    return read.text
+  }
+  return [read.screen, read.tail]
+    .flatMap((value) => (Array.isArray(value) ? value : value == null ? [] : [value]))
+    .map((chunk) => (typeof chunk === 'string' ? chunk : JSON.stringify(chunk)))
+    .join('\n')
+}

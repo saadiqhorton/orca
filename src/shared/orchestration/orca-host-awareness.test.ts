@@ -13,6 +13,11 @@ describe('orca host awareness copy', () => {
     const preamble = formatOrcaHostPreamble()
     expect(preamble).toContain('Never use ssh')
     expect(preamble).toContain('orca host inventory --json')
+    expect(preamble).toContain('pass its selector as --worktree')
+    expect(preamble).toContain('never leave placeholders or shell variables unset')
+    expect(preamble).toContain('gpt 6 luna maps to gpt-6-luna')
+    expect(preamble).toContain('orca terminal read --terminal')
+    expect(preamble).toContain('Copy handles exactly')
     expect(preamble).not.toMatch(/Host list as of|Connected machines/)
     expect(formatOrcaHostsEnv(['dockhand', 'ubuntu-server-local'])).toBe(
       'dockhand,ubuntu-server-local'

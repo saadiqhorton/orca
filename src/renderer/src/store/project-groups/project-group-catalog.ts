@@ -9,6 +9,8 @@ import {
   mergeByIdentity,
   unchangedMergeSource
 } from '../../lib/catalog-reconciliation/catalog-identity'
+import { preserveCatalogOnEmptyFetch } from '../../../../shared/orchestration/host-catalog-empty-fetch'
+import { ORCHESTRATION_SCRATCH_GROUP_NAME } from '../../../../shared/orchestration/orchestration-scratch-workspace'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 export type FetchedProjectGroupCatalog = {
@@ -25,12 +27,17 @@ function mergeFetchedProjectGroupsForHost(
   fetched: ProjectGroup[],
   hostId: string
 ): readonly ProjectGroup[] {
+  const preservedEmpty = preserveCatalogOnEmptyFetch(previous, fetched)
+  if (preservedEmpty) {
+    return preservedEmpty
+  }
   const fetchedIdentities = new Set(fetched.map(getProjectGroupHostIdentity))
   const preserved = previous.filter((group) => {
     const existingHostId = getRepoExecutionHostId(group)
     return (
       !catalogOwnsHost(hostId, existingHostId) ||
-      fetchedIdentities.has(getProjectGroupHostIdentity(group))
+      fetchedIdentities.has(getProjectGroupHostIdentity(group)) ||
+      group.name === ORCHESTRATION_SCRATCH_GROUP_NAME
     )
   })
   return unchangedMergeSource(

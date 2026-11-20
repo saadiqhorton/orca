@@ -83,7 +83,13 @@ export async function crossHostE2eCallHost(args: {
       agents: ['claude', 'codex'],
       projects: [{ id: 'grp_e2e', name: 'Orca orchestration', parentPath: args.worktree }],
       folderWorkspaces: [
-        { id: 'fld_e2e', name: 'scratch', path: args.worktree, projectGroupId: 'grp_e2e' }
+        {
+          id: 'fld_e2e',
+          name: 'scratch',
+          path: args.worktree,
+          projectGroupId: 'grp_e2e',
+          selector: 'folder:fld_e2e'
+        }
       ],
       repos: [
         {

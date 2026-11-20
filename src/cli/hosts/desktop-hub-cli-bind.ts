@@ -14,6 +14,9 @@ import {
   routeTerminalHandlesToOwner
 } from './desktop-hub-selector-resolve'
 import { warnIfLaunchPromptLooksSecret } from '../agents/agent-launch-secret-prompt'
+import { applyGroupWorktreeFlag } from './orchestration-group-flag'
+import { formatSameGroupWorktreeSelector } from '../../shared/orchestration/orchestration-group-selector'
+import { readCallerProjectGroupName } from './caller-project-group'
 
 type ScratchWorkspace = {
   path: string
@@ -45,8 +48,12 @@ async function applyBoundHubDefaults(
   host: string,
   json: boolean
 ): Promise<{ commandPath: string[]; printed: boolean }> {
+  applyGroupWorktreeFlag(flags)
   if (needsDefaultRemoteWorktree(commandPath, flags)) {
-    if (await hostPlacesOrchestrationSessions(client)) {
+    const callerGroup = flags.get('caller-project-group')
+    if (typeof callerGroup === 'string' && callerGroup.trim()) {
+      flags.set('worktree', formatSameGroupWorktreeSelector(callerGroup.trim()))
+    } else if (await hostPlacesOrchestrationSessions(client)) {
       flags.set(ORCHESTRATION_SESSION_PLACEMENT_FLAG, true)
     } else {
       await applyScratchWorktreeDefault(flags, client)
@@ -118,6 +125,17 @@ export async function prepareDesktopHubCliClient(
   warnIfLaunchPromptLooksSecret(flags)
   let nextClient = client
   let nextPath = commandPath
+  if (
+    shouldWrapDesktopHubHost(commandPath, flags) &&
+    needsDefaultRemoteWorktree(commandPath, flags)
+  ) {
+    const callerGroup = await readCallerProjectGroupName(client, process.cwd()).catch(
+      () => undefined
+    )
+    if (callerGroup) {
+      flags.set('caller-project-group', callerGroup)
+    }
+  }
   const handleRoute = await routeTerminalHandlesToOwner(client, commandPath, flags)
   if (handleRoute.client) {
     return { client: handleRoute.client, commandPath, printed: false }

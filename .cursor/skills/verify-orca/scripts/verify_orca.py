@@ -437,6 +437,18 @@ VITEST_FILES = [
     "src/cli/agents/cli-launch-presentation.test.ts",
     "src/main/runtime/rpc/methods/orchestration/surface/ensure-orchestration-scratch.test.ts",
     "src/main/runtime/rpc/methods/orchestration/surface/orchestration-session-placement.test.ts",
+    "src/main/runtime/rpc/methods/orchestration/surface/orchestration-surface-inventory.test.ts",
+    "src/shared/orchestration/orchestration-group-selector.test.ts",
+    "src/shared/orchestration/host-same-machine.test.ts",
+    "src/shared/orchestration/agent-launch-first-turn.test.ts",
+    "src/shared/orchestration/codex-model-version-gate.test.ts",
+    "src/shared/orchestration/host-catalog-empty-fetch.test.ts",
+    "src/cli/hosts/execution-host-flag.test.ts",
+    "src/main/runtime/rpc/methods/agent-launch/agent-launch-first-turn-watch.test.ts",
+    "src/main/runtime/rpc/methods/agent-launch/agent-launch-codex-model-gate.test.ts",
+    "src/main/runtime/rpc/methods/orchestration/worker/stop/worker-stop-missing-folder.test.ts",
+    "src/cli/agents/agent-launch-request.test.ts",
+    "src/cli/workspaces/worktree-selector-recovery.test.ts",
     "src/cli/agents/agent-launch-process.test.ts",
     "src/cli/output/cli-exit-code.test.ts",
     "src/cli/discovery/root-help-text.test.ts",
@@ -731,7 +743,19 @@ def stand_in_suite(
     ]
     orch_miss = grep_ok(orch, trigger_needles)
     cli_miss = grep_ok(cli, trigger_needles)
-    preamble_ok = all(s in preamble_src for s in ("Never use ssh", "orca host inventory --json", "You are running inside Orca"))
+    preamble_ok = all(
+        s in preamble_src
+        for s in (
+            "Never use ssh",
+            "orca host inventory --json",
+            "You are running inside Orca",
+            "pass its selector as --worktree",
+            "never leave placeholders or shell variables unset",
+            "gpt 6 luna maps to gpt-6-luna",
+            "orca terminal read --terminal",
+            "Copy handles exactly",
+        )
+    )
     r01_ok = not orch_miss and not cli_miss and preamble_ok and vt_ok
     r02_ok = (
         vt_ok
@@ -779,6 +803,63 @@ def stand_in_suite(
         and "not a more recent real repo" in r09_place
         and "target tab is missing or headless" in r09_judge
     )
+    r10_src = root / "src/shared/orchestration/orchestration-group-selector.test.ts"
+    r10_ok = (
+        vt_ok
+        and path_exists(r10_src)
+        and 'group:"dockhand group"' in (read_text_safe(r10_src) or "")
+        and "places --worktree group:" in r09_place
+    )
+    r11_ok = (
+        vt_ok
+        and "uses a same-named group on the target host" in r09_place
+        and "placement.source" in (read_text_safe(root / "src/cli/agents/agent-launch-request.ts") or "")
+        and "source: 'named' | 'same-group' | 'scratch'" in (
+            read_text_safe(root / "src/main/runtime/rpc/methods/orchestration/surface/orchestration-session-placement.ts") or ""
+        )
+    )
+    r12_src = root / "src/main/runtime/rpc/methods/orchestration/surface/ensure-orchestration-scratch.test.ts"
+    r12_e2e = read_text_safe(
+        root / "src/main/runtime/orchestration/desktop-hub/desktop-hub-e2e-scenario.ts"
+    ) or ""
+    r12_ok = (
+        vt_ok
+        and "reuses the scratch folder by path even when listings hide it" in (read_text_safe(r12_src) or "")
+        and "fld_persist" in (read_text_safe(r12_src) or "")
+        and "preserveCatalogOnEmptyFetch" in (
+            read_text_safe(root / "src/renderer/src/store/folder-workspaces/folder-workspace-catalog.ts") or ""
+        )
+        and "scratch reuse" in r12_e2e
+        and "folderWorkspaces lists" in r12_e2e
+    )
+    r13_src = root / "src/main/runtime/rpc/methods/orchestration/worker/stop/worker-stop-missing-folder.ts"
+    r13_claim = read_text_safe(root / "src/main/runtime/orchestration/db/tasks/task-start-claim.ts") or ""
+    r13_ok = (
+        vt_ok
+        and path_exists(r13_src)
+        and "shouldSettleMissingWorkerStop" in (read_text_safe(r13_src) or "")
+        and "stop_unknown" in r13_claim
+        and "--retry-of" in r13_claim
+    )
+    r14_src = root / "src/shared/orchestration/agent-launch-first-turn.ts"
+    r14_ok = (
+        vt_ok
+        and path_exists(r14_src)
+        and "agent_turn_failed" in (read_text_safe(r14_src) or "")
+        and "model_not_found" in (read_text_safe(r14_src) or "")
+        and "watchAgentLaunchFirstTurn" in (
+            read_text_safe(root / "src/main/runtime/rpc/methods/agent-launch/agent-launch.ts") or ""
+        )
+    )
+    r15_src = root / "src/shared/orchestration/host-same-machine.ts"
+    r15_ok = (
+        vt_ok
+        and path_exists(r15_src)
+        and "preferPairedServerForSameMachine" in (read_text_safe(r15_src) or "")
+        and "192.168.1.35" in (
+            read_text_safe(root / "src/cli/hosts/execution-host-flag.test.ts") or ""
+        )
+    )
 
     mapping = {
         "R01": (r01_ok, 0, ["skill YAML + preamble + instruction-install tests"] + ([] if r01_ok else orch_miss + cli_miss), unverified_live),
@@ -790,6 +871,12 @@ def stand_in_suite(
         "R07": (r07_ok, 0, ["real parseExtraAgentArgs + resolveAgentStartupPlanInputs + buildAgentStartupPlan"], ["live Claude after inventory"]),
         "R08": (r08_ok, 0, ["getHeadlessMobileSessionGroupId(folder:) is not headless-terminals:"], ["live reverse worker-start group"]),
         "R09": (r09_ok, 0, ["--host defaults to visible scratch; expect_tab fails when headless"], ["live S02/S04 tab strip"]),
+        "R10": (r10_ok, 0, ["group: selector resolves a unique workspace or lists candidates"], ["live --group on clawd"]),
+        "R11": (r11_ok, 0, ["named → same-group → scratch placement.source"], ["live Hawser/clawd same-group"]),
+        "R12": (r12_ok, 0, ["scratch reused by path; empty catalog fetch preserves host rows; e2e two ensureScratch keep folder:fld_e2e"], ["live managed-SSH two-launch folder id"]),
+        "R13": (r13_ok, 0, ["missing folder stop settles; stop_unknown offers --retry-of"], ["live worker-stop after vanished folder"]),
+        "R14": (r14_ok, 0, ["first-turn model_not_found is agent_blocked_on_prompt, non-zero"], ["live Codex 0.154 model_not_found"]),
+        "R15": (r15_ok, 0, ["--host prefers paired server when SSH names the same machine"], ["live desktop --host dockhand"]),
     }
 
     for sid in wanted:

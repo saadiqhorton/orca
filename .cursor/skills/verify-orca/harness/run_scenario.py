@@ -355,6 +355,23 @@ def scripted(sid, spec, facts, env, title, before=None):
             run(["orchestration", "worker-stop", "--host", T, "--dispatch", d])
     elif sid == "S08":
         r = run(["agent", "launch", "--host", T, "--agent", "claude", "--prompt", "hello", "--json"], timeout=150); final = r["out"]
+    elif sid == "R10":
+        r = run(["terminal", "create", "--host", T, "--worktree", 'group:"dockhand group"', "--json"])
+        final = r["out"]
+    elif sid == "R11":
+        r = run(["agent", "launch", "--host", T, "--agent", "claude", "--prompt", "print hostname", "--json"])
+        final = r["out"]
+    elif sid == "R12":
+        r1 = run(["terminal", "create", "--host", T, "--json"])
+        r2 = run(["terminal", "create", "--host", T, "--json"])
+        inv = run(["host", "inventory", "--json"])
+        final = r1["out"] + "\n" + r2["out"] + "\n" + inv["out"]
+    elif sid == "R13":
+        r = run(["orchestration", "worker-start", "--help"]); final = r["out"]
+    elif sid == "R14":
+        r = run(["agent", "launch", "--help"]); final = r["out"]
+    elif sid == "R15":
+        r = run(["terminal", "create", "--host", T or "dockhand", "--json"]); final = r["out"]
     cmds = [{"cmd": x["cmd"], "exit": x["exit"], "secs": x["secs"], "out": x["out"][:4000], "ts": ""} for x in log]
     return {"commands": cmds, "final": final, "done": True, "messages": [final]}
 

@@ -97,7 +97,7 @@ export function needsDefaultRemoteWorktree(
   commandPath: readonly string[],
   flags: ReadonlyMap<string, string | boolean>
 ): boolean {
-  if (flags.has('worktree')) {
+  if (flags.has('worktree') || flags.has('group')) {
     return false
   }
   const key = commandPath.join(' ')

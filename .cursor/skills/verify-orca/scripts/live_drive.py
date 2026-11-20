@@ -922,7 +922,7 @@ def box_drive(
             f"--worktree {wt} --round verify --env-name rig --fact {facts} "
             f"--fact target_agent=claude --fact stub=1 --out {remote_out}"
         )
-        if sid in ("R07", "R08", "R09"):
+        if sid in ("R07", "R08", "R09", "R10", "R11", "R12", "R13", "R14", "R15"):
             continue
         r = run([*ssh, src, cmd], timeout=480)
         pull = run([*ssh, src, f"cat {remote_out}.json"], timeout=30)

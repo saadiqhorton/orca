@@ -31,6 +31,8 @@ import {
   mergeByIdentity,
   unchangedMergeSource
 } from '../../lib/catalog-reconciliation/catalog-identity'
+import { preserveCatalogOnEmptyFetch } from '../../../../shared/orchestration/host-catalog-empty-fetch'
+import { ORCHESTRATION_SCRATCH_ROOT_DIR } from '../../../../shared/orchestration/orchestration-scratch-workspace'
 
 export type FetchedFolderWorkspaceCatalog = {
   folderWorkspaces: FolderWorkspace[]
@@ -107,6 +109,10 @@ function mergeFetchedFolderWorkspacesForHost({
   projectGroups: readonly ProjectGroup[]
   hostId: string
 }): readonly FolderWorkspace[] {
+  const preservedEmpty = preserveCatalogOnEmptyFetch(previous, fetched)
+  if (preservedEmpty) {
+    return preservedEmpty
+  }
   const resolveHostId = createFolderWorkspaceHostResolver(projectGroups)
   const fetchedIdentities = new Set(
     fetched.map((workspace) => getFolderWorkspaceHostIdentity(workspace, resolveHostId))
@@ -115,7 +121,8 @@ function mergeFetchedFolderWorkspacesForHost({
     const existingHostId = resolveHostId(workspace)
     return (
       !catalogOwnsHost(hostId, existingHostId) ||
-      fetchedIdentities.has(getFolderWorkspaceHostIdentity(workspace, resolveHostId))
+      fetchedIdentities.has(getFolderWorkspaceHostIdentity(workspace, resolveHostId)) ||
+      workspace.folderPath.split(/[/\\]/).includes(ORCHESTRATION_SCRATCH_ROOT_DIR)
     )
   })
   return unchangedMergeSource(
