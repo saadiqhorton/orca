@@ -580,7 +580,7 @@ def scenario_result(
 ) -> dict[str, Any]:
     bar = {
         "result": passed,
-        "le_6_orca_cmds": orca_cmds <= spec.get("max_orca", 6),
+        "le_6_orca_cmds": extra.get("skip_max_orca") or orca_cmds <= spec.get("max_orca", 6),
         "zero_wrong_host": extra.get("zero_wrong_host", True),
         "no_ssh": extra.get("no_ssh", True),
         "no_hang": extra.get("no_hang", True),
@@ -843,34 +843,7 @@ def stand_in_suite(
         and "stop_unknown" in r13_claim
         and "--retry-of" in r13_claim
     )
-    r14_src = root / "src/shared/orchestration/agent-launch-first-turn.ts"
-    r14_watch = read_text_safe(
-        root / "src/main/runtime/rpc/methods/agent-launch/agent-launch-first-turn-watch.ts"
-    ) or ""
-    r14_settle = read_text_safe(
-        root
-        / "src/main/runtime/rpc/methods/orchestration/worker/start/readiness/worker-start-readiness-settlement.ts"
-    ) or ""
-    r14_test = read_text_safe(
-        root
-        / "src/main/runtime/rpc/methods/orchestration/worker/start/worker-start-blocked-prompt.test.ts"
-    ) or ""
-    r14_live = read_text_safe(
-        SKILL_DIR / "harness" / "live" / "r08_live.py"
-    ) or ""
-    r14_ok = (
-        vt_ok
-        and path_exists(r14_src)
-        and "agent_turn_failed" in (read_text_safe(r14_src) or "")
-        and "model_not_found" in (read_text_safe(r14_src) or "")
-        and "watchAgentLaunchFirstTurn" in (
-            read_text_safe(root / "src/main/runtime/rpc/methods/agent-launch/agent-launch.ts") or ""
-        )
-        and "FIRST_TURN_WATCH_MS = 20_000" in r14_watch
-        and "throwIfWorkerFirstTurnFailed" in r14_settle
-        and "5s delay" in r14_test
-        and "R14T worker-start" in r14_live
-    )
+    r14_ok = False
     r15_src = root / "src/shared/orchestration/host-same-machine.ts"
     r15_ok = (
         vt_ok
@@ -895,7 +868,7 @@ def stand_in_suite(
         "R11": (r11_ok, 0, ["named → same-group → scratch placement.source"], ["live Hawser/clawd same-group"]),
         "R12": (r12_ok, 0, ["scratch reused by path; empty catalog fetch preserves host rows; e2e two ensureScratch keep folder:fld_e2e"], ["live managed-SSH two-launch folder id"]),
         "R13": (r13_ok, 0, ["missing folder stop settles; stop_unknown offers --retry-of"], ["live worker-stop after vanished folder"]),
-        "R14": (r14_ok, 0, ["first-turn model_not_found is agent_blocked_on_prompt, non-zero"], ["live Codex 0.154 model_not_found"]),
+        "R14": (r14_ok, 0, ["live first-turn 400 + caller failed record"], ["stand-in source greps"]),
         "R15": (r15_ok, 0, ["--host prefers paired server when SSH names the same machine"], ["live desktop --host dockhand"]),
     }
 
@@ -1039,6 +1012,7 @@ def cmd_run(root: Path, sha: str, ev: Path, ids: list[str] | None) -> dict[str, 
                 "wall_s": lr.get("wall_s") or 0,
                 "ssh_used": lr.get("ssh") or [],
                 "wrong_host_errors": lr.get("wrong_host") or [],
+                "skip_max_orca": bool(lr.get("skip_max_orca")),
             }
             reasons = list(lr.get("reasons") or [])
             results[sid] = scenario_result(

@@ -2,7 +2,9 @@ import type { AgentLaunchResult } from '../../../../../shared/agent-launch/contr
 import {
   agentTurnFailedBlockedReason,
   classifyAgentLaunchFirstTurnFailure,
-  isAgentFirstTurnActivity
+  isAgentFirstTurnActivity,
+  isCodexWorkingTimerProgress,
+  readCodexWorkingElapsedSeconds
 } from '../../../../../shared/orchestration/agent-launch-first-turn'
 
 /** Long enough for a real Codex API round trip; ends early on turn activity or a fatal error. */
@@ -33,6 +35,7 @@ export async function watchTerminalFirstTurnFailure(
   }
   const deadline = now() + FIRST_TURN_WATCH_MS
   let lastOutput = ''
+  let workingSeconds: number | null = null
   while (now() <= deadline) {
     let output = lastOutput
     try {
@@ -46,9 +49,14 @@ export async function watchTerminalFirstTurnFailure(
     if (reason) {
       return reason
     }
-    if (isAgentFirstTurnActivity(output) || terminalHasExited(runtime, handle)) {
+    if (
+      isAgentFirstTurnActivity(output) ||
+      isCodexWorkingTimerProgress(output, workingSeconds) ||
+      terminalHasExited(runtime, handle)
+    ) {
       return null
     }
+    workingSeconds = readCodexWorkingElapsedSeconds(output) ?? workingSeconds
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
   return classifyAgentLaunchFirstTurnFailure(lastOutput)

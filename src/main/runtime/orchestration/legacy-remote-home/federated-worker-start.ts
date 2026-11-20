@@ -8,7 +8,6 @@ import {
 } from '../../../../shared/orchestration/orchestration-runtime-capabilities'
 import { orchestrationMigrationData } from '../../../../shared/orchestration/orchestration-rpc-contract'
 import { OrchestrationError } from '../orchestration-error'
-import { workerStartBlockedPromptReason } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import { resolveFederatedWorkerWorktree } from './federated-remote-default-worktree'
 import {
   assertWorkerLaunchPreferencesRuntimeSupported,
@@ -28,7 +27,8 @@ import {
   federatedFailedReceipt,
   federatedProtocolVersion,
   federatedUnknownReceipt,
-  isKnownRemoteStartFailure
+  isKnownRemoteStartFailure,
+  persistFederatedHomeBlockedPrompt
 } from './federated-worker-start-receipts'
 import { releaseRetriedWorkerTerminal } from '../../rpc/methods/orchestration/worker/release/retried-worker-terminal-release'
 import { withWorkerStartNext } from '../../rpc/methods/orchestration/receipt-next'
@@ -272,9 +272,10 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       })
     }
   } catch (error) {
-    const blockedReason = workerStartBlockedPromptReason(error)
-    if (blockedReason !== null) {
-      db.markWorkerBlockedOnPrompt(started.dispatch.id, blockedReason)
+    if (persistFederatedHomeBlockedPrompt({
+      db, dispatchId: started.dispatch.id, error,
+      notify: (handle, type) => runtime.notifyMessageArrived(handle, type)
+    })) {
       throw error
     }
     const reason = error instanceof Error ? error.message : String(error)

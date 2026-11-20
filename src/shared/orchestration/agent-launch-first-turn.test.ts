@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   agentTurnFailedBlockedReason,
   classifyAgentLaunchFirstTurnFailure,
-  isAgentFirstTurnActivity
+  isAgentFirstTurnActivity,
+  isCodexWorkingTimerProgress,
+  readCodexWorkingElapsedSeconds
 } from './agent-launch-first-turn'
 
 const CODEX_BANNER = `>_ OpenAI Codex (v0.154.0)
@@ -39,6 +41,23 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
     expect(
       isAgentFirstTurnActivity(
         '>_ OpenAI Codex (v0.154.0)\nTASK submitted\nWorking'
+      )
+    ).toBe(false)
+    expect(
+      isAgentFirstTurnActivity('• Working (0s • 0 tokens)')
+    ).toBe(false)
+  })
+
+  it('reads Codex Working timer seconds and treats an advancing timer as progress', () => {
+    expect(readCodexWorkingElapsedSeconds('• Working (0s • esc to interrupt)')).toBe(0)
+    expect(readCodexWorkingElapsedSeconds('• Working (3s • 12 tokens)')).toBe(3)
+    expect(isCodexWorkingTimerProgress('• Working (3s • 12 tokens)', null)).toBe(false)
+    expect(isCodexWorkingTimerProgress('• Working (2s • 12 tokens)', 1)).toBe(false)
+    expect(isCodexWorkingTimerProgress('• Working (3s • 12 tokens)', 2)).toBe(true)
+    expect(
+      isCodexWorkingTimerProgress(
+        'ERROR: 400 model_not_found gpt-5.4\n• Working (5s)',
+        4
       )
     ).toBe(false)
   })

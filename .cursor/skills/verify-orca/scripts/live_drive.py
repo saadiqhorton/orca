@@ -1088,10 +1088,31 @@ R08_LIVE = Path(__file__).resolve().parent.parent / "harness" / "live" / "r08_li
 R08_DESKTOP = Path(__file__).resolve().parent.parent / "harness" / "live" / "r08_desktop.py"
 
 
-def ingest_r08_payload(payload: dict[str, Any], ev: Path, via: str) -> dict[str, dict[str, Any]]:
+ORCA_INVOKE_RE = re.compile(r"(?:^|[\s;&|(`$])(?:[\w./~-]*/)?orca(?:-ide)?\s+(?=[a-z])")
+
+
+def count_r08_orca_cmds(log: list[Any] | None, sid: str) -> int:
+    """Count actual orca CLI invocations for one R08 sid, not the number of rec() keys."""
+    n = 0
+    for row in log or []:
+        if not isinstance(row, dict):
+            continue
+        section = str(row.get("section") or "")
+        if not section.startswith(sid):
+            continue
+        cmd = " " + str(row.get("cmd") or "")
+        if ORCA_INVOKE_RE.search(cmd):
+            n += 1
+    return n
+
+
+def ingest_r08_payload(
+    payload: dict[str, Any], ev: Path, via: str, evidence: str | None = None
+) -> dict[str, dict[str, Any]]:
     res = payload.get("results") or {}
+    log = payload.get("log") or []
     out: dict[str, dict[str, Any]] = {}
-    evidence = str(ev / "transcripts" / "r08" / "r08-live.json")
+    evidence_path = evidence or str(ev / "transcripts" / "r08" / "r08-live.json")
     for sid in R08_SIDS:
         keys = [k for k in res if k == sid or str(k).startswith(sid)]
         if not keys:
@@ -1102,9 +1123,10 @@ def ingest_r08_payload(payload: dict[str, Any], ev: Path, via: str) -> dict[str,
         out[sid] = {
             "pass": not failed,
             "reasons": [f"{k}: {(res[k] or {}).get('detail')}" for k in failed],
-            "orca_cmds": len(keys),
+            "orca_cmds": count_r08_orca_cmds(log if isinstance(log, list) else [], sid),
+            "skip_max_orca": True,
             "bar": {},
-            "evidence": [evidence],
+            "evidence": [evidence_path],
             "ssh": [],
             "wrong_host": [],
             "final": "\n".join(details)[-3000:],
@@ -1127,15 +1149,17 @@ def run_r08_script(script: Path, ev: Path, wanted: list[str], via: str) -> dict[
         env["ORCA_BIN"] = bin_path
     r = run([sys.executable, str(script), str(out_dir), *ids], timeout=900, env=env)
     payload: dict[str, Any] = {}
+    evidence_path = out_dir / "r08-live.json"
     for path in sorted(out_dir.glob("r08-live*.json")):
         try:
             payload = json.loads(path.read_text())
+            evidence_path = path
         except (OSError, json.JSONDecodeError):
             continue
     (out_dir / "r08-runner.log").write_text(r.get("out") or "")
     if not payload:
         return {sid: no_live_result(sid, f"{via} produced no r08-live.json: {(r.get('out') or '')[-400:]}") for sid in ids}
-    return ingest_r08_payload(payload, ev, via)
+    return ingest_r08_payload(payload, ev, via, str(evidence_path))
 
 
 def no_live_result(sid: str, reason: str) -> dict[str, Any]:

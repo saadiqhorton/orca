@@ -624,5 +624,62 @@ class BoxR07Workspace(IsolatedEnv):
         self.assertTrue(live_drive.workspace_from_inventory(parsed))
 
 
+class R08Ingest(IsolatedEnv):
+    def test_ingest_counts_orca_cmds_not_subcheck_keys_and_skips_max_orca(self):
+        ev = Path(tempfile.mkdtemp())
+        payload = {
+            "results": {
+                "R14a": {"pass": True, "detail": "a"},
+                "R14b": {"pass": True, "detail": "b"},
+                "R14T worker-start": {"pass": True, "detail": "t"},
+            },
+            "log": [
+                {
+                    "section": "R14",
+                    "cmd": "~/.orca/cli/bin/orca orchestration worker-start --json",
+                },
+                {
+                    "section": "R14",
+                    "cmd": "~/.orca/cli/bin/orca orchestration worker-show --dispatch ctx_1",
+                },
+                {"section": "R15", "cmd": "orca terminal create --host dockhand --json"},
+                {"section": "R14", "cmd": "echo gpt-5.4 > ~/.stub-reject-models"},
+            ],
+        }
+        ingested = live_drive.ingest_r08_payload(
+            payload, ev, "box-rig-r08", str(ev / "transcripts" / "r08" / "r08-live.json")
+        )
+        self.assertEqual(ingested["R14"]["orca_cmds"], 2)
+        self.assertTrue(ingested["R14"]["skip_max_orca"])
+        self.assertTrue(ingested["R14"]["pass"])
+        extra = {"skip_max_orca": True, "no_ssh": True, "zero_wrong_host": True}
+        judged = verify_orca.scenario_result(
+            "R14",
+            {"max_orca": 6, "kind": "regression", "text": "first-turn"},
+            passed=True,
+            agent="scripted-cli",
+            reasons=[],
+            orca_cmds=10,
+            extra=extra,
+        )
+        self.assertTrue(judged["pass"])
+        self.assertTrue(judged["bar"]["le_6_orca_cmds"])
+        self.assertEqual(
+            ingested["R14"]["evidence"],
+            [str(ev / "transcripts" / "r08" / "r08-live.json")],
+        )
+
+    def test_ingest_evidence_uses_the_file_that_was_read(self):
+        ev = Path(tempfile.mkdtemp())
+        path = str(ev / "transcripts" / "r08" / "r08-live-R10-R11-R12-R13-R14-R15.json")
+        ingested = live_drive.ingest_r08_payload(
+            {"results": {"R10a": {"pass": True, "detail": "ok"}}, "log": []},
+            ev,
+            "box-rig-r08",
+            path,
+        )
+        self.assertEqual(ingested["R10"]["evidence"], [path])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

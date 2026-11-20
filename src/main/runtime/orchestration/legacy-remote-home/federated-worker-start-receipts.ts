@@ -1,3 +1,7 @@
+import type { OrchestrationDb } from '../db/orchestration-db'
+import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
+import { isAgentTurnFailedBlockedReason } from '../../../../shared/orchestration/agent-launch-first-turn'
+import { workerStartBlockedPromptReason } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import type { OrchestrationWorkerLaunchReceipt } from '../../rpc/methods/orchestration/worker/start/launch/worker-launch-preferences'
 import {
   ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION,
@@ -17,6 +21,30 @@ export function federatedProtocolVersion(capabilities: string[] | undefined): nu
     return ORCHESTRATION_FEDERATION_LIFECYCLE_SETTLEMENT_PROTOCOL_VERSION
   }
   return supportsControlMail ? ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION : 1
+}
+
+/** Startup-dialog blocks stay ready; a first-turn 400 must fail the caller's dispatch. */
+export function persistFederatedHomeBlockedPrompt(args: {
+  db: OrchestrationDb
+  dispatchId: string
+  error: unknown
+  notify: (handle: string, type: string) => void
+}): boolean {
+  const reason = workerStartBlockedPromptReason(args.error)
+  if (reason === null) {
+    return false
+  }
+  if (isAgentTurnFailedBlockedReason(reason)) {
+    const worker = args.db.failWorkerStart(
+      args.dispatchId,
+      reason,
+      args.error instanceof Error ? args.error.message : String(args.error)
+    )
+    reportFailedWorkerStart(args.db, worker, args.notify)
+    return true
+  }
+  args.db.markWorkerBlockedOnPrompt(args.dispatchId, reason)
+  return true
 }
 
 export function isKnownRemoteStartFailure(code: string): boolean {

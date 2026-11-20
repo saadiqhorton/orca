@@ -97,6 +97,28 @@ describe('throwIfWorkerFirstTurnFailed', () => {
     ).toBe(5)
   })
 
+  it('returns a healthy worker-start well before 20s once Working (Ns) advances', async () => {
+    vi.useFakeTimers()
+    const started = Date.now()
+    const pending = throwIfWorkerFirstTurnFailed(
+      {
+        readTerminal: async () => {
+          const elapsed = Math.floor((Date.now() - started) / 1000)
+          return {
+            text: `>_ OpenAI Codex\nTASK submitted\n• Working (${elapsed}s • esc to interrupt)`
+          }
+        }
+      },
+      'term_worker'
+    )
+    const finished = pending.then((value) => ({ value, at: Date.now() - started }))
+    await vi.advanceTimersByTimeAsync(3_500)
+    const result = await finished
+    expect(result.value).toBeUndefined()
+    expect(result.at).toBeLessThan(20_000)
+    expect(result.at).toBeLessThanOrEqual(4_000)
+  })
+
   it('marks the dispatch failed with agent_turn_failed on a first-turn 400', async () => {
     const persisted: string[] = []
     const error = new OrchestrationError('agent_blocked_on_prompt', 'first turn failed', {

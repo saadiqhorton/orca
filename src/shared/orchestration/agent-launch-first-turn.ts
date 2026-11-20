@@ -10,6 +10,9 @@ const FATAL_PATTERNS: readonly { reason: string; pattern: RegExp }[] = [
 
 /** Real turn work — not the Codex banner that prints before a 400. */
 const FIRST_TURN_ACTIVITY = /\b(?:thinking|exploring|i'll|i will|tokens?\s+used|tool[_ ]calls?)\b/i
+/** Codex `• Working (3s …)` — not a bare `Working` that can precede a 400. */
+const WORKING_TIMER = /\bWorking\s*\((\d+)\s*s\b/i
+const WORKING_TIMER_PROGRESS_S = 3
 
 export function classifyAgentLaunchFirstTurnFailure(output: string): string | null {
   const text = output.trim()
@@ -33,6 +36,34 @@ export function isAgentFirstTurnActivity(output: string): boolean {
     return false
   }
   return FIRST_TURN_ACTIVITY.test(text)
+}
+
+export function readCodexWorkingElapsedSeconds(output: string): number | null {
+  let max: number | null = null
+  for (const match of output.matchAll(new RegExp(WORKING_TIMER, 'gi'))) {
+    const seconds = Number(match[1])
+    if (max === null || seconds > max) {
+      max = seconds
+    }
+  }
+  return max
+}
+
+/** True once Codex's Working timer has advanced past a few seconds with no error. */
+export function isCodexWorkingTimerProgress(
+  output: string,
+  previousSeconds: number | null
+): boolean {
+  if (classifyAgentLaunchFirstTurnFailure(output)) {
+    return false
+  }
+  const seconds = readCodexWorkingElapsedSeconds(output)
+  return (
+    seconds !== null &&
+    previousSeconds !== null &&
+    seconds > previousSeconds &&
+    seconds >= WORKING_TIMER_PROGRESS_S
+  )
 }
 
 export function agentTurnFailedBlockedReason(reason: string): string {

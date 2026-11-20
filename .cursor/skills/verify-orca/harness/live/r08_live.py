@@ -10,16 +10,17 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "/workspace/orca-cook/harness/result
 ONLY = set(sys.argv[2:])
 os.makedirs(OUT, exist_ok=True)
 LOG = []
+SECTION = [None]
 def sh(host, cmd, timeout=150):
     t = time.time()
     p = subprocess.run(SSH + [HOSTS[host], f"export PATH=$HOME/bin:$PATH; cd ~/work; {cmd}"], capture_output=True, text=True, timeout=timeout)
-    r = {"host": host, "cmd": cmd, "exit": p.returncode, "secs": round(time.time() - t, 1), "out": p.stdout + p.stderr}
+    r = {"host": host, "cmd": cmd, "exit": p.returncode, "secs": round(time.time() - t, 1), "out": p.stdout + p.stderr, "section": SECTION[0]}
     LOG.append(dict(r, out=r["out"][-6000:])); return r
 def desk(args, timeout=150):
     env = dict(os.environ, HOME=f"{RIG}/desktop-home")
     t = time.time()
     p = subprocess.run([f"{RIG}/app/resources/bin/orca-ide"] + args, capture_output=True, text=True, timeout=timeout, env=env)
-    r = {"host": "desktop", "cmd": "orca " + " ".join(shlex.quote(a) for a in args), "exit": p.returncode, "secs": round(time.time() - t, 1), "out": (p.stdout + p.stderr)[-6000:]}
+    r = {"host": "desktop", "cmd": "orca " + " ".join(shlex.quote(a) for a in args), "exit": p.returncode, "secs": round(time.time() - t, 1), "out": (p.stdout + p.stderr)[-6000:], "section": SECTION[0]}
     LOG.append(r); return r
 def cdp(js):
     p = subprocess.run(["node", f"{RIG}/tools/cdp-eval.mjs", js], capture_output=True, text=True, timeout=200)
@@ -44,7 +45,11 @@ def hostinv(name):
 RES = {}
 def rec(cid, ok, detail):
     RES[cid] = {"pass": bool(ok), "detail": detail}; print(("PASS " if ok else "FAIL ") + cid + " | " + detail, flush=True)
-def want(x): return not ONLY or x in ONLY
+def want(x):
+    ok = not ONLY or x in ONLY
+    if ok:
+        SECTION[0] = x
+    return ok
 
 GB = '"group:\\"dockhand group\\""'   # --worktree 'group:"dockhand group"'
 CLAWD = "/home/hostb/clawd"
@@ -192,6 +197,9 @@ if want("R14") or want("R14T"):
         time.sleep(delay + 3)
         st = orca("A", f"orchestration worker-show --host ubuntu-server-local --dispatch {disp}", coordA)["out"] if disp else ""
         rec(f"R14T worker-start banner->{delay}s->400 => non-zero, not ready", r["exit"] != 0 and d.get("state") != "ready", f"exit={r['exit']} secs={r['secs']} state={d.get('state')} out={r['out'][-300:]} show={st[:250]}")
+        home = orca("A", f"orchestration worker-show --dispatch {disp}", coordA)["out"] if disp else ""
+        rec(f"R14T caller record after {delay}s 400 is failed agent_turn_failed", r["exit"] != 0 and "state=failed" in home and "agent_turn_failed" in home,
+            f"exit={r['exit']} home={home[:300]} remote={st[:200]}")
         if disp: orca("A", f"orchestration worker-stop --host ubuntu-server-local --dispatch {disp}", coordA)
     sh("B", "echo 0.154.0 > ~/.stub-codex-version; echo 2 > ~/.stub-400-delay")
     r = orca("A", "agent launch --host ubuntu-server-local --agent codex --model gpt-6-luna --worktree path:/home/hostb/work --prompt 'RUN: echo hi' --json", coordA)
@@ -209,5 +217,5 @@ if want("R15"):
         if t.get("handle"): desk(["terminal", "close", "--host", name, "--terminal", t["handle"]])
 
 close("A", coordA); close("B", coordB)
-json.dump({"results": RES, "log": LOG}, open(f"{OUT}/r08-live{'-' + '-'.join(sorted(ONLY)) if ONLY else ''}.json", "w"), indent=1)
+json.dump({"results": RES, "log": LOG}, open(f"{OUT}/r08-live.json", "w"), indent=1)
 print(json.dumps({k: v["pass"] for k, v in RES.items()}))

@@ -20,12 +20,16 @@ ONLY = set(sys.argv[2:])
 OUT.mkdir(parents=True, exist_ok=True)
 LOG: list[dict] = []
 RES: dict[str, dict] = {}
+SECTION: list[str | None] = [None]
 
 
 def want(cid: str) -> bool:
     prefix = cid.split()[0]
     sid = prefix[:3] if prefix[:1] == "R" else prefix
-    return not ONLY or cid in ONLY or sid in ONLY or any(cid.startswith(x) for x in ONLY)
+    ok = not ONLY or cid in ONLY or sid in ONLY or any(cid.startswith(x) for x in ONLY)
+    if ok:
+        SECTION[0] = sid
+    return ok
 
 
 def orca_bin() -> str:
@@ -53,6 +57,7 @@ def orca(args: list[str], timeout: int = 150) -> dict:
         "exit": p.returncode,
         "secs": round(time.time() - t0, 1),
         "out": ((p.stdout or "") + (p.stderr or ""))[-8000:],
+        "section": SECTION[0],
     }
     LOG.append(r)
     return r

@@ -77,10 +77,12 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
     id: terminalHandle,
     state: 'accepted'
   })
+  const firstTurnWatchStartedAt = Date.now()
   if (!structuredSession) {
     // Codex only calls the API after TASK is submitted; watch after the preamble, not before.
     await throwIfWorkerFirstTurnFailed(runtime, terminalHandle)
   }
+  const firstTurnWatchMs = Date.now() - firstTurnWatchStartedAt
 
   args.onStage('turn_observation')
   // Accepted writes need positive turn-start evidence when supported; structured sends prove acceptance or remain held.
@@ -92,9 +94,14 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
       terminalHandle,
       prompt: promptDelivery,
       // Why: a delivery that waited out a held Windows paste must still fit the client's grace.
+      // The first-turn 400 watch is not turn observation and must not consume that budget.
       timeoutMs: Math.min(
         AGENT_PROMPT_EFFECT_TIMEOUT_MS,
-        Math.max(0, ORCHESTRATION_WORKER_START_CLIENT_GRACE_MS - (Date.now() - deliveryStartedAt))
+        Math.max(
+          0,
+          ORCHESTRATION_WORKER_START_CLIENT_GRACE_MS -
+            (Date.now() - deliveryStartedAt - firstTurnWatchMs)
+        )
       )
     }))
   const deliveredPrompt = turnStart.prompt ?? promptDelivery
