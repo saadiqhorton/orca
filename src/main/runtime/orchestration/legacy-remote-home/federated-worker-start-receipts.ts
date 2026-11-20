@@ -1,7 +1,10 @@
 import type { OrchestrationDb } from '../db/orchestration-db'
 import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
 import { isAgentTurnFailedBlockedReason } from '../../../../shared/orchestration/agent-launch-first-turn'
-import { workerStartBlockedPromptReason } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+import {
+  withWorkerStartBlockedPromptIdentity,
+  workerStartBlockedPromptReason
+} from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import type { OrchestrationWorkerLaunchReceipt } from '../../rpc/methods/orchestration/worker/start/launch/worker-launch-preferences'
 import {
   ORCHESTRATION_FEDERATION_CONTROL_MAIL_PROTOCOL_VERSION,
@@ -28,11 +31,12 @@ export function persistFederatedHomeBlockedPrompt(args: {
   db: OrchestrationDb
   dispatchId: string
   error: unknown
+  host?: string
   notify: (handle: string, type: string) => void
-}): boolean {
+}): unknown | null {
   const reason = workerStartBlockedPromptReason(args.error)
   if (reason === null) {
-    return false
+    return null
   }
   if (isAgentTurnFailedBlockedReason(reason)) {
     const worker = args.db.failWorkerStart(
@@ -41,10 +45,13 @@ export function persistFederatedHomeBlockedPrompt(args: {
       args.error instanceof Error ? args.error.message : String(args.error)
     )
     reportFailedWorkerStart(args.db, worker, args.notify)
-    return true
+  } else {
+    args.db.markWorkerBlockedOnPrompt(args.dispatchId, reason)
   }
-  args.db.markWorkerBlockedOnPrompt(args.dispatchId, reason)
-  return true
+  return withWorkerStartBlockedPromptIdentity(args.error, {
+    dispatchId: args.dispatchId,
+    host: args.host
+  })
 }
 
 export function isKnownRemoteStartFailure(code: string): boolean {

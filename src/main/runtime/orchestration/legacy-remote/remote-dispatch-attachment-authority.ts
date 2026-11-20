@@ -180,7 +180,7 @@ export function failRemoteAttachment(
       `UPDATE remote_dispatch_attachments
        SET state = ?, stage = ?, last_error = ?, capability_hash = NULL,
            blocked_reason = NULL, updated_at = datetime('now')
-       WHERE dispatch_id = ? AND state = 'starting'`
+       WHERE dispatch_id = ? AND state IN ('starting', 'ready')`
     )
     .run(state, stage, reason, dispatchId)
   if (result.changes !== 1) {

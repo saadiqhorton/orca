@@ -1,10 +1,12 @@
 import type { RuntimeTerminalCreate } from '../../../../shared/runtime-terminal-create-contract'
 import {
   settleCaughtWorkerStartError,
-  throwIfWorkerFirstTurnFailed,
   workerStartBlockedPromptReason
 } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
-import { completeFederatedAgentReadiness } from './federation-attach-readiness'
+import {
+  completeFederatedAgentReadiness,
+  readyFederatedAttachmentAfterFirstTurn
+} from './federation-attach-readiness'
 import { buildDispatchPreamble } from '../workers/launch/worker-dispatch-preamble'
 import { sendAgentTurn } from '../turn-delivery/send-agent-turn'
 import { createWorkerBriefWriteGuard } from '../../terminal/wait/launched-agent-write-guard'
@@ -252,8 +254,13 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           id: terminalHandle,
           state: 'accepted'
         })
-        await throwIfWorkerFirstTurnFailed(runtime, terminalHandle)
-        const attachment = db.markRemoteAttachmentReady(params.dispatchId, effects)
+        const attachment = await readyFederatedAttachmentAfterFirstTurn({
+          runtime,
+          db,
+          dispatchId: params.dispatchId,
+          terminalHandle,
+          effects
+        })
         monitorFederatedSetup({ ...setupStage, runtime })
         return {
           dispatchId: params.dispatchId,

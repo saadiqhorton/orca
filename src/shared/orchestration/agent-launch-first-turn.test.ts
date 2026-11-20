@@ -61,4 +61,17 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
       )
     ).toBe(false)
   })
+
+  it('treats Claude Code elapsed-seconds status lines as progress', () => {
+    expect(
+      readCodexWorkingElapsedSeconds('✻ Working… (0s · esc to interrupt)')
+    ).toBe(0)
+    expect(
+      readCodexWorkingElapsedSeconds('✻ Thinking… (3s · esc to interrupt)')
+    ).toBe(3)
+    expect(isCodexWorkingTimerProgress('✻ Exploring… (3s · esc to interrupt)', 2)).toBe(
+      true
+    )
+    expect(isAgentFirstTurnActivity('✻ Working… (3s · esc to interrupt)')).toBe(false)
+  })
 })

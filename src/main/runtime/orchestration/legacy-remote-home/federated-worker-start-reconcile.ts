@@ -33,7 +33,10 @@ export function reconcileFederatedWorkerStart(
         `Federated Dispatch ${params.dispatchId} was not found.`
       )
     }
-    if (!['starting', 'start_unknown'].includes(worker.state)) {
+    const canApplyRemoteStart =
+      ['starting', 'start_unknown'].includes(worker.state) ||
+      (worker.state === 'ready' && params.state === 'failed')
+    if (!canApplyRemoteStart) {
       commitLifecycleWriteTransaction(this.db, transaction)
       return worker
     }

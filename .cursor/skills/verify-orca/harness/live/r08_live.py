@@ -154,8 +154,8 @@ if want("R13"):
     st = (re.findall(r"state=(\w+)", rs["out"]) or ["?"])[0]
     rec("R13b stop after folder row removed settles (not stop_unknown)", r["exit"] == 0 and st in ("stopped", "succeeded", "failed", "abandoned") and "stop_unknown" not in rs["out"] and not alive,
         f"stop_exit={r['exit']} state={st} stop_out={r['out'][-250:]} pty_alive={alive}")
-    # restore scratch for later checks
-    orca("A", "terminal create --host ubuntu-server-local --worktree " + sel + " --json", coordA)
+    # Recreate the hostB scratch folder row; --worktree <deleted selector> does not restore it.
+    orca("A", "terminal create --host ubuntu-server-local --json", coordA)
 
 if want("R14"):
     r = orca("A", "agent launch --host ubuntu-server-local --agent codex --model gpt-6.2-luna --prompt 'RUN: echo hi' --json", coordA)
@@ -193,13 +193,20 @@ if want("R14") or want("R14T"):
         close("B", (d.get("outcome") or {}).get("handle") or (re.findall(r"term_[0-9a-f-]+", r["out"]) or [None])[0])
         r = orca("A", "orchestration worker-start --host ubuntu-server-local --agent codex --model gpt-5.4 --worktree path:/home/hostb/work --spec 'echo R14T' --json", coordA)
         d = j(r).get("result") or {}
-        disp = d.get("dispatchId") or (re.findall(r"ctx_[0-9a-f]+", r["out"]) or [None])[0]
+        err = (j(r).get("error") or {}).get("data") or {}
+        disp = d.get("dispatchId") or err.get("dispatchId")
+        if not disp:
+            listed = orca("A", "orchestration worker-list --json", coordA)
+            disp = (re.findall(r"ctx_[0-9a-f]+", listed["out"]) or [None])[0]
         time.sleep(delay + 3)
         st = orca("A", f"orchestration worker-show --host ubuntu-server-local --dispatch {disp}", coordA)["out"] if disp else ""
         rec(f"R14T worker-start banner->{delay}s->400 => non-zero, not ready", r["exit"] != 0 and d.get("state") != "ready", f"exit={r['exit']} secs={r['secs']} state={d.get('state')} out={r['out'][-300:]} show={st[:250]}")
         home = orca("A", f"orchestration worker-show --dispatch {disp}", coordA)["out"] if disp else ""
-        rec(f"R14T caller record after {delay}s 400 is failed agent_turn_failed", r["exit"] != 0 and "state=failed" in home and "agent_turn_failed" in home,
-            f"exit={r['exit']} home={home[:300]} remote={st[:200]}")
+        if "state=failed" not in home:
+            listed = orca("A", "orchestration worker-list --json", coordA)
+            home = listed["out"]
+        rec(f"R14T caller record after {delay}s 400 is failed agent_turn_failed", "state=failed" in home and "agent_turn_failed" in home,
+            f"show={home[:300]} remote={st[:200]}")
         if disp: orca("A", f"orchestration worker-stop --host ubuntu-server-local --dispatch {disp}", coordA)
     sh("B", "echo 0.154.0 > ~/.stub-codex-version; echo 2 > ~/.stub-400-delay")
     r = orca("A", "agent launch --host ubuntu-server-local --agent codex --model gpt-6-luna --worktree path:/home/hostb/work --prompt 'RUN: echo hi' --json", coordA)

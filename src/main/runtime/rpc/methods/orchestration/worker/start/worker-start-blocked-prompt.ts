@@ -8,9 +8,17 @@ import {
   agentTurnFailedBlockedReason,
   isAgentTurnFailedBlockedReason
 } from '../../../../../../../shared/orchestration/agent-launch-first-turn'
-import { watchTerminalFirstTurnFailure } from '../../../agent-launch/agent-launch-first-turn-watch'
+import {
+  watchTerminalFirstTurn,
+  type TerminalReader
+} from '../../../agent-launch/agent-launch-first-turn-watch'
 
-type FirstTurnRuntime = Parameters<typeof watchTerminalFirstTurnFailure>[0]
+type FirstTurnRuntime = TerminalReader
+
+export type WorkerStartBlockedPromptIdentity = {
+  dispatchId?: string
+  host?: string
+}
 
 function blockedWorkerNext(blockedReason: string): string {
   if (isAgentTurnFailedBlockedReason(blockedReason)) {
@@ -20,9 +28,26 @@ function blockedWorkerNext(blockedReason: string): string {
   return blockedOnPromptNext(blockedReason)
 }
 
+function blockedPromptData(
+  handle: string,
+  blockedReason: string,
+  identity?: WorkerStartBlockedPromptIdentity
+): Record<string, unknown> {
+  const next = blockedWorkerNext(blockedReason)
+  return {
+    handle,
+    blockedReason,
+    promptText: startupDialogPromptLabel(blockedReason),
+    next,
+    ...(identity?.dispatchId ? { dispatchId: identity.dispatchId } : {}),
+    ...(identity?.host ? { host: identity.host } : {})
+  }
+}
+
 export function throwIfWorkerStartBlockedOnPrompt(
   blockedReason: string | undefined,
-  handle: string
+  handle: string,
+  identity?: WorkerStartBlockedPromptIdentity
 ): void {
   if (typeof blockedReason !== 'string') {
     return
@@ -33,25 +58,41 @@ export function throwIfWorkerStartBlockedOnPrompt(
   ) {
     return
   }
-  const next = blockedWorkerNext(blockedReason)
-  throw new OrchestrationError('agent_blocked_on_prompt', next, {
-    handle,
-    blockedReason,
-    promptText: startupDialogPromptLabel(blockedReason),
-    next
-  })
+  const data = blockedPromptData(handle, blockedReason, identity)
+  throw new OrchestrationError('agent_blocked_on_prompt', String(data.next), data)
 }
 
+/** Returns true when only a status timer advanced — keep watching after ready. */
 export async function throwIfWorkerFirstTurnFailed(
   runtime: FirstTurnRuntime,
   handle: string,
-  now = Date.now
-): Promise<void> {
-  const reason = await watchTerminalFirstTurnFailure(runtime, handle, now)
-  if (!reason) {
-    return
+  now = Date.now,
+  identity?: WorkerStartBlockedPromptIdentity
+): Promise<boolean> {
+  const halt = await watchTerminalFirstTurn(runtime, handle, now)
+  if (halt.status === 'failed') {
+    throwIfWorkerStartBlockedOnPrompt(agentTurnFailedBlockedReason(halt.reason), handle, identity)
   }
-  throwIfWorkerStartBlockedOnPrompt(agentTurnFailedBlockedReason(reason), handle)
+  return halt.status === 'progress'
+}
+
+export function withWorkerStartBlockedPromptIdentity(
+  error: unknown,
+  identity: WorkerStartBlockedPromptIdentity & { handle?: string }
+): unknown {
+  if (!isWorkerStartBlockedPromptError(error)) {
+    return error
+  }
+  const data =
+    error.data && typeof error.data === 'object'
+      ? { ...(error.data as Record<string, unknown>) }
+      : {}
+  return new OrchestrationError(error.code, error.message, {
+    ...data,
+    ...(identity.dispatchId ? { dispatchId: identity.dispatchId } : {}),
+    ...(identity.handle ? { handle: identity.handle } : {}),
+    ...(identity.host ? { host: identity.host } : {})
+  })
 }
 
 export async function persistWorkerFirstTurnFailure(

@@ -8,10 +8,10 @@ const FATAL_PATTERNS: readonly { reason: string; pattern: RegExp }[] = [
   { reason: 'invalid_model', pattern: /\binvalid[_ ]model\b/i }
 ]
 
-/** Real turn work — not the Codex banner that prints before a 400. */
+/** Real turn work — not a status timer that can precede a 400. */
 const FIRST_TURN_ACTIVITY = /\b(?:thinking|exploring|i'll|i will|tokens?\s+used|tool[_ ]calls?)\b/i
-/** Codex `• Working (3s …)` — not a bare `Working` that can precede a 400. */
-const WORKING_TIMER = /\bWorking\s*\((\d+)\s*s\b/i
+/** Codex `Working (Ns)`, Claude `✻ Verb… (Ns · esc to interrupt)`, or any interrupt timer. */
+const ELAPSED_STATUS_LINE = /(?:Working|\u273B|interrupt)/i
 const WORKING_TIMER_PROGRESS_S = 3
 
 export function classifyAgentLaunchFirstTurnFailure(output: string): string | null {
@@ -40,16 +40,21 @@ export function isAgentFirstTurnActivity(output: string): boolean {
 
 export function readCodexWorkingElapsedSeconds(output: string): number | null {
   let max: number | null = null
-  for (const match of output.matchAll(new RegExp(WORKING_TIMER, 'gi'))) {
-    const seconds = Number(match[1])
-    if (max === null || seconds > max) {
-      max = seconds
+  for (const line of output.split(/\r?\n/)) {
+    if (!ELAPSED_STATUS_LINE.test(line)) {
+      continue
+    }
+    for (const match of line.matchAll(/\((\d+)\s*s\b/gi)) {
+      const seconds = Number(match[1])
+      if (max === null || seconds > max) {
+        max = seconds
+      }
     }
   }
   return max
 }
 
-/** True once Codex's Working timer has advanced past a few seconds with no error. */
+/** True once a known agent's elapsed-seconds status line has advanced past a few seconds. */
 export function isCodexWorkingTimerProgress(
   output: string,
   previousSeconds: number | null

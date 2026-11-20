@@ -214,7 +214,10 @@ export async function startLocalWorker(args: {
           })
           db.markWorkerBlockedOnPrompt(started.dispatch.id, wait.blockedReason)
         }
-        throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
+        throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle, {
+          dispatchId: started.dispatch.id,
+          host: params.host ?? params.on
+        })
         throw new Error(
           wait.blockedReason
             ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
@@ -259,7 +262,8 @@ export async function startLocalWorker(args: {
       readinessDeadline,
       effects,
       terminalRevealWarning: placed.warning,
-      onStage
+      onStage,
+      host: params.host ?? params.on
     })
   } catch (error) {
     result = await settleCaughtWorkerStartError(error, () =>

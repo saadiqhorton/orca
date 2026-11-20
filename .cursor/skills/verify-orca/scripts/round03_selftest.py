@@ -681,5 +681,25 @@ class R08Ingest(IsolatedEnv):
         self.assertEqual(ingested["R10"]["evidence"], [path])
 
 
+class R08LiveSource(IsolatedEnv):
+    def test_r13_restores_scratch_with_host_and_no_worktree(self):
+        source = (SCRIPTS.parent / "harness" / "live" / "r08_live.py").read_text()
+        self.assertIn('terminal create --host ubuntu-server-local --json', source)
+        self.assertNotIn(
+            "terminal create --host ubuntu-server-local --worktree \" + sel",
+            source,
+        )
+
+    def test_r14_caller_record_reads_show_or_list_not_error_payload(self):
+        source = (SCRIPTS.parent / "harness" / "live" / "r08_live.py").read_text()
+        rec = 'R14T caller record after {delay}s 400 is failed agent_turn_failed'
+        start = source.index(rec)
+        chunk = source[start : start + 500]
+        self.assertIn("worker-show --dispatch", source)
+        self.assertIn("worker-list --json", source)
+        self.assertNotIn('r["exit"] != 0 and "state=failed"', chunk)
+        self.assertIn('"state=failed" in home and "agent_turn_failed" in home', chunk)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

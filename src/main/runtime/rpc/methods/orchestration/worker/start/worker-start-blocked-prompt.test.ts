@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '../../../../../orchestration/orchestration-error'
 import { RuntimeClientError } from '../../../../../../../cli/runtime/types'
 import { cliErrorExitCode } from '../../../../../../../cli/output/cli-exit-code'
+import { reportCliError } from '../../../../../../../cli/output/cli-error'
 import {
   persistWorkerFirstTurnFailure,
   throwIfWorkerFirstTurnFailed
@@ -16,7 +17,9 @@ describe('throwIfWorkerFirstTurnFailed', () => {
             text: 'ERROR: 400 model_not_found gpt-6-luna'
           })
         },
-        'term_worker'
+        'term_worker',
+        Date.now,
+        { dispatchId: 'ctx_worker', host: 'ubuntu-server-local' }
       )
     ).rejects.toMatchObject({
       code: 'agent_blocked_on_prompt'
@@ -28,12 +31,17 @@ describe('throwIfWorkerFirstTurnFailed', () => {
             text: 'ERROR: 400 model_not_found gpt-6-luna'
           })
         },
-        'term_worker'
+        'term_worker',
+        Date.now,
+        { dispatchId: 'ctx_worker', host: 'ubuntu-server-local' }
       )
     } catch (error) {
       expect(error).toBeInstanceOf(OrchestrationError)
       expect((error as OrchestrationError).data).toMatchObject({
-        blockedReason: 'agent_turn_failed:model_not_found'
+        blockedReason: 'agent_turn_failed:model_not_found',
+        handle: 'term_worker',
+        dispatchId: 'ctx_worker',
+        host: 'ubuntu-server-local'
       })
     }
   })
@@ -44,7 +52,7 @@ describe('throwIfWorkerFirstTurnFailed', () => {
         { readTerminal: async () => ({ text: 'thinking about the repo' }) },
         'term_worker'
       )
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(false)
   })
 
   it('fails a worker when model_not_found arrives after the Codex banner', async () => {
@@ -114,9 +122,47 @@ describe('throwIfWorkerFirstTurnFailed', () => {
     const finished = pending.then((value) => ({ value, at: Date.now() - started }))
     await vi.advanceTimersByTimeAsync(3_500)
     const result = await finished
-    expect(result.value).toBeUndefined()
+    expect(result.value).toBe(true)
     expect(result.at).toBeLessThan(20_000)
     expect(result.at).toBeLessThanOrEqual(4_000)
+  })
+
+  it('returns a healthy Claude worker-start well before 20s once ✻ status seconds advance', async () => {
+    vi.useFakeTimers()
+    const started = Date.now()
+    const pending = throwIfWorkerFirstTurnFailed(
+      {
+        readTerminal: async () => {
+          const elapsed = Math.floor((Date.now() - started) / 1000)
+          return {
+            text: `✻ Working… (${elapsed}s · esc to interrupt)`
+          }
+        }
+      },
+      'term_worker'
+    )
+    const finished = pending.then((value) => ({ value, at: Date.now() - started }))
+    await vi.advanceTimersByTimeAsync(3_500)
+    const result = await finished
+    expect(result.value).toBe(true)
+    expect(result.at).toBeLessThan(20_000)
+  })
+
+  it('includes dispatchId, handle, and host in the JSON error payload', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    reportCliError(
+      new RuntimeClientError('agent_blocked_on_prompt', 'first turn failed', {
+        dispatchId: 'ctx_abc',
+        handle: 'term_worker',
+        host: 'ubuntu-server-local',
+        blockedReason: 'agent_turn_failed:model_not_found'
+      }),
+      true
+    )
+    const printed = String(log.mock.calls[0]?.[0])
+    expect(printed).toContain('ctx_abc')
+    expect(printed).toContain('term_worker')
+    expect(printed).toContain('ubuntu-server-local')
   })
 
   it('marks the dispatch failed with agent_turn_failed on a first-turn 400', async () => {
