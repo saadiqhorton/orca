@@ -575,6 +575,54 @@ class BoxR07Workspace(IsolatedEnv):
         }
         self.assertEqual(live_drive.workspace_from_inventory(parsed), "/home/someone/work")
 
+    def test_inventory_keeps_full_json_so_listed_workspaces_parse(self):
+        folders = [
+            {
+                "id": f"fld_{i:04d}",
+                "selector": f"folder:fld_{i:04d}",
+                "path": f"/home/hostb/work/ws{i:04d}",
+            }
+            for i in range(80)
+        ]
+        folders.append(
+            {
+                "id": "fld_clawd",
+                "selector": "folder:fld_clawd",
+                "path": "/home/hostb/clawd",
+            }
+        )
+        payload = {
+            "result": {
+                "hosts": [
+                    {
+                        "name": "ubuntu-server-local",
+                        "inventory": {"folderWorkspaces": folders, "repos": []},
+                    },
+                    {
+                        "name": "dockhand",
+                        "inventory": {"folderWorkspaces": [], "repos": []},
+                    },
+                ]
+            }
+        }
+        raw = "ok " + json.dumps(payload)
+        self.assertGreater(len(raw), 4000)
+        with patch.object(
+            live_drive,
+            "orca",
+            return_value={"exit": 0, "out": raw, "cmd": ["host", "inventory"], "secs": 0.1},
+        ):
+            with patch.object(
+                live_drive, "host_names", return_value=("ubuntu-server-local", "dockhand")
+            ):
+                inv = live_drive.inventory()
+        self.assertGreater(len(inv["out"]), 4000)
+        self.assertIsNone(live_drive.jparse(raw[:4000]))
+        parsed = inv.get("parsed") or live_drive.jparse(inv["out"]) or {}
+        listed = live_drive.desktop_listed_workspaces(parsed)
+        self.assertIn("/home/hostb/clawd", listed)
+        self.assertTrue(live_drive.workspace_from_inventory(parsed))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '../../../../../orchestration/orchestration-error'
-import { throwIfWorkerFirstTurnFailed } from './worker-start-blocked-prompt'
+import { RuntimeClientError } from '../../../../../../../cli/runtime/types'
+import { cliErrorExitCode } from '../../../../../../../cli/output/cli-exit-code'
+import {
+  persistWorkerFirstTurnFailure,
+  throwIfWorkerFirstTurnFailed
+} from './worker-start-blocked-prompt'
 
 describe('throwIfWorkerFirstTurnFailed', () => {
   it('fails a worker whose first screen is model_not_found', async () => {
@@ -61,4 +66,50 @@ describe('throwIfWorkerFirstTurnFailed', () => {
       code: 'agent_blocked_on_prompt'
     })
   })
+
+  it('fails worker-start after banner, prompt submitted, Working, a 5s delay, then 400', async () => {
+    vi.useFakeTimers()
+    const started = Date.now()
+    const banner = '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task'
+    const working = `${banner}\nTASK submitted\nWorking`
+    const fatal = `${working}\nERROR: 400 model_not_found gpt-6-luna`
+    const pending = throwIfWorkerFirstTurnFailed(
+      {
+        readTerminal: async () => {
+          const elapsed = Date.now() - started
+          const text = elapsed === 0 ? banner : elapsed < 5_000 ? working : fatal
+          return { text }
+        }
+      },
+      'term_worker'
+    )
+    const expectation = expect(pending).rejects.toMatchObject({
+      code: 'agent_blocked_on_prompt',
+      data: { blockedReason: 'agent_turn_failed:model_not_found' }
+    })
+    await vi.advanceTimersByTimeAsync(5_250)
+    await expectation
+    expect(
+      cliErrorExitCode(
+        new RuntimeClientError('agent_blocked_on_prompt', 'first turn failed'),
+        ['orchestration', 'worker-start']
+      )
+    ).toBe(5)
+  })
+
+  it('marks the dispatch failed with agent_turn_failed on a first-turn 400', async () => {
+    const persisted: string[] = []
+    const error = new OrchestrationError('agent_blocked_on_prompt', 'first turn failed', {
+      handle: 'term_worker',
+      blockedReason: 'agent_turn_failed:model_not_found'
+    })
+    await persistWorkerFirstTurnFailure(error, async () => {
+      persisted.push('agent_turn_failed:model_not_found')
+    })
+    expect(persisted).toEqual(['agent_turn_failed:model_not_found'])
+  })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })

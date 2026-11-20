@@ -5,7 +5,8 @@ import {
   isAgentFirstTurnActivity
 } from '../../../../../shared/orchestration/agent-launch-first-turn'
 
-const FIRST_TURN_WATCH_MS = 3_000
+/** Long enough for a real Codex API round trip; ends early on turn activity or a fatal error. */
+export const FIRST_TURN_WATCH_MS = 20_000
 
 type TerminalReader = {
   readTerminal?: (

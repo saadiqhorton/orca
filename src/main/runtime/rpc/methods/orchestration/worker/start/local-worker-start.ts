@@ -5,9 +5,9 @@ import { waitForWorkerAgentReady } from '../../../../../terminal/wait/launched-a
 import type { OrcaRuntimeService } from '../../../../../orca-runtime'
 import { describeTerminalWaitBlockedReason } from '../../../../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
 import {
-  isWorkerStartBlockedPromptError,
-  throwIfWorkerFirstTurnFailed,
-  throwIfWorkerStartBlockedOnPrompt
+  settleCaughtWorkerStartError,
+  throwIfWorkerStartBlockedOnPrompt,
+  workerStartBlockedPromptReason
 } from './worker-start-blocked-prompt'
 import { isStartupDialogBlockedReason } from '../../../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import type { OrchestrationDb } from '../../../../../orchestration/db/orchestration-db'
@@ -224,9 +224,6 @@ export async function startLocalWorker(args: {
         )
       }
     }
-    if (!workerChat) {
-      await throwIfWorkerFirstTurnFailed(runtime, terminalHandle)
-    }
     const terminalAuthority = authority ?? requireWorkerAuthority(runtime, terminalHandle)
     db.prepareStartingWorkerAuthority({
       dispatchId: started.dispatch.id,
@@ -265,22 +262,21 @@ export async function startLocalWorker(args: {
       onStage
     })
   } catch (error) {
-    if (isWorkerStartBlockedPromptError(error)) {
-      throw error
-    }
-    result = await failWorkerStartWithReceipt({
-      runtime,
-      structuredSession: placed?.structuredSession ?? null,
-      db,
-      runId: run.id,
-      taskId: task.id,
-      dispatchId: started.dispatch.id,
-      failedStage,
-      error,
-      setup: placed?.setupReceipt ?? EXISTING_WORKTREE_SETUP,
-      launch: launch.receipt,
-      mode
-    })
+    result = await settleCaughtWorkerStartError(error, () =>
+      failWorkerStartWithReceipt({
+        runtime,
+        structuredSession: placed?.structuredSession ?? null,
+        db,
+        runId: run.id,
+        taskId: task.id,
+        dispatchId: started.dispatch.id,
+        failedStage: workerStartBlockedPromptReason(error) ?? failedStage,
+        error,
+        setup: placed?.setupReceipt ?? EXISTING_WORKTREE_SETUP,
+        launch: launch.receipt,
+        mode
+      })
+    )
   }
   if (
     !params.terminal &&

@@ -8,6 +8,7 @@ import type { RunRow, TaskRow } from '../../../../../../orchestration/db/orchest
 import type { AgentLaunchModeReceipt as WorkerStartModeReceipt } from '../../../../../../../../shared/agent-launch/contracts/agent-launch-intent'
 import { deliverWorkerDispatchPreamble } from './deliver-worker-dispatch-preamble'
 import { reportedWorkerOutcome } from '../worker-start-receipt'
+import { throwIfWorkerFirstTurnFailed } from '../worker-start-blocked-prompt'
 import { chatAssigneeSessionId } from '../../../../../../orchestration/workers/lifecycle/chat-assignee'
 import type { OrchestrationWorkerLaunchReceipt } from '../launch/worker-launch-preferences'
 import {
@@ -76,6 +77,10 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
     id: terminalHandle,
     state: 'accepted'
   })
+  if (!structuredSession) {
+    // Codex only calls the API after TASK is submitted; watch after the preamble, not before.
+    await throwIfWorkerFirstTurnFailed(runtime, terminalHandle)
+  }
 
   args.onStage('turn_observation')
   // Accepted writes need positive turn-start evidence when supported; structured sends prove acceptance or remain held.

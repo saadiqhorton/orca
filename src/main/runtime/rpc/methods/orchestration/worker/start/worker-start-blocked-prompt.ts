@@ -44,13 +44,36 @@ export function throwIfWorkerStartBlockedOnPrompt(
 
 export async function throwIfWorkerFirstTurnFailed(
   runtime: FirstTurnRuntime,
-  handle: string
+  handle: string,
+  now = Date.now
 ): Promise<void> {
-  const reason = await watchTerminalFirstTurnFailure(runtime, handle)
+  const reason = await watchTerminalFirstTurnFailure(runtime, handle, now)
   if (!reason) {
     return
   }
   throwIfWorkerStartBlockedOnPrompt(agentTurnFailedBlockedReason(reason), handle)
+}
+
+export async function persistWorkerFirstTurnFailure(
+  error: unknown,
+  persist: () => unknown
+): Promise<void> {
+  const reason = workerStartBlockedPromptReason(error)
+  if (!reason || !isAgentTurnFailedBlockedReason(reason)) {
+    return
+  }
+  await persist()
+}
+
+export async function settleCaughtWorkerStartError<T>(
+  error: unknown,
+  persist: () => T | Promise<T>
+): Promise<T> {
+  if (isWorkerStartBlockedPromptError(error)) {
+    await persistWorkerFirstTurnFailure(error, persist)
+    throw error
+  }
+  return persist()
 }
 
 export function isWorkerStartBlockedPromptError(error: unknown): error is OrchestrationError {

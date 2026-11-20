@@ -178,6 +178,27 @@ if want("R14"):
     close("B", (d.get("outcome") or {}).get("handle"))
     sh("B", "rm -f ~/.stub-reject-models")
 
+if want("R14") or want("R14T"):
+    sh("B", "echo gpt-5.4 > ~/.stub-reject-models")
+    for delay in (2, 5):
+        sh("B", f"echo {delay} > ~/.stub-400-delay")
+        r = orca("A", "agent launch --host ubuntu-server-local --agent codex --model gpt-5.4 --worktree path:/home/hostb/work --prompt 'RUN: echo hi' --json", coordA)
+        d = j(r).get("result") or {}
+        rec(f"R14T agent launch banner->{delay}s->400 => exit 5 agent_turn_failed", r["exit"] == 5 and "agent_turn_failed" in r["out"], f"exit={r['exit']} secs={r['secs']} out={r['out'][-300:]}")
+        close("B", (d.get("outcome") or {}).get("handle") or (re.findall(r"term_[0-9a-f-]+", r["out"]) or [None])[0])
+        r = orca("A", "orchestration worker-start --host ubuntu-server-local --agent codex --model gpt-5.4 --worktree path:/home/hostb/work --spec 'echo R14T' --json", coordA)
+        d = j(r).get("result") or {}
+        disp = d.get("dispatchId") or (re.findall(r"ctx_[0-9a-f]+", r["out"]) or [None])[0]
+        time.sleep(delay + 3)
+        st = orca("A", f"orchestration worker-show --host ubuntu-server-local --dispatch {disp}", coordA)["out"] if disp else ""
+        rec(f"R14T worker-start banner->{delay}s->400 => non-zero, not ready", r["exit"] != 0 and d.get("state") != "ready", f"exit={r['exit']} secs={r['secs']} state={d.get('state')} out={r['out'][-300:]} show={st[:250]}")
+        if disp: orca("A", f"orchestration worker-stop --host ubuntu-server-local --dispatch {disp}", coordA)
+    sh("B", "echo 0.154.0 > ~/.stub-codex-version; echo 2 > ~/.stub-400-delay")
+    r = orca("A", "agent launch --host ubuntu-server-local --agent codex --model gpt-6-luna --worktree path:/home/hostb/work --prompt 'RUN: echo hi' --json", coordA)
+    rec("R14T agent launch gpt-6-luna on codex 0.154 refused by version gate (not a launched tab)", r["exit"] != 0 and "0.156.0" in r["out"] and "agent_turn_failed" not in r["out"], f"exit={r['exit']} secs={r['secs']} out={r['out'][-300:]}")
+    h = (re.findall(r"term_[0-9a-f-]+", r["out"]) or [None])[0]; close("B", h)
+    sh("B", "rm -f ~/.stub-codex-version ~/.stub-reject-models ~/.stub-400-delay")
+
 if want("R15"):
     r = desk(["host", "list"])
     print(r["out"][-1500:], flush=True)

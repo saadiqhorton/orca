@@ -1,5 +1,9 @@
 import type { RuntimeTerminalCreate } from '../../../../shared/runtime-terminal-create-contract'
-import { isWorkerStartBlockedPromptError } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+import {
+  settleCaughtWorkerStartError,
+  throwIfWorkerFirstTurnFailed,
+  workerStartBlockedPromptReason
+} from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import { completeFederatedAgentReadiness } from './federation-attach-readiness'
 import { buildDispatchPreamble } from '../workers/launch/worker-dispatch-preamble'
 import { sendAgentTurn } from '../turn-delivery/send-agent-turn'
@@ -248,6 +252,7 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           id: terminalHandle,
           state: 'accepted'
         })
+        await throwIfWorkerFirstTurnFailed(runtime, terminalHandle)
         const attachment = db.markRemoteAttachmentReady(params.dispatchId, effects)
         monitorFederatedSetup({ ...setupStage, runtime })
         return {
@@ -264,18 +269,17 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           residualResources: []
         }
       } catch (error) {
-        if (isWorkerStartBlockedPromptError(error)) {
-          throw error
-        }
-        return failFederatedAttachmentWithReceipt({
-          db,
-          dispatchId: params.dispatchId,
-          runtimeEpoch: runtime.getRuntimeId(),
-          failedStage,
-          error,
-          setup,
-          launch: launch.receipt
-        })
+        return await settleCaughtWorkerStartError(error, () =>
+          failFederatedAttachmentWithReceipt({
+            db,
+            dispatchId: params.dispatchId,
+            runtimeEpoch: runtime.getRuntimeId(),
+            failedStage: workerStartBlockedPromptReason(error) ?? failedStage,
+            error,
+            setup,
+            launch: launch.receipt
+          })
+        )
       } finally {
         releaseTerminalClaim()
       }

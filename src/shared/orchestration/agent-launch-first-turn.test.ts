@@ -34,4 +34,12 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
   it('treats thinking as first-turn activity', () => {
     expect(isAgentFirstTurnActivity('thinking about the repo')).toBe(true)
   })
+
+  it('does not treat Working as first-turn activity', () => {
+    expect(
+      isAgentFirstTurnActivity(
+        '>_ OpenAI Codex (v0.154.0)\nTASK submitted\nWorking'
+      )
+    ).toBe(false)
+  })
 })

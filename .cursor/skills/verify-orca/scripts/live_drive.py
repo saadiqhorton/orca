@@ -155,7 +155,8 @@ def inventory(timeout: int = 40) -> dict[str, Any]:
     return {
         "ok": ok,
         "exit": r["exit"],
-        "out": text[:4000],
+        "out": text,
+        "parsed": parsed,
         "names": names,
         "machine_names": machine_names_from_inventory(parsed, text),
         "cmd": r["cmd"],
@@ -756,7 +757,8 @@ def reverse_worker_start(ev: Path, host_a: str, host_b: str) -> dict[str, Any]:
     )
     time.sleep(8)
     after, list_txt = terminals_on(host_b)
-    listed = desktop_listed_workspaces(jparse(inventory().get("out") or "") or {})
+    inv = inventory()
+    listed = desktop_listed_workspaces(inv.get("parsed") or jparse(inv.get("out") or "") or {})
     tabs = visible_new_tabs(before, after, listed)
     combined = "\n".join(x["out"] for x in (create, send)) + "\n" + list_txt
     (ev / "transcripts" / "r08-reverse-worker-start.log").parent.mkdir(parents=True, exist_ok=True)
@@ -1168,7 +1170,7 @@ def drive(
 
     if inv["ok"]:
         mode = "desktop-cli"
-        ws = workspace_from_inventory(jparse(inv.get("out") or "") or {})
+        ws = workspace_from_inventory(inv.get("parsed") or jparse(inv.get("out") or "") or {})
         ensure_caller_terminal("verify-orca-desktop-caller", workspace=ws)
         # S01–S06/S08 via scripted CLI; S07/R08 reverse from host_a → host_b.
         for sid in wanted:

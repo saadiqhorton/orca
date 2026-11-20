@@ -37,7 +37,7 @@ describe('orchestration worker recovery', () => {
     vi.spyOn(runtime, 'readTerminal').mockResolvedValue({
       handle: 'term_worker',
       status: 'running',
-      tail: ['working'],
+      tail: ['thinking', 'working'],
       truncated: false,
       nextCursor: null
     })

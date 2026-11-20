@@ -844,6 +844,20 @@ def stand_in_suite(
         and "--retry-of" in r13_claim
     )
     r14_src = root / "src/shared/orchestration/agent-launch-first-turn.ts"
+    r14_watch = read_text_safe(
+        root / "src/main/runtime/rpc/methods/agent-launch/agent-launch-first-turn-watch.ts"
+    ) or ""
+    r14_settle = read_text_safe(
+        root
+        / "src/main/runtime/rpc/methods/orchestration/worker/start/readiness/worker-start-readiness-settlement.ts"
+    ) or ""
+    r14_test = read_text_safe(
+        root
+        / "src/main/runtime/rpc/methods/orchestration/worker/start/worker-start-blocked-prompt.test.ts"
+    ) or ""
+    r14_live = read_text_safe(
+        SKILL_DIR / "harness" / "live" / "r08_live.py"
+    ) or ""
     r14_ok = (
         vt_ok
         and path_exists(r14_src)
@@ -852,6 +866,10 @@ def stand_in_suite(
         and "watchAgentLaunchFirstTurn" in (
             read_text_safe(root / "src/main/runtime/rpc/methods/agent-launch/agent-launch.ts") or ""
         )
+        and "FIRST_TURN_WATCH_MS = 20_000" in r14_watch
+        and "throwIfWorkerFirstTurnFailed" in r14_settle
+        and "5s delay" in r14_test
+        and "R14T worker-start" in r14_live
     )
     r15_src = root / "src/shared/orchestration/host-same-machine.ts"
     r15_ok = (

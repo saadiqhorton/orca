@@ -1,10 +1,7 @@
 import { waitForWorkerAgentReady } from '../../terminal/wait/launched-agent-composer-readiness'
 import { describeTerminalWaitBlockedReason } from '../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
 import { isStartupDialogBlockedReason } from '../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
-import {
-  throwIfWorkerFirstTurnFailed,
-  throwIfWorkerStartBlockedOnPrompt
-} from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+import { throwIfWorkerStartBlockedOnPrompt } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
 import { persistFederatedSetupWaitOutcome } from './federation-setup'
 import { prepareFederatedAttachmentAuthority } from './federation-attachment-authority'
 import type { OrcaRuntimeService } from '../../orca-runtime'
@@ -34,7 +31,6 @@ export async function completeFederatedAgentReadiness(args: {
   })
   persistFederatedSetupWaitOutcome({ ...args, wait })
   if (wait.satisfied) {
-    await throwIfWorkerFirstTurnFailed(args.runtime, args.terminalHandle)
     return
   }
   if (args.setup.state === 'failed') {
