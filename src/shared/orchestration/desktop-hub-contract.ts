@@ -25,6 +25,7 @@ export const DesktopHubHostRowSchema = z.object({
   machineName: z.string().min(1).max(256).optional(),
   label: z.string().min(1).max(256).optional(),
   id: z.string().min(1).max(256),
+  aliases: z.array(z.string().min(1).max(256)).max(16).optional(),
   selector: z.string().min(1).max(512),
   status: DesktopHubHostStatusSchema,
   hostKey: z.string().min(1).max(256)
@@ -93,12 +94,21 @@ export function desktopHubHostKey(selector: string): string {
 }
 
 export function desktopHubRowMatches(
-  row: { name: string; machineName?: string; label?: string; id?: string },
+  row: {
+    name: string
+    machineName?: string
+    label?: string
+    id?: string
+    aliases?: readonly string[]
+  },
   query: string
 ): boolean {
   const wanted = query.trim()
   // `orca host list --json` prints the environment id too; accept it as a selector.
-  return [row.name, row.machineName, row.label, row.id].some((value) => value === wanted)
+  // SSH host/label aliases let `--host 192.168.1.35` match a managed target named clawd.
+  return [row.name, row.machineName, row.label, row.id, ...(row.aliases ?? [])].some(
+    (value) => value === wanted
+  )
 }
 
 /** Sidebar health, as the desktop already computed it, in the three statuses an agent can act on. */

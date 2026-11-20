@@ -14,6 +14,9 @@ export type DesktopHubCatalogExecution = {
   health: ExecutionHostHealth
   blockedReason?: string | null
   sshAuthFailed?: boolean
+  sshHost?: string
+  sshLabel?: string
+  sshConfigHost?: string
   server?: {
     name: string
     peerFingerprint: string
@@ -52,14 +55,17 @@ export function buildDesktopHubCatalog(input: {
   const used = new Set<string>([desktopName])
   for (const execution of input.executions) {
     const status = desktopHubStatus(execution)
-    const preferred = execution.label.trim() || execution.machineName?.trim() || execution.environmentId
+    const preferred =
+      execution.label.trim() || execution.machineName?.trim() || execution.environmentId
     const name = uniqueName(preferred, execution.machineName?.trim() || execution.label, used)
+    const aliases = uniqueAliases(execution, name)
     const row: DesktopHubHostRow = {
       kind: 'execution',
       name,
       ...(execution.machineName ? { machineName: execution.machineName } : {}),
       label: execution.label,
       id: execution.environmentId,
+      ...(aliases.length > 0 ? { aliases } : {}),
       hostKey: execution.environmentId,
       selector: hostSelector(name),
       status
@@ -80,6 +86,24 @@ export function buildDesktopHubCatalog(input: {
     }
   }
   return { hosts, placements }
+}
+
+function uniqueAliases(execution: DesktopHubCatalogExecution, name: string): string[] {
+  const seen = new Set(
+    [name, execution.label, execution.machineName, execution.environmentId].filter(
+      (value): value is string => typeof value === 'string' && value.length > 0
+    )
+  )
+  const aliases: string[] = []
+  for (const value of [execution.sshHost, execution.sshLabel, execution.sshConfigHost]) {
+    const alias = value?.trim()
+    if (!alias || seen.has(alias)) {
+      continue
+    }
+    seen.add(alias)
+    aliases.push(alias)
+  }
+  return aliases
 }
 
 function uniqueName(preferred: string, label: string, used: Set<string>): string {

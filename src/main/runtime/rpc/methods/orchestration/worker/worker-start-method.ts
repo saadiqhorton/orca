@@ -22,10 +22,7 @@ import { WorkerStartParams } from '../../../../../../shared/rpc-contract/orchest
 import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 import { remoteWorktreeRequiredMessage } from '../../../../../../shared/orchestration/desktop-hub-placement-flag'
 import { resolveOrchestrationSessionPlacement } from '../surface/orchestration-session-placement'
-import {
-  parseGroupWorktreeSelector,
-  parseSameGroupWorktreeSelector
-} from '../../../../../../shared/orchestration/orchestration-group-selector'
+import { resolveLocalWorkerGroupPlacement } from './start/local-worker-group-placement'
 import {
   isWorkerStartTimeoutWithinTimerLimit,
   resolveWorkerStartReadinessTimeoutMs
@@ -145,14 +142,8 @@ export async function prepareWorkerStart(
       { effectsApplied: false }
     )
   }
+  params = await resolveLocalWorkerGroupPlacement(runtime, params)
   let placement = params.worktree ?? 'current'
-  if (parseGroupWorktreeSelector(placement) || parseSameGroupWorktreeSelector(placement)) {
-    const placed = await resolveOrchestrationSessionPlacement(runtime, undefined, {
-      worktree: placement
-    })
-    placement = placed.worktree
-    params = { ...params, worktree: placed.worktree }
-  }
   const remoteSession =
     !followUp &&
     !params.terminal &&

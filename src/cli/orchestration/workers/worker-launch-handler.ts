@@ -26,6 +26,7 @@ import { resolveDesktopHubHost, throwDesktopHubHostResolution } from '../../host
 import { applyGroupWorktreeFlag } from '../../hosts/orchestration-group-flag'
 import { formatSameGroupWorktreeSelector } from '../../../shared/orchestration/orchestration-group-selector'
 import { readCallerProjectGroupName } from '../../hosts/caller-project-group'
+import { checkCodexModelAgainstVersion } from '../../../shared/orchestration/codex-model-version-gate'
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async (ctx) => {
@@ -46,6 +47,16 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     const terminal = getPresentStringFlag(flags, 'terminal')
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
+    const requestedAgent = getOptionalStringFlag(flags, 'agent')
+    if ((!requestedAgent || requestedAgent === 'codex') && model) {
+      const gate = checkCodexModelAgainstVersion(model, null)
+      if (gate.status === 'refused') {
+        throw new RuntimeClientError('invalid_argument', gate.message)
+      }
+      if (gate.status === 'unknown') {
+        process.stderr.write(`warning: ${gate.message}\n`)
+      }
+    }
     if (model || effort) {
       const status = await client.call<RuntimeStatus>('status.get')
       if (

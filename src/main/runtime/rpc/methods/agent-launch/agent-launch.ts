@@ -49,7 +49,7 @@ import {
   withSessionPlacement
 } from './agent-launch-orchestration-placement'
 import { watchAgentLaunchFirstTurn } from './agent-launch-first-turn-watch'
-import { assertCodexModelSupported } from './agent-launch-codex-model-gate'
+import { assertRequestedCodexModelSupported } from './agent-launch-codex-model-gate'
 import {
   publishEarlyTab,
   withPlacement,
@@ -67,7 +67,6 @@ async function runAgentLaunch(
   replaySafe?: ReplaySafeLaunch
 ): Promise<AgentLaunchResult> {
   const callerNavigationId = agentLaunchCallerNavigationId(intent.target, context)
-  await assertCodexModelSupported(intent)
   const result = await executeAgentLaunch({
     runtime: context.runtime,
     intent,
@@ -297,6 +296,7 @@ export async function launchAgentOnHost(
   if (!supportsAgentLaunch(host)) {
     throw new Error('agent_launch_unsupported')
   }
+  await assertRequestedCodexModelSupported(requested)
   const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, host)
   if (!operationId) {
     return withSessionPlacement(await runLegacyAgentLaunch(params, host), sessionPlacement)

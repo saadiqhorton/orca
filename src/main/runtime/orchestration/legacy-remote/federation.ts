@@ -1,11 +1,6 @@
 import type { RuntimeTerminalCreate } from '../../../../shared/runtime-terminal-create-contract'
-import { waitForWorkerAgentReady } from '../../terminal/wait/launched-agent-composer-readiness'
-import { describeTerminalWaitBlockedReason } from '../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
-import {
-  isWorkerStartBlockedPromptError,
-  throwIfWorkerStartBlockedOnPrompt
-} from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
-import { isStartupDialogBlockedReason } from '../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
+import { isWorkerStartBlockedPromptError } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+import { completeFederatedAgentReadiness } from './federation-attach-readiness'
 import { buildDispatchPreamble } from '../workers/launch/worker-dispatch-preamble'
 import { sendAgentTurn } from '../turn-delivery/send-agent-turn'
 import { createWorkerBriefWriteGuard } from '../../terminal/wait/launched-agent-write-guard'
@@ -18,8 +13,7 @@ import type { WorkerSetupReceipt } from '../../rpc/methods/orchestration/worker/
 import {
   monitorFederatedSetup,
   persistFederatedReadinessStage,
-  persistFederatedSetupSpawnFailure,
-  persistFederatedSetupWaitOutcome
+  persistFederatedSetupSpawnFailure
 } from './federation-setup'
 import { FederationAttachStartParams } from '../../../../shared/rpc-contract/orchestration/orchestration-federation-start-params'
 import { failFederatedAttachmentWithReceipt } from './federation-start-receipt'
@@ -197,38 +191,22 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
         }
         persistFederatedReadinessStage(setupStage)
         failedStage = 'agent_readiness'
-        const wait = await waitForWorkerAgentReady(runtime, terminalHandle, {
-          agent,
+        await completeFederatedAgentReadiness({
+          runtime,
+          db,
+          dispatchId: params.dispatchId,
+          terminalHandle,
+          worktreeId: worktree.id,
+          setup,
+          effects,
           reusesTerminal: Boolean(params.terminal),
+          readinessTimeoutMs,
+          agent,
           creation: terminalCreation,
-          timeoutMs: readinessTimeoutMs
-        })
-        persistFederatedSetupWaitOutcome({ ...setupStage, wait })
-        if (!wait.satisfied) {
-          if (setup.state === 'failed') {
+          onSetupWaitFailed: () => {
             failedStage = 'setup_wait'
           }
-          if (isStartupDialogBlockedReason(wait.blockedReason) && setup.state !== 'failed') {
-            // The tab stays open at the prompt, so the attachment stays ready and blocked instead of failing.
-            prepareFederatedAttachmentAuthority({
-              runtime,
-              db,
-              dispatchId: params.dispatchId,
-              worktreeId: worktree.id,
-              terminalHandle,
-              setup,
-              effects,
-              reusesTerminal: Boolean(params.terminal)
-            })
-            db.markRemoteAttachmentBlockedOnPrompt(params.dispatchId, wait.blockedReason)
-          }
-          throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
-          throw new Error(
-            wait.blockedReason
-              ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
-              : `Agent did not become ready (${wait.status}).`
-          )
-        }
+        })
         prepareFederatedAttachmentAuthority({
           runtime,
           db,

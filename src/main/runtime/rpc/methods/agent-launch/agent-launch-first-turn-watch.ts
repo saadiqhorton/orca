@@ -13,6 +13,35 @@ type TerminalReader = {
   ) => Promise<{ tail?: unknown; screen?: unknown; text?: string }>
 }
 
+export async function watchTerminalFirstTurnFailure(
+  runtime: TerminalReader,
+  handle: string,
+  now = Date.now
+): Promise<string | null> {
+  if (!runtime.readTerminal) {
+    return null
+  }
+  const deadline = now() + FIRST_TURN_WATCH_MS
+  while (now() <= deadline) {
+    let output = ''
+    try {
+      const read = await runtime.readTerminal(handle, { screen: true })
+      output = flattenTerminalRead(read)
+    } catch {
+      return null
+    }
+    const reason = classifyAgentLaunchFirstTurnFailure(output)
+    if (reason) {
+      return reason
+    }
+    if (output.trim().length > 0) {
+      return null
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return null
+}
+
 export async function watchAgentLaunchFirstTurn(
   runtime: TerminalReader,
   result: AgentLaunchResult,
@@ -27,34 +56,19 @@ export async function watchAgentLaunchFirstTurn(
   ) {
     return result
   }
-  const handle = result.outcome.handle
-  const deadline = now() + FIRST_TURN_WATCH_MS
-  while (now() <= deadline) {
-    let output = ''
-    try {
-      const read = await runtime.readTerminal(handle, { screen: true })
-      output = flattenTerminalRead(read)
-    } catch {
-      return result
-    }
-    const reason = classifyAgentLaunchFirstTurnFailure(output)
-    if (reason) {
-      return {
-        ...result,
-        prompt: {
-          delivery: prompt?.delivery ?? 'submit',
-          outcome: 'agent_blocked_on_prompt',
-          blockedReason: agentTurnFailedBlockedReason(reason),
-          next: `The agent failed on its first turn (${reason}). This launch is not success; the tab may still be open.`
-        }
-      }
-    }
-    if (output.trim().length > 0) {
-      return result
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250))
+  const reason = await watchTerminalFirstTurnFailure(runtime, result.outcome.handle, now)
+  if (!reason) {
+    return result
   }
-  return result
+  return {
+    ...result,
+    prompt: {
+      delivery: prompt?.delivery ?? 'submit',
+      outcome: 'agent_blocked_on_prompt',
+      blockedReason: agentTurnFailedBlockedReason(reason),
+      next: `The agent failed on its first turn (${reason}). This launch is not success; the tab may still be open.`
+    }
+  }
 }
 
 function flattenTerminalRead(read: { tail?: unknown; screen?: unknown; text?: string }): string {

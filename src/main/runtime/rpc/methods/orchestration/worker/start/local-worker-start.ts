@@ -6,6 +6,7 @@ import type { OrcaRuntimeService } from '../../../../../orca-runtime'
 import { describeTerminalWaitBlockedReason } from '../../../../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
 import {
   isWorkerStartBlockedPromptError,
+  throwIfWorkerFirstTurnFailed,
   throwIfWorkerStartBlockedOnPrompt
 } from './worker-start-blocked-prompt'
 import { isStartupDialogBlockedReason } from '../../../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
@@ -222,6 +223,9 @@ export async function startLocalWorker(args: {
               : `Agent did not become ready (${wait.status}).`
         )
       }
+    }
+    if (!workerChat) {
+      await throwIfWorkerFirstTurnFailed(runtime, terminalHandle)
     }
     const terminalAuthority = authority ?? requireWorkerAuthority(runtime, terminalHandle)
     db.prepareStartingWorkerAuthority({

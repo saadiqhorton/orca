@@ -21,6 +21,8 @@ import {
   type GlobalInstructionSettingsSource
 } from '../../../runtime/orchestration/desktop-hub/orca-host-instruction-install'
 import { openHubSubscription } from './desktop-hub-subscribe'
+import { listRegisteredSshTargets } from '../../../ssh/targets/ssh-target-registry'
+import { getManagedOrcadSshTargetId } from '../../../../shared/execution-host/managed-orcad-execution-host'
 
 type DesktopHubClientOptions = {
   userDataPath: string
@@ -160,6 +162,14 @@ function currentCatalog(
     executions: describeRelayHosts(relay).map((host) => {
       const status = listing.statusByEnvironmentId.get(host.environmentId)
       const verified = lastVerifiedRuntimeStatus(status)
+      const environment = listing.environments.find((entry) => entry.id === host.environmentId)
+      const sshTargetId = getManagedOrcadSshTargetId({
+        id: host.environmentId,
+        orcadDeployment: environment?.orcadDeployment
+      })
+      const ssh = sshTargetId
+        ? listRegisteredSshTargets().find((target) => target.id === sshTargetId)
+        : undefined
       let server: {
         name: string
         peerFingerprint: string
@@ -191,6 +201,9 @@ function currentCatalog(
         ...(status?.snapshot?.blockedReason
           ? { blockedReason: status.snapshot.blockedReason }
           : {}),
+        ...(ssh?.host ? { sshHost: ssh.host } : {}),
+        ...(ssh?.label ? { sshLabel: ssh.label } : {}),
+        ...(ssh?.configHost ? { sshConfigHost: ssh.configHost } : {}),
         server
       }
     })

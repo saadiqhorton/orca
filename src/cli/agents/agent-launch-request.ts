@@ -87,8 +87,11 @@ export function readCliAgentLaunch(
   }
   if (agent === 'codex' && checked.preferences?.model) {
     const gate = checkCodexModelAgainstVersion(checked.preferences.model, null)
-    if (gate.status === 'unknown') {
+    if (gate.status === 'refused') {
       throw new RuntimeClientError('invalid_argument', gate.message)
+    }
+    if (gate.status === 'unknown') {
+      process.stderr.write(`warning: ${gate.message}\n`)
     }
   }
   const prompt = flags.get('prompt')

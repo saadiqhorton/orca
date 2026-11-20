@@ -15,8 +15,13 @@ describe('checkCodexModelAgainstVersion', () => {
     expect(checkCodexModelAgainstVersion('gpt-6-sol', '0.156.0').status).toBe('ok')
   })
 
-  it('warns on an unknown model id', () => {
+  it('refuses dotted gpt-6.N ids as known-bad', () => {
     const check = checkCodexModelAgainstVersion('gpt-6.2-luna', '0.156.0')
+    expect(check.status).toBe('refused')
+  })
+
+  it('warns on an unrecognized well-formed model id', () => {
+    const check = checkCodexModelAgainstVersion('custom-codex-model', '0.156.0')
     expect(check.status).toBe('unknown')
   })
 })

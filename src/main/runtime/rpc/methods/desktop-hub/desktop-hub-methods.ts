@@ -262,6 +262,8 @@ function snapshotHost(row: DesktopHubHostRow) {
     name: row.name,
     machineName: row.machineName,
     id: row.id,
+    label: row.label,
+    ...(row.aliases ? { aliases: row.aliases } : {}),
     hostKey: row.hostKey,
     selector: row.selector,
     status: row.status
