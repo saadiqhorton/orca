@@ -40,6 +40,12 @@ describe('cliErrorExitCode', () => {
     expect(cliErrorExitCode(error, ['host', 'inventory'])).toBe(6)
   })
 
+  it('maps agent_blocked_on_prompt to exit 5 for agent launch', () => {
+    expect(
+      cliErrorExitCode(new RuntimeClientError('agent_blocked_on_prompt', 'x'), ['agent', 'launch'])
+    ).toBe(5)
+  })
+
   it('exits 1 for errors without a code', () => {
     expect(cliErrorExitCode(new Error('boom'), orchestration)).toBe(1)
   })

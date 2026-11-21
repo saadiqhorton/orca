@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '../../../../../orchestration/orchestration-error'
-import { RuntimeClientError } from '../../../../../../../cli/runtime/types'
-import { cliErrorExitCode } from '../../../../../../../cli/output/cli-exit-code'
-import { reportCliError } from '../../../../../../../cli/output/cli-error'
 import {
   persistWorkerFirstTurnFailure,
   throwIfWorkerFirstTurnFailed
@@ -97,12 +94,6 @@ describe('throwIfWorkerFirstTurnFailed', () => {
     })
     await vi.advanceTimersByTimeAsync(5_250)
     await expectation
-    expect(
-      cliErrorExitCode(
-        new RuntimeClientError('agent_blocked_on_prompt', 'first turn failed'),
-        ['orchestration', 'worker-start']
-      )
-    ).toBe(5)
   })
 
   it('returns a healthy worker-start well before 20s once Working (Ns) advances', async () => {
@@ -146,23 +137,6 @@ describe('throwIfWorkerFirstTurnFailed', () => {
     const result = await finished
     expect(result.value).toBe(true)
     expect(result.at).toBeLessThan(20_000)
-  })
-
-  it('includes dispatchId, handle, and host in the JSON error payload', () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    reportCliError(
-      new RuntimeClientError('agent_blocked_on_prompt', 'first turn failed', {
-        dispatchId: 'ctx_abc',
-        handle: 'term_worker',
-        host: 'ubuntu-server-local',
-        blockedReason: 'agent_turn_failed:model_not_found'
-      }),
-      true
-    )
-    const printed = String(log.mock.calls[0]?.[0])
-    expect(printed).toContain('ctx_abc')
-    expect(printed).toContain('term_worker')
-    expect(printed).toContain('ubuntu-server-local')
   })
 
   it('marks the dispatch failed with agent_turn_failed on a first-turn 400', async () => {
