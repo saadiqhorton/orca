@@ -3,6 +3,7 @@ import {
   agentTurnFailedBlockedReason,
   classifyAgentLaunchFirstTurnFailure,
   isAgentFirstTurnActivity,
+  isAgentFirstTurnIdle,
   isCodexWorkingTimerProgress,
   readCodexWorkingElapsedSeconds
 } from './agent-launch-first-turn'
@@ -60,6 +61,16 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
         4
       )
     ).toBe(false)
+  })
+
+  it('treats a finished turn as idle and the Codex banner as still starting', () => {
+    expect(isAgentFirstTurnIdle(CODEX_BANNER)).toBe(false)
+    expect(isAgentFirstTurnIdle('thinking about the repo')).toBe(false)
+    expect(isAgentFirstTurnIdle('• Working (3s • esc to interrupt)')).toBe(false)
+    expect(isAgentFirstTurnIdle('❯ ')).toBe(true)
+    expect(
+      isAgentFirstTurnIdle('>_ OpenAI Codex (v0.154.0)\nhello from the worktree\n>_ ')
+    ).toBe(true)
   })
 
   it('treats Claude Code elapsed-seconds status lines as progress', () => {

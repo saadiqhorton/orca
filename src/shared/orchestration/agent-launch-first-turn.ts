@@ -38,6 +38,20 @@ export function isAgentFirstTurnActivity(output: string): boolean {
   return FIRST_TURN_ACTIVITY.test(text)
 }
 
+const STARTUP_BANNER = /to get started|describe a task/i
+
+/** Idle composer or a finished turn — not a startup banner, timer, or fatal error. */
+export function isAgentFirstTurnIdle(output: string): boolean {
+  const text = output.trim()
+  if (!text || classifyAgentLaunchFirstTurnFailure(text)) {
+    return false
+  }
+  if (isAgentFirstTurnActivity(text) || readCodexWorkingElapsedSeconds(text) !== null) {
+    return false
+  }
+  return !STARTUP_BANNER.test(text)
+}
+
 export function readCodexWorkingElapsedSeconds(output: string): number | null {
   let max: number | null = null
   for (const line of output.split(/\r?\n/)) {

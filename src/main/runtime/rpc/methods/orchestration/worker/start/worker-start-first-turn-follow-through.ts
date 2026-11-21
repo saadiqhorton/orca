@@ -1,35 +1,20 @@
-import {
-  agentTurnFailedBlockedReason,
-  isAgentTurnFailedBlockedReason
-} from '../../../../../../../shared/orchestration/agent-launch-first-turn'
+import { agentTurnFailedBlockedReason } from '../../../../../../../shared/orchestration/agent-launch-first-turn'
 import type { OrchestrationDb } from '../../../../../orchestration/db/orchestration-db'
 import type { OrcaRuntimeService } from '../../../../../orca-runtime'
-import { reportFailedWorkerStart } from '../../../../../orchestration/workers/turn-stops/failed-worker-start-report'
 import {
   continueFirstTurnWatchInBackground,
   FIRST_TURN_WATCH_MS,
   type TerminalReader
 } from '../../../agent-launch/agent-launch-first-turn-watch'
+import { failWorkerFirstTurnAfterReady } from './worker-start-first-turn-failure'
+
+export {
+  failWorkerFirstTurnAfterReady,
+  failWorkerFirstTurnByHandle
+} from './worker-start-first-turn-failure'
 
 type FollowThroughRuntime = TerminalReader & {
   notifyMessageArrived?: (handle: string, type: string) => void
-}
-
-export function failWorkerFirstTurnAfterReady(args: {
-  db: OrchestrationDb
-  dispatchId: string
-  reason: string
-  notify: (handle: string, type: string) => void
-}): void {
-  const blocked = isAgentTurnFailedBlockedReason(args.reason)
-    ? args.reason
-    : agentTurnFailedBlockedReason(args.reason)
-  try {
-    const worker = args.db.failWorkerStart(args.dispatchId, blocked, blocked)
-    reportFailedWorkerStart(args.db, worker, args.notify)
-  } catch {
-    // Already left starting/ready — worker-show and wait keep the settled record.
-  }
 }
 
 export function armWorkerFirstTurnFollowThrough(args: {

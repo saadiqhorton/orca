@@ -40,6 +40,8 @@ export type ReplaySafeLaunch = {
   terminalSpawn: TerminalSpawnDispatch
   /** Queue provisional surface/prompt recording without awaiting it; ordered ledger transactions keep final settlement after it. */
   recordSurface: (provisional: AgentLaunchResult) => void
+  /** A late first-turn 400 after the launch receipt must still settle this row failed. */
+  failFirstTurn?: (reason: string) => void
 }
 
 export type AgentLaunchAdmission =

@@ -20,6 +20,7 @@ import {
   agentLaunchRefusalError,
   rethrowOptionalIdentityLaunchError,
   rethrowRecordedAgentLaunchError,
+  failSettledAgentLaunchOnFirstTurn,
   settleLaunchWhoseTabWasClosed,
   settleQuietly,
   withEarlyTab
@@ -48,7 +49,10 @@ import {
   placeAuthorizedAgentLaunch,
   withSessionPlacement
 } from './agent-launch-orchestration-placement'
-import { watchAgentLaunchFirstTurn } from './agent-launch-first-turn-watch'
+import {
+  beginAgentLaunchFirstTurnWatch,
+  finishAgentLaunchFirstTurnWatch
+} from './agent-launch-first-turn-watch'
 import { assertRequestedCodexModelSupported } from './agent-launch-codex-model-gate'
 import {
   publishEarlyTab,
@@ -67,6 +71,7 @@ async function runAgentLaunch(
   replaySafe?: ReplaySafeLaunch
 ): Promise<AgentLaunchResult> {
   const callerNavigationId = agentLaunchCallerNavigationId(intent.target, context)
+  let firstTurnWatch: ReturnType<typeof beginAgentLaunchFirstTurnWatch> | null = null
   const result = await executeAgentLaunch({
     runtime: context.runtime,
     intent,
@@ -88,11 +93,19 @@ async function runAgentLaunch(
         console.warn('[agent-launch] publication bookkeeping failed', error)
       }
       view.early?.surfacePublished(surface)
-      replaySafe?.recordSurface(withPlacement(surface, view))
+      const placed = withPlacement(surface, view)
+      replaySafe?.recordSurface(placed)
       selectLaunchedTab(context, surface, view.presentation, callerNavigationId)
+      firstTurnWatch ??= beginAgentLaunchFirstTurnWatch(context.runtime, placed)
     }
   })
-  return watchAgentLaunchFirstTurn(context.runtime, withPlacement(result, view))
+  return finishAgentLaunchFirstTurnWatch(
+    context.runtime,
+    withPlacement(result, view),
+    firstTurnWatch,
+    Date.now,
+    replaySafe?.failFirstTurn
+  )
 }
 
 /** Legacy unnamed launches retain the 60-second create dedupe cache (repo/mutation id, no caller partition).
@@ -205,7 +218,8 @@ async function executeAdmittedAgentLaunch(
       attachOperationId: admission.attachOperationId,
       callerKey: admission.callerKey,
       terminalSpawn,
-      recordSurface: (provisional) => void settleQuietly(admission.record(provisional))
+      recordSurface: (provisional) => void settleQuietly(admission.record(provisional)),
+      failFirstTurn: (reason) => failSettledAgentLaunchOnFirstTurn(admission.fail, reason)
     })
   } catch (error) {
     if (view.early?.closedByUser()) {
