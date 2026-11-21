@@ -2,10 +2,11 @@ import { parseAppSshPtyId } from '../../../../shared/ssh-pty-id'
 import { getPtyExecutionHost } from '../../../../shared/terminal/pty/lifecycle/terminal-execution-host'
 import type { LegacyWorkerTerminalRecoveryPlan } from './release/orchestration-legacy-worker-terminal-recovery'
 import { runLegacyWorkerTerminalRecovery } from './runtime-legacy-worker-terminal-recovery-runner'
-import type {
-  LegacyWorkerRecoveryOptions,
-  LegacyWorkerRecoveryPorts,
-  LegacyWorkerTerminalRecoveryResult
+import {
+  LEGACY_WORKER_RECOVERY_ATTEMPT_CAP,
+  type LegacyWorkerRecoveryOptions,
+  type LegacyWorkerRecoveryPorts,
+  type LegacyWorkerTerminalRecoveryResult
 } from './structured-sessions/runtime-legacy-worker-terminal-recovery-types'
 
 type RecoveryRetry = {
@@ -31,6 +32,7 @@ export class RuntimeLegacyWorkerTerminalRecoveryController {
   private readonly retries = new Map<string, RecoveryRetry>()
   private readonly receiptEpochByPane = new Map<string, number>()
   private readonly recoveredPtys = new Set<string>()
+  private readonly unprovenBindingPasses = new Map<string, number>()
   private readonly backgroundWork = new Set<Promise<unknown>>()
   private stopped = false
 
@@ -148,6 +150,16 @@ export class RuntimeLegacyWorkerTerminalRecoveryController {
     this.receiptEpochByPane.delete(paneKey)
   }
 
+  recordUnprovenBindingPass(dispatchId: string): number {
+    const passes = (this.unprovenBindingPasses.get(dispatchId) ?? 0) + 1
+    this.unprovenBindingPasses.set(dispatchId, passes)
+    return passes
+  }
+
+  clearUnprovenBindingPasses(dispatchId: string): void {
+    this.unprovenBindingPasses.delete(dispatchId)
+  }
+
   addRecoveredPty(ptyId: string): void {
     this.recoveredPtys.add(ptyId)
   }
@@ -165,7 +177,7 @@ export class RuntimeLegacyWorkerTerminalRecoveryController {
       return
     }
     const delayMs = Math.min(1_000 * 2 ** retry.attempt, 30_000)
-    retry.attempt = Math.min(retry.attempt + 1, 5)
+    retry.attempt = Math.min(retry.attempt + 1, LEGACY_WORKER_RECOVERY_ATTEMPT_CAP)
     retry.timer = setTimeout(() => {
       retry.timer = null
       void this.ports

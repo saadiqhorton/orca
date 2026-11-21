@@ -127,6 +127,11 @@ export type AgentLaunchResult = {
   /** Absent when no window placed the tab: an older host, no requested placement, or a host with no
    *  window owning the layout. */
   placement?: AgentLaunchPlacementReceipt
+  /** Named group, same-named group as the caller, or the visible orchestration scratch. */
+  sessionPlacement?: {
+    source: 'named' | 'same-group' | 'scratch'
+    group?: { id: string; name: string }
+  }
 }
 
 export type AgentLaunchMode = 'structured' | 'terminal'

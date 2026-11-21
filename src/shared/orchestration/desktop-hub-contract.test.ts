@@ -41,4 +41,14 @@ describe('desktop hub host status', () => {
     expect(desktopHubRowMatches(row, 'f12a5fc4-a853-4aa2-8b76-b0b6977b45c5')).toBe(true)
     expect(desktopHubRowMatches(row, 'f12a5fc4')).toBe(false)
   })
+
+  it('matches --host when the managed SSH target is labelled with its IP', () => {
+    const row = {
+      name: 'clawd',
+      label: 'clawd',
+      aliases: ['192.168.1.35']
+    }
+    expect(desktopHubRowMatches(row, '192.168.1.35')).toBe(true)
+    expect(desktopHubRowMatches(row, 'clawd')).toBe(true)
+  })
 })

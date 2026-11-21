@@ -148,6 +148,28 @@ describe('orchestration federation', () => {
     ).toMatchObject({ acked_at: expect.any(String) })
   })
 
+  it('fails the caller record after a cross-host first-turn 400', async () => {
+    vi.mocked(workerRuntime.readTerminal).mockResolvedValue({
+      handle: 'term_windows_worker',
+      status: 'running',
+      tail: ['ERROR: 400 model_not_found gpt-5.4'],
+      truncated: false,
+      nextCursor: '1',
+      limited: false
+    })
+    const task = createHomeTask()
+    const started = await homeDispatcher.dispatch(startRequest(task.id))
+    expect(started).toMatchObject({
+      ok: false,
+      error: { code: 'agent_blocked_on_prompt' }
+    })
+    const dispatch = homeDb.getDispatchContext(task.id)
+    expect(homeDb.getWorkerDispatch(dispatch!.id)).toMatchObject({
+      state: 'failed',
+      stage: 'agent_turn_failed:model_not_found'
+    })
+  })
+
   registerFederationAnswerAtomicityTest(() => ({
     homeDb,
     workerDb,

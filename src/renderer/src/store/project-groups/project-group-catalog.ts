@@ -9,6 +9,7 @@ import {
   mergeByIdentity,
   unchangedMergeSource
 } from '../../lib/catalog-reconciliation/catalog-identity'
+import { ORCHESTRATION_SCRATCH_GROUP_NAME } from '../../../../shared/orchestration/orchestration-scratch-workspace'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 export type FetchedProjectGroupCatalog = {
@@ -30,7 +31,8 @@ function mergeFetchedProjectGroupsForHost(
     const existingHostId = getRepoExecutionHostId(group)
     return (
       !catalogOwnsHost(hostId, existingHostId) ||
-      fetchedIdentities.has(getProjectGroupHostIdentity(group))
+      fetchedIdentities.has(getProjectGroupHostIdentity(group)) ||
+      group.name === ORCHESTRATION_SCRATCH_GROUP_NAME
     )
   })
   return unchangedMergeSource(

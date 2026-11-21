@@ -2,19 +2,25 @@ import { useId } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { AgentStateDot } from '@/components/AgentStateDot'
 import { AgentTypeIcon } from '@/components/agent/icons/agent-type-icon'
+import { Badge } from '@/components/ui/badge'
 import { translate } from '@/i18n/i18n'
 import { useTranslate, type Translate } from '@/i18n/use-translate'
 import { cn } from '@/lib/class-names'
 import type { RuntimeFileOperationArgs } from '@/runtime/files/runtime-file-client-types'
 import type { RuntimeClientTarget } from '../../../../../../shared/runtime-client-target'
 import type { NativeChatMessage } from '../../../../../../shared/native-chat/native-chat-types'
-import type { AgentMessageSource } from '../../../../../../shared/agent-session/agent-session-message-source'
+import {
+  orchestrationMailBlockedReason,
+  type AgentMessageSource
+} from '../../../../../../shared/agent-session/agent-session-message-source'
+import { startupDialogPromptLabel } from '../../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import {
   agentMessageHeading,
   agentMessagePrimarySender,
   agentMessageCanCopy
 } from '../../../../../../shared/agent-session/agent-message-presentation'
 import { agentMessageTranscriptText } from '../../../../../../shared/agent-session/agent-message-display-text'
+import { nativeChatPermissionModeLabel } from '../../session/options/controls/native-chat-permission-mode-labels'
 import { NativeChatAgentMessageSenders } from '../agent-senders/NativeChatAgentMessageSenders'
 import { useAgentMessageSenderView } from '../agent-senders/native-chat-agent-message-sender-view'
 import { useNativeChatVisualOwner } from '../../media/visuals/native-chat-visual-owner'
@@ -80,6 +86,7 @@ export function NativeChatAgentMessageCard({
   const worktreeId = owner?.worktreeId ?? runtimeContext?.worktreeId ?? null
   const target = owner?.target ?? runtimeContext?.target
   const text = agentMessageTranscriptText(message.blocks, from, message.shortened)
+  const blockedReason = orchestrationMailBlockedReason(from)
   const disclosure = useNativeChatDisclosure(`agent-message:${message.id}`, false)
   const labelId = useId()
   const bodyId = useId()
@@ -121,6 +128,22 @@ export function NativeChatAgentMessageCard({
         >
           {heading(from, message, t)}
         </span>
+        {blockedReason ? (
+          <Badge variant="warningLabel" className="pointer-events-none min-w-0">
+            {t(
+              'components.native-chat.agentMessage.blockedOnPrompt',
+              'Blocked on prompt: {{reason}}',
+              {
+                reason: startupDialogPromptLabel(blockedReason)
+              }
+            )}
+          </Badge>
+        ) : null}
+        {message.agentPermissionMode ? (
+          <Badge variant="metaLabel" className="pointer-events-none shrink-0">
+            {nativeChatPermissionModeLabel(message.agentPermissionMode, t)}
+          </Badge>
+        ) : null}
         <div className="pointer-events-none relative min-w-0 flex-1 [&_button]:pointer-events-auto">
           <NativeChatAgentMessageSenders
             compact

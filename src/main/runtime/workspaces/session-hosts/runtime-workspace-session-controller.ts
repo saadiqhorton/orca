@@ -133,10 +133,22 @@ export class RuntimeWorkspaceSessionController {
 
   getHostId(worktreeId: string): ExecutionHostId {
     const hostId = this.tryGetHostId(worktreeId)
-    if (!hostId) {
-      throw new Error('folder_workspace_not_found')
+    if (hostId) {
+      return hostId
     }
-    return hostId
+    const store = this.deps.getStore()
+    const persisted = store?.getWorkspaceSessionHostIds?.() ?? []
+    const holders = persisted.filter((candidate) => {
+      const session = store?.getWorkspaceSession?.(candidate)
+      return Boolean(session?.tabsByWorktree?.[worktreeId]?.length)
+    })
+    if (holders.length === 1) {
+      return holders[0]!
+    }
+    if (parseWorkspaceKey(worktreeId)?.type === 'folder') {
+      return LOCAL_EXECUTION_HOST_ID
+    }
+    throw new Error('folder_workspace_not_found')
   }
 
   /** Find partitions owning this exact tab, routed first; fall back to the route only when none owns it. Worktree ids repeat across hosts. */

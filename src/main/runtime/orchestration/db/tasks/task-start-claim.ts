@@ -80,9 +80,13 @@ export function claimTaskForStart(
       )
     }
     // Context-only Dispatches have no worker row; read settlement from the Dispatch itself.
+    const stopUnknownRetry = priorWorker?.state === 'stop_unknown'
     const priorSettled = priorWorker
-      ? ['failed', 'stopped', 'abandoned'].includes(priorWorker.state)
+      ? ['failed', 'stopped', 'abandoned'].includes(priorWorker.state) || stopUnknownRetry
       : prior?.status === 'failed'
+    const taskAllowsRetry =
+      ['failed', 'blocked'].includes(task.status) ||
+      (stopUnknownRetry && task.status === 'dispatched')
     if (
       !prior ||
       prior.task_id !== task.id ||
@@ -90,11 +94,15 @@ export function claimTaskForStart(
       // A later attempt on a paired server, not the local one named, is the Task's latest.
       placement?.dispatch_id != null ||
       !priorSettled ||
-      !['failed', 'blocked'].includes(task.status)
+      !taskAllowsRetry
     ) {
+      const hint =
+        priorWorker?.state === 'stop_unknown'
+          ? ` Task ${task.id} has Dispatch ${start.retryOf} in stop_unknown; re-run with --retry-of ${start.retryOf}.`
+          : ''
       throw taskNotStartableError(
         db,
-        `Task ${task.id} cannot retry from Dispatch ${start.retryOf}.`,
+        `Task ${task.id} cannot retry from Dispatch ${start.retryOf}.${hint}`,
         task,
         start.retryOf
       )
@@ -110,9 +118,15 @@ export function claimTaskForStart(
 
 function requireReadyTask(db: OrchestrationDb, task: TaskRow): void {
   if (task.status !== 'ready') {
+    const latest = db.getDispatchContext(task.id)
+    const worker = latest ? db.getWorkerDispatch(latest.id) : undefined
+    const hint =
+      worker?.state === 'stop_unknown'
+        ? ` Its only Dispatch ${latest?.id} is stop_unknown; re-run with --retry-of ${latest?.id}.`
+        : ''
     throw taskNotStartableError(
       db,
-      `Task ${task.id} is ${task.status}; only a ready Task can start.`,
+      `Task ${task.id} is ${task.status}; only a ready Task can start.${hint}`,
       task
     )
   }

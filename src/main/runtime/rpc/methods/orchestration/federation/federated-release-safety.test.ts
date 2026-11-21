@@ -99,9 +99,9 @@ describe('federated worker release ownership', () => {
     vi.spyOn(runtime, 'readTerminal').mockResolvedValue({
       handle: TERMINAL_HANDLE,
       status: 'exited',
-      tail: ['worker output'],
+      tail: ['thinking about the task', 'worker output'],
       truncated: false,
-      entries: [{ cursor: 1, text: 'worker output' }],
+      entries: [{ cursor: 1, text: 'thinking about the task' }, { cursor: 2, text: 'worker output' }],
       nextCursor: '1',
       limited: false
     } as never)

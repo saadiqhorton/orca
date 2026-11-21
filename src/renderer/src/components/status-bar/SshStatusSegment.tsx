@@ -121,6 +121,7 @@ export function SshStatusSegment({
         snapshot: statusEntry?.snapshot,
         status: statusEntry?.status ?? null,
         active: settings?.activeRuntimeEnvironmentId === environment.id,
+        appVersion: statusEntry?.appVersion ?? statusEntry?.status?.appVersion ?? null,
         remoteControl: statusEntry?.remoteControl ?? statusEntry?.status?.remoteControl ?? null
       }
     })
@@ -259,6 +260,8 @@ export function SshStatusSegment({
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl, t)}
             diagnostics={host.remoteControl}
+            appVersion={host.appVersion}
+            installedAgents={host.status?.installedAgents}
             blocked={host.blocked}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}
@@ -280,6 +283,8 @@ export function SshStatusSegment({
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl, t)}
             diagnostics={host.remoteControl}
+            appVersion={host.appVersion}
+            installedAgents={host.status?.installedAgents}
             blocked={host.blocked}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}

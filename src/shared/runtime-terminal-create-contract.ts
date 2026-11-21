@@ -2,7 +2,16 @@ import type { TerminalLaunchResult } from './agent-session/lifecycle/agent-sessi
 import type { ExecutionHostId } from './execution-host'
 import type { StartupCwdFallback } from './startup-cwd-fallback'
 
+/** The tab exists but Orca could not show it: a user-facing notice names where it runs. */
+export type RuntimeTerminalRevealPendingNotice = {
+  handle: string
+  tabTitle: string | null
+  host: string
+}
+
 export type RuntimeTerminalCreate = TerminalLaunchResult & {
+  /** Set with `surface: 'background'` when the tab exists but could not be revealed. */
+  revealPending?: boolean
   coldRestore?: { scrollback: string; cwd: string; cols?: number; rows?: number }
   handle: string
   /** Host-owned PTY incarnation used to fence remote identity observations. */

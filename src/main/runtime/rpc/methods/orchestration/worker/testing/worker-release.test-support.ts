@@ -202,7 +202,7 @@ export function createOrchestrationWorkerReleaseHarness(): OrchestrationWorkerRe
     vi.spyOn(runtime, 'readTerminal').mockResolvedValue({
       handle: 'term_worker',
       status: 'running',
-      tail: ['worker output line 1', 'worker output line 2'],
+      tail: ['thinking about the task', 'worker output line 1', 'worker output line 2'],
       truncated: false,
       nextCursor: '2'
     })

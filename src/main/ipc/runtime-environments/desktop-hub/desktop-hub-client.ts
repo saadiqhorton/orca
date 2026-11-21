@@ -17,15 +17,18 @@ import {
 import {
   installOrcaHostInstructions,
   orcaHostInstructionPath,
-  settingsWriteGlobalSlice
+  settingsWriteGlobalSlice,
+  type GlobalInstructionSettingsSource
 } from '../../../runtime/orchestration/desktop-hub/orca-host-instruction-install'
 import { openHubSubscription } from './desktop-hub-subscribe'
+import { listRegisteredSshTargets } from '../../../ssh/targets/ssh-target-registry'
+import { getManagedOrcadSshTargetId } from '../../../../shared/execution-host/managed-orcad-execution-host'
 
 type DesktopHubClientOptions = {
   userDataPath: string
   machineName: () => string
   localFingerprint: () => string
-  settingsHost?: object
+  settingsHost?: GlobalInstructionSettingsSource
   callLocal: (
     method: string,
     params: unknown,
@@ -99,7 +102,7 @@ type DesktopRelayRpc = {
 
 /** Phone host catalog and the orchestration hub share the desktop's pairing sockets. */
 export function installDesktopConnectedSurfaces(
-  runtime: {
+  runtime: GlobalInstructionSettingsSource & {
     readMachineName(): string
     getOrchestrationDb(): { getOrCreateLocalMutationCallerFingerprint(): string }
   },
@@ -159,6 +162,14 @@ function currentCatalog(
     executions: describeRelayHosts(relay).map((host) => {
       const status = listing.statusByEnvironmentId.get(host.environmentId)
       const verified = lastVerifiedRuntimeStatus(status)
+      const environment = listing.environments.find((entry) => entry.id === host.environmentId)
+      const sshTargetId = getManagedOrcadSshTargetId({
+        id: host.environmentId,
+        orcadDeployment: environment?.orcadDeployment
+      })
+      const ssh = sshTargetId
+        ? listRegisteredSshTargets().find((target) => target.id === sshTargetId)
+        : undefined
       let server: {
         name: string
         peerFingerprint: string
@@ -190,6 +201,9 @@ function currentCatalog(
         ...(status?.snapshot?.blockedReason
           ? { blockedReason: status.snapshot.blockedReason }
           : {}),
+        ...(ssh?.host ? { sshHost: ssh.host } : {}),
+        ...(ssh?.label ? { sshLabel: ssh.label } : {}),
+        ...(ssh?.configHost ? { sshConfigHost: ssh.configHost } : {}),
         server
       }
     })
@@ -198,7 +212,6 @@ function currentCatalog(
   rememberOrcaHostNames(names)
   rememberOrcaInstructionFile(orcaHostInstructionPath(options.userDataPath))
   void installOrcaHostInstructions({
-    hosts: names,
     userDataPath: options.userDataPath,
     settings: settingsWriteGlobalSlice(options.settingsHost)
   }).catch(() => undefined)

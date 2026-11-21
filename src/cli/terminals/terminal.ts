@@ -49,6 +49,10 @@ import {
   getRequiredWorktreeSelector
 } from '../workspace-selection/workspace-selector'
 import { getTerminalHandle } from './terminal-selector'
+import { ORCHESTRATION_SESSION_PLACEMENT_FLAG } from '../hosts/desktop-hub-command-route'
+import { applyGroupWorktreeFlag } from '../hosts/orchestration-group-flag'
+import { formatSameGroupWorktreeSelector } from '../../shared/orchestration/orchestration-group-selector'
+import { readCallerProjectGroupName } from '../hosts/caller-project-group'
 import { revealPairedTerminalOnLocalDesktop } from './paired-terminal-desktop-reveal'
 import { terminalCloseHandler } from './terminal-close'
 import { terminalSendHandler } from './terminal-send'
@@ -162,11 +166,15 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
     printResult(result, json, formatTerminalSetPaneTitle)
   },
   'terminal create': async ({ flags, client, cwd, json }) => {
-    if (client.isRemote && !flags.has('worktree')) {
-      throw new RuntimeClientError(
-        'invalid_argument',
-        'Remote terminal create requires --worktree because the client cwd cannot identify a server worktree.'
-      )
+    applyGroupWorktreeFlag(flags)
+    let sessionPlacement = flags.has(ORCHESTRATION_SESSION_PLACEMENT_FLAG)
+    if (client.isRemote && !flags.has('worktree') && !sessionPlacement) {
+      const callerGroup = await readCallerProjectGroupName(client, cwd).catch(() => undefined)
+      if (callerGroup) {
+        flags.set('worktree', formatSameGroupWorktreeSelector(callerGroup))
+      } else {
+        sessionPlacement = true
+      }
     }
     const command = getOptionalStringFlag(flags, 'command')
     const useRendererBackedInteractiveTerminal =
@@ -202,6 +210,7 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
     }
     const result = await client.call<{ terminal: RuntimeTerminalCreate }>('terminal.create', {
       worktree: await getBrowserWorktreeSelector(flags, cwd, client),
+      ...(sessionPlacement ? { placement: 'orchestration-session' } : {}),
       command,
       ...(shell !== undefined ? { shell } : {}),
       title: getOptionalStringFlag(flags, 'title'),

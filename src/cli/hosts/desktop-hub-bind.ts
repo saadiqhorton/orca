@@ -16,6 +16,7 @@ export type HubListRow = {
   machineName?: string
   label?: string
   id?: string
+  aliases?: string[]
   status?: string
 }
 

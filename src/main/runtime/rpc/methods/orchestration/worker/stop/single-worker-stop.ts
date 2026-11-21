@@ -17,6 +17,7 @@ import {
   stopStructuredWorker
 } from '../../structured-workers/orchestration-structured-worker-lifecycle'
 import { isStructuredWorkerHandle } from '../../../../../../../shared/orchestration/workers/structured-worker-handle'
+import { shouldSettleMissingWorkerStop } from './worker-stop-missing-folder'
 
 export type StopMutation = RpcContext['orchestrationMutation']
 
@@ -235,21 +236,33 @@ export async function stopSingleWorker(
   // A concurrent process exit already proves and settles stop; do not re-settle or report uncertainty.
   if (db.getWorkerDispatch(dispatchId)?.state !== 'stopped') {
     if ('error' in closed) {
-      return unknownReceipt(
-        dispatchId,
-        db.markWorkerStopUnknown(dispatchId, closed.error),
-        'unknown'
-      )
-    }
-    if (!closed.close.ptyKilled) {
+      const dispatch = db.getDispatchContextById(dispatchId)
+      const gone = observation.status === 'exited' || observation.status === 'missing'
+      if (
+        shouldSettleMissingWorkerStop({
+          error: closed.error,
+          capabilityRevoked: Boolean(dispatch?.capability_revoked_at),
+          terminalGone: gone
+        })
+      ) {
+        db.settleWorkerStop(dispatchId)
+      } else {
+        return unknownReceipt(
+          dispatchId,
+          db.markWorkerStopUnknown(dispatchId, closed.error),
+          'unknown'
+        )
+      }
+    } else if (!closed.close.ptyKilled) {
       // Tab retirement alone does not prove the agent stopped.
       return unknownReceipt(
         dispatchId,
         db.markWorkerStopUnknown(dispatchId, describeUnconfirmedAgentStop(closed.close)),
         'closed_agent_terminal'
       )
+    } else {
+      db.settleWorkerStop(dispatchId)
     }
-    db.settleWorkerStop(dispatchId)
   }
   runtime.notifyMessageArrived(`dispatch:${dispatchId}`, 'status')
   return {

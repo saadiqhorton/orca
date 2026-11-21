@@ -155,7 +155,8 @@ def inventory(timeout: int = 40) -> dict[str, Any]:
     return {
         "ok": ok,
         "exit": r["exit"],
-        "out": text[:4000],
+        "out": text,
+        "parsed": parsed,
         "names": names,
         "machine_names": machine_names_from_inventory(parsed, text),
         "cmd": r["cmd"],
@@ -276,13 +277,60 @@ def terminals_on(host: str) -> tuple[dict[str, Any], str]:
     return terms, txt
 
 
-def visible_new_tabs(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
+def desktop_listed_workspaces(inv: dict[str, Any] | None) -> set[str]:
+    listed: set[str] = set()
+    hosts = (inv or {}).get("hosts") or (inv or {}).get("result", {}).get("hosts") or []
+    if not isinstance(hosts, list):
+        return listed
+    for host in hosts:
+        if not isinstance(host, dict):
+            continue
+        body = host.get("inventory") if isinstance(host.get("inventory"), dict) else host
+        for repo in body.get("repos") or []:
+            if not isinstance(repo, dict):
+                continue
+            for key in ("path", "selector", "id", "name"):
+                if repo.get(key):
+                    listed.add(str(repo[key]))
+            if repo.get("id"):
+                listed.add("id:" + str(repo["id"]))
+        for folder in body.get("folderWorkspaces") or []:
+            if not isinstance(folder, dict):
+                continue
+            for key in ("path", "selector", "id", "name"):
+                if folder.get(key):
+                    listed.add(str(folder[key]))
+            if folder.get("id"):
+                listed.add("folder:" + str(folder["id"]))
+    return listed
+
+
+def worktree_is_listed(worktree: Any, listed: set[str] | None) -> bool:
+    wt = str(worktree or "")
+    if not wt or not listed:
+        return False
+    if wt in listed:
+        return True
+    return any(token and (token in wt or wt in token) for token in listed)
+
+
+def tab_is_visible(row: dict[str, Any], listed: set[str] | None = None) -> bool:
+    if worktree_is_listed(row.get("worktree"), listed):
+        return True
+    group = str(row.get("group") or "")
+    if group.startswith(HEADLESS_PREFIX):
+        return False
+    return bool(row.get("tabId"))
+
+
+def visible_new_tabs(
+    before: dict[str, Any], after: dict[str, Any], listed: set[str] | None = None
+) -> list[dict[str, Any]]:
     visible = []
     for handle, row in after.items():
         if handle in before:
             continue
-        group = str(row.get("group") or "")
-        row = {**row, "handle": handle, "visible": bool(row.get("tabId") and not group.startswith(HEADLESS_PREFIX))}
+        row = {**row, "handle": handle, "visible": tab_is_visible(row, listed)}
         visible.append(row)
     return visible
 
@@ -709,13 +757,19 @@ def reverse_worker_start(ev: Path, host_a: str, host_b: str) -> dict[str, Any]:
     )
     time.sleep(8)
     after, list_txt = terminals_on(host_b)
-    tabs = visible_new_tabs(before, after)
+    inv = inventory()
+    listed = desktop_listed_workspaces(inv.get("parsed") or jparse(inv.get("out") or "") or {})
+    tabs = visible_new_tabs(before, after, listed)
     combined = "\n".join(x["out"] for x in (create, send)) + "\n" + list_txt
     (ev / "transcripts" / "r08-reverse-worker-start.log").parent.mkdir(parents=True, exist_ok=True)
     (ev / "transcripts" / "r08-reverse-worker-start.log").write_text(combined)
-    headless = [t for t in tabs if str(t.get("group") or "").startswith(HEADLESS_PREFIX)]
     visible = [t for t in tabs if t.get("visible")]
-    ok = bool(visible) and not headless and not extra_args_violation(combined)
+    headless = [
+        t
+        for t in tabs
+        if not t.get("visible") and str(t.get("group") or "").startswith(HEADLESS_PREFIX)
+    ]
+    ok = bool(visible) and not extra_args_violation(combined)
     return {
         "pass": ok,
         "source_handle": handle,
@@ -801,11 +855,19 @@ def overlay_from_harness(
 ) -> dict[str, Any]:
     """Map harness JSON onto verify-orca. S08 unknown_host + no tab follows harness bar.zero_wrong_host."""
     bar = payload.get("bar") or {}
-    visible_ok = True if not spec.get("expect_tab") else bar.get("visible_tab") is True
+    terms = payload.get("new_target_terminals") or {}
+    listed = set(payload.get("listed_workspaces") or [])
+    if spec.get("expect_tab"):
+        if isinstance(terms, dict) and terms:
+            visible_ok = any(tab_is_visible(t, listed) for t in terms.values() if isinstance(t, dict))
+        else:
+            visible_ok = bar.get("visible_tab") is True
+    else:
+        visible_ok = True
     passed = bool(payload.get("pass")) and visible_ok
     reasons = list(payload.get("fail_reasons") or [])
     if spec.get("expect_tab") and not visible_ok:
-        reasons.append("target tab group is missing or starts with headless-terminals:")
+        reasons.append("target tab is missing, not listed on the desktop, or headless")
     if extra_args_violation(extra_out + json.dumps(payload)):
         passed = False
         reasons.append("Claude extra-args allowlist / agent_session_operation_unknown")
@@ -922,7 +984,7 @@ def box_drive(
             f"--worktree {wt} --round verify --env-name rig --fact {facts} "
             f"--fact target_agent=claude --fact stub=1 --out {remote_out}"
         )
-        if sid in ("R07", "R08"):
+        if sid in ("R07", "R08", "R09", "R10", "R11", "R12", "R13", "R14", "R15"):
             continue
         r = run([*ssh, src, cmd], timeout=480)
         pull = run([*ssh, src, f"cat {remote_out}.json"], timeout=30)
@@ -977,7 +1039,127 @@ def box_drive(
             results["R08"] = {**s07, "via": "box-rig-s07"}
         else:
             results["R08"] = no_live_result("R08", "box rig did not run reverse S07")
+    if "R09" in wanted:
+        results["R09"] = r09_from_results(results, specs, via="box-rig")
+    if any(sid in wanted for sid in R08_SIDS):
+        results.update(run_r08_script(R08_LIVE, ev, wanted, "box-rig-r08"))
     return results
+
+
+def hidden_expect_tab_ids(
+    results: dict[str, dict[str, Any]], specs: dict[str, Any]
+) -> list[str]:
+    hidden: list[str] = []
+    for sid, spec in specs.items():
+        if not spec.get("expect_tab"):
+            continue
+        row = results.get(sid)
+        if not row:
+            continue
+        bar = row.get("bar") or {}
+        if bar.get("visible_tab") is not True:
+            hidden.append(sid)
+    return hidden
+
+
+def r09_from_results(
+    results: dict[str, dict[str, Any]], specs: dict[str, Any], *, via: str
+) -> dict[str, Any]:
+    hidden = hidden_expect_tab_ids(results, specs)
+    return {
+        "pass": not hidden,
+        "reasons": [f"{sid} tab is hidden/headless" for sid in hidden],
+        "orca_cmds": 0,
+        "bar": {"visible_tab": not hidden},
+        "evidence": [
+            "expect_tab scenarios: "
+            + ", ".join(sid for sid, spec in specs.items() if spec.get("expect_tab"))
+        ],
+        "ssh": [],
+        "wrong_host": [],
+        "final": "",
+        "wall_s": 0,
+        "via": via,
+    }
+
+
+R08_SIDS = ("R10", "R11", "R12", "R13", "R14", "R15")
+R08_LIVE = Path(__file__).resolve().parent.parent / "harness" / "live" / "r08_live.py"
+R08_DESKTOP = Path(__file__).resolve().parent.parent / "harness" / "live" / "r08_desktop.py"
+
+
+ORCA_INVOKE_RE = re.compile(r"(?:^|[\s;&|(`$])(?:[\w./~-]*/)?orca(?:-ide)?\s+(?=[a-z])")
+
+
+def count_r08_orca_cmds(log: list[Any] | None, sid: str) -> int:
+    """Count actual orca CLI invocations for one R08 sid, not the number of rec() keys."""
+    n = 0
+    for row in log or []:
+        if not isinstance(row, dict):
+            continue
+        section = str(row.get("section") or "")
+        if not section.startswith(sid):
+            continue
+        cmd = " " + str(row.get("cmd") or "")
+        if ORCA_INVOKE_RE.search(cmd):
+            n += 1
+    return n
+
+
+def ingest_r08_payload(
+    payload: dict[str, Any], ev: Path, via: str, evidence: str | None = None
+) -> dict[str, dict[str, Any]]:
+    res = payload.get("results") or {}
+    log = payload.get("log") or []
+    out: dict[str, dict[str, Any]] = {}
+    evidence_path = evidence or str(ev / "transcripts" / "r08" / "r08-live.json")
+    for sid in R08_SIDS:
+        keys = [k for k in res if k == sid or str(k).startswith(sid)]
+        if not keys:
+            out[sid] = no_live_result(sid, f"{via} did not run {sid}")
+            continue
+        failed = [k for k in keys if not (res[k] or {}).get("pass")]
+        details = [f"{k}: {(res[k] or {}).get('detail')}" for k in keys]
+        out[sid] = {
+            "pass": not failed,
+            "reasons": [f"{k}: {(res[k] or {}).get('detail')}" for k in failed],
+            "orca_cmds": count_r08_orca_cmds(log if isinstance(log, list) else [], sid),
+            "skip_max_orca": True,
+            "bar": {},
+            "evidence": [evidence_path],
+            "ssh": [],
+            "wrong_host": [],
+            "final": "\n".join(details)[-3000:],
+            "wall_s": 0,
+            "via": via,
+            "detail": {k: res[k] for k in keys},
+        }
+    return out
+
+
+def run_r08_script(script: Path, ev: Path, wanted: list[str], via: str) -> dict[str, dict[str, Any]]:
+    ids = [sid for sid in R08_SIDS if sid in wanted]
+    if not ids:
+        return {}
+    out_dir = ev / "transcripts" / "r08"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    bin_path = orca_bin()
+    if bin_path:
+        env["ORCA_BIN"] = bin_path
+    r = run([sys.executable, str(script), str(out_dir), *ids], timeout=900, env=env)
+    payload: dict[str, Any] = {}
+    evidence_path = out_dir / "r08-live.json"
+    for path in sorted(out_dir.glob("r08-live*.json")):
+        try:
+            payload = json.loads(path.read_text())
+            evidence_path = path
+        except (OSError, json.JSONDecodeError):
+            continue
+    (out_dir / "r08-runner.log").write_text(r.get("out") or "")
+    if not payload:
+        return {sid: no_live_result(sid, f"{via} produced no r08-live.json: {(r.get('out') or '')[-400:]}") for sid in ids}
+    return ingest_r08_payload(payload, ev, via, str(evidence_path))
 
 
 def no_live_result(sid: str, reason: str) -> dict[str, Any]:
@@ -1012,7 +1194,7 @@ def drive(
 
     if inv["ok"]:
         mode = "desktop-cli"
-        ws = workspace_from_inventory(jparse(inv.get("out") or "") or {})
+        ws = workspace_from_inventory(inv.get("parsed") or jparse(inv.get("out") or "") or {})
         ensure_caller_terminal("verify-orca-desktop-caller", workspace=ws)
         # S01–S06/S08 via scripted CLI; S07/R08 reverse from host_a → host_b.
         for sid in wanted:
@@ -1069,6 +1251,12 @@ def drive(
             ran = run_scripted(skill_dir, root, ev, sid, spec, sid_facts)
             ran["via"] = "desktop-cli"
             results[sid] = ran
+        if "R09" in wanted:
+            results["R09"] = r09_from_results(results, specs, via="desktop-cli")
+        if any(sid in wanted for sid in R08_SIDS):
+            script = R08_LIVE if box_rig_available() else R08_DESKTOP
+            via = "box-rig-r08" if box_rig_available() else "desktop-cli-r08"
+            results.update(run_r08_script(script, ev, wanted, via))
         return {"mode": mode, "inventory": inv, "results": results, "start": start_info}
 
     boxed = box_drive(skill_dir, ev, wanted, specs)
@@ -1088,6 +1276,6 @@ def drive(
     if live_wanted():
         reason = "ORCA_VERIFY_LIVE=1 but `orca host inventory --json` did not list both hosts. " + reason
     for sid in wanted:
-        if sid.startswith("S") or sid in ("R07", "R08"):
+        if sid.startswith("S") or sid in ("R07", "R08") or sid in R08_SIDS:
             results[sid] = no_live_result(sid, reason)
     return {"mode": "none", "inventory": inv, "results": results, "start": start_info, "reason": reason}

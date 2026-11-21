@@ -111,6 +111,9 @@ describe('desktop hub CLI --host routing', () => {
       needsDefaultRemoteWorktree(['agent', 'launch'], new Map([['worktree', 'path:/x']]))
     ).toBe(false)
     expect(needsDefaultRemoteWorktree(['terminal', 'create'], new Map())).toBe(true)
+    expect(
+      needsDefaultRemoteWorktree(['agent', 'launch'], new Map([['group', 'dockhand group']]))
+    ).toBe(false)
     expect(needsDefaultRemoteWorktree(['worktree', 'create'], new Map())).toBe(false)
   })
 

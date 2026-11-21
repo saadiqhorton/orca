@@ -16,6 +16,10 @@ import {
 
 import { findOrcadMigrationSourceCutoverForTarget } from '../../cutover-journals/orcad-migration-cutover-journal'
 import {
+  ORCHESTRATION_SCRATCH_GROUP_NAME,
+  ORCHESTRATION_SCRATCH_ROOT_DIR
+} from '../../../../../shared/orchestration/orchestration-scratch-workspace'
+import {
   withoutWslMovedFolderWorkspaces,
   withoutWslMovedRepos
 } from '../../../moving-wsl-projects/quiescence/wsl-move-scope-guard'
@@ -99,7 +103,9 @@ export function visibleProjectGroups(
     return groups
   }
   return groups.filter(
-    (group) => !hidden.some((targetId) => projectGroupBelongsToOrcadSource(group, targetId))
+    (group) =>
+      group.name === ORCHESTRATION_SCRATCH_GROUP_NAME ||
+      !hidden.some((targetId) => projectGroupBelongsToOrcadSource(group, targetId))
   )
 }
 
@@ -120,7 +126,24 @@ export function visibleFolderWorkspaces(
   const hiddenIds = new Set(
     hidden.flatMap((targetId) => [...orcadSourceFolderWorkspaceIds(state, targetId)])
   )
-  return folderWorkspaces.filter((workspace) => !hiddenIds.has(workspace.id))
+  return folderWorkspaces.filter(
+    (workspace) =>
+      isOrchestrationScratchFolder(workspace, store.getProjectGroups()) ||
+      !hiddenIds.has(workspace.id)
+  )
+}
+
+function isOrchestrationScratchFolder(
+  workspace: FolderWorkspace,
+  groups: readonly ProjectGroup[]
+): boolean {
+  if (workspace.folderPath.split(/[/\\]/).includes(ORCHESTRATION_SCRATCH_ROOT_DIR)) {
+    return true
+  }
+  return groups.some(
+    (group) =>
+      group.id === workspace.projectGroupId && group.name === ORCHESTRATION_SCRATCH_GROUP_NAME
+  )
 }
 
 /** Hide setups with their source repo rows so managed server listings do not duplicate same-id setups (#30859). */

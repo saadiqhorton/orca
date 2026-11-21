@@ -98,7 +98,7 @@ export function configureFederationWorkerRuntime(
   vi.spyOn(runtime, 'readTerminal').mockResolvedValue({
     handle,
     status: 'running',
-    tail: ['remote output'],
+    tail: ['thinking about the task', 'remote output'],
     truncated: false,
     nextCursor: '1',
     limited: false

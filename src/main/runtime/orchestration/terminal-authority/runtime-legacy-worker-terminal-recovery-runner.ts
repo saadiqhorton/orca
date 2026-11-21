@@ -149,6 +149,9 @@ export async function runLegacyWorkerTerminalRecovery(
       deferredDispatchIds.add(candidate.dispatchId)
       continue
     }
+    if (resolution === 'abandoned') {
+      continue
+    }
     if (resolution === 'adopted') {
       controller.addRecoveredPty(candidate.ptyId)
       ports.notifyResolution(candidate, 'adopted')

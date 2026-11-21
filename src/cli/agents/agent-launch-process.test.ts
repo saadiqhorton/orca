@@ -131,7 +131,7 @@ it('real CLI processes carry surface choices and refuse invalid or unsupported p
       ]) {
         capabilities = oldCapabilities
         const response = await run(['--surface', 'chat'])
-        expect(response.code).toBe(1)
+        expect(response.code).toBe(command[0] === 'agent' ? 6 : 1)
         expect(response.stdout).toContain('incompatible_runtime')
       }
       expect(mutate()).toHaveLength(beforeUnsupported)

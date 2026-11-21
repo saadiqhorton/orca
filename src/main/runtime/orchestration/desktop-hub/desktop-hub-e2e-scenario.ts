@@ -147,6 +147,20 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     )
     const scratchWorktree = String(resultOf(scratch).worktree ?? '')
     say(`scratch worktree: ${scratchWorktree}`)
+    const scratchAgain = await registry.call(
+      placed.selector,
+      'orchestration.surface.ensureScratch',
+      {},
+      8_000,
+      undefined
+    )
+    const reusedWorktree = String(resultOf(scratchAgain).worktree ?? '')
+    if (reusedWorktree !== scratchWorktree) {
+      throw new Error(
+        `scratch folder id changed between launches: ${scratchWorktree} then ${reusedWorktree}`
+      )
+    }
+    say(`scratch reuse: ${scratchWorktree}`)
     const started = await registry.call(
       placed.selector,
       'orchestration.federationAttachStart',
@@ -203,7 +217,17 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     const inventoryAgents = Array.isArray(resultOf(inventory).agents)
       ? (resultOf(inventory).agents as string[])
       : []
+    const inventoryFolders = Array.isArray(resultOf(inventory).folderWorkspaces)
+      ? (resultOf(inventory).folderWorkspaces as { id?: string; selector?: string }[])
+      : []
+    const listedScratch = inventoryFolders.some(
+      (folder) => folder.id === 'fld_e2e' || folder.selector === scratchWorktree
+    )
+    if (!listedScratch) {
+      throw new Error(`scratch ${scratchWorktree} missing from folderWorkspaces`)
+    }
     say(`host B agents: ${inventoryAgents.join(', ')}`)
+    say(`folderWorkspaces lists ${scratchWorktree}`)
     const desktopPlaced = await registry.place('windows-desktop')
     const desktopInventory = await registry.call(
       desktopPlaced.selector,

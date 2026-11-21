@@ -252,6 +252,8 @@ export const ResumeProviderSessionParam = z.object({
 
 export const TerminalCreateParams = z.object({
   worktree: OptionalString,
+  /** With no worktree, the host places the terminal in the visible Orca orchestration scratch folder. */
+  placement: z.literal('orchestration-session').optional(),
   clientMutationId: z.string().min(1).max(128).optional(),
   reconcileExisting: z.boolean().optional(),
   command: OptionalString,

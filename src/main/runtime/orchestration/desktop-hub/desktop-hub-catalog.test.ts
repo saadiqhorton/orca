@@ -27,4 +27,27 @@ describe('desktop hub catalog names', () => {
     expect(desktopHubRowMatches(row!, 'ubuntu-server-local')).toBe(true)
     expect(desktopHubRowMatches(row!, 'dezignerdrugz00')).toBe(true)
   })
+
+  it('matches --host 192.168.1.35 when clawd is labelled with that SSH host', () => {
+    const catalog = buildDesktopHubCatalog({
+      machineName: 'windows-desktop',
+      executions: [
+        {
+          label: 'clawd',
+          environmentId: 'env-clawd',
+          health: 'available',
+          sshHost: '192.168.1.35',
+          sshLabel: 'clawd',
+          server: { name: 'clawd', peerFingerprint: 'fp-clawd' }
+        }
+      ]
+    })
+    const row = catalog.hosts.find((host) => host.kind === 'execution')
+    expect(row).toMatchObject({
+      name: 'clawd',
+      aliases: ['192.168.1.35']
+    })
+    expect(desktopHubRowMatches(row!, '192.168.1.35')).toBe(true)
+    expect(desktopHubRowMatches(row!, 'clawd')).toBe(true)
+  })
 })

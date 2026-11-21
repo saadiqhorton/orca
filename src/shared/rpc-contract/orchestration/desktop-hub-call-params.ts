@@ -23,3 +23,7 @@ export const DesktopHubCallParams = z.object({
 export const OrchestrationSurfaceEnsureScratchParams = z.object({
   name: z.string().min(1).max(64).optional()
 })
+
+export const DesktopHubLocateParams = z.object({
+  handle: z.string().min(1).max(256)
+})

@@ -152,5 +152,55 @@
     "source_failure": "r02 real S07 reverse worker-start headless group",
     "target": "dockhand",
     "expect_tab": true
+  },
+  "R09": {
+    "id": "R09",
+    "kind": "regression",
+    "feature": "visible-tabs",
+    "text": "Any scenario that expects a tab fails if that tab is hidden/headless. orca terminal create --host and orca agent launch --host must land in a desktop-visible group, never headless-terminals: from a hidden most-recent workspace.",
+    "source_failure": "r06 PR#2 S02/S04 tab in headless-terminals: from most-recent hidden workspace"
+  },
+  "R10": {
+    "id": "R10",
+    "kind": "regression",
+    "feature": "group-target",
+    "text": "--worktree group:\"<name>\" and --group \"<name>\" on agent launch, terminal create, and worker-start resolve to that group's single workspace on the target host, or error listing candidates when several match.",
+    "source_failure": "Hawser on clawd: named dockhand group was not a legal --worktree target"
+  },
+  "R11": {
+    "id": "R11",
+    "kind": "regression",
+    "feature": "placement-order",
+    "text": "When --worktree is absent: (a) named group/workspace, (b) caller workspace is in a visible group and the target host has a same-named group workspace, else (c) scratch. Receipts include placement.source named|same-group|scratch plus the group. Tabs stay visible (R09).",
+    "source_failure": "Hawser on clawd landed in a new orca-orchestration group instead of clawd/clawd in dockhand group"
+  },
+  "R12": {
+    "id": "R12",
+    "kind": "regression",
+    "feature": "scratch-persist",
+    "target": "ubuntu-server-local",
+    "text": "On a desktop-managed/migrated SSH orcad host, two launches without --worktree reuse the same ~/orca-orchestration folder id. That folder is listed in folderWorkspaces and folder:<id> resolves. Host-created records survive an empty or incomplete desktop catalog sync.",
+    "source_failure": "clawd/ubuntu-server-local minted a new folder: id on every launch (27940437 then 0703e759; a57dd254/56e666ce/f2eef0ce)"
+  },
+  "R13": {
+    "id": "R13",
+    "kind": "regression",
+    "feature": "stop-recovery",
+    "text": "worker-stop falls back to the recorded terminal handle and host and stops by PTY when the folder workspace row is missing. A confirmed stop or a revoked capability with a gone terminal settles the dispatch. worker-start on a task whose only dispatch is stop_unknown offers --retry-of <dispatch>.",
+    "source_failure": "getPreferredHostId threw folder_workspace_not_found; worker-stop became stop_unknown and the dispatch stayed dispatched"
+  },
+  "R14": {
+    "id": "R14",
+    "kind": "regression",
+    "feature": "first-turn-status",
+    "text": "A fatal first-turn error (model_not_found) must set agent_blocked_on_prompt with blocked_reason agent_turn_failed:model_not_found, make agent launch / worker-start exit non-zero, and not report launch success just because the prompt was delivered. Inventory omits agentIdentity after the agent exits.",
+    "source_failure": "Codex 0.154.0 on clawd hit model_not_found 400; agentStatus stayed working and launch reported success"
+  },
+  "R15": {
+    "id": "R15",
+    "kind": "regression",
+    "feature": "host-same-machine",
+    "text": "From the desktop, --host dockhand and --host 192.168.1.35 must prefer the paired Orca server when that name also labels an SSH target for the same machine, not error Ambiguous --host.",
+    "source_failure": "desktop --host dockhand / --host 192.168.1.35: Ambiguous --host names both a paired Orca server and an SSH target"
   }
 }

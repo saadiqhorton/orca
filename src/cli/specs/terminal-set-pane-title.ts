@@ -4,9 +4,11 @@ import { CLI_GLOBAL_FLAGS as GLOBAL_FLAGS } from '../../shared/cli-argument-boun
 export const TERMINAL_SET_PANE_TITLE_COMMAND_SPEC: CommandSpec = {
   path: ['terminal', 'set-pane-title'],
   summary: 'Set or clear the title of one terminal pane',
-  usage: 'orca terminal set-pane-title [--terminal <handle>] --title <text> [--json]',
+  usage:
+    'orca terminal set-pane-title [--host <name>] [--terminal <handle>] --title <text> [--json]',
   allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'title'],
   notes: [
+    '--host <name> is where the session lives; optional once Orca can locate it.',
     'Sets the title of ONE pane. Split panes share a tab, so terminal rename cannot address one of them; use this command for a single pane.',
     'Requires the running Orca desktop; headless pane title changes are not supported.',
     'Pass --title "" to clear the pane back to its automatic title.'

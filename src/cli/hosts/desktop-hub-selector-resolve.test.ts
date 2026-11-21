@@ -4,8 +4,10 @@ import {
   collectCrossHostSelectors,
   isCrossHostSelector,
   resolveRemoteSelectorsAcrossHosts,
-  resolveSelectorHostHits
+  resolveSelectorHostHits,
+  routeTerminalHandlesToOwner
 } from './desktop-hub-selector-resolve'
+import { ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
 
 const inventory = [
   {
@@ -119,5 +121,47 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
       code: 'selector_ambiguous',
       message: expect.stringContaining('--host TEMPLEOFDOOM')
     })
+  })
+})
+
+describe('routeTerminalHandlesToOwner', () => {
+  function clientOwnedBy(owner: unknown) {
+    return {
+      isRemote: false,
+      getCliStatus: vi.fn(async () => ({
+        result: { runtime: { capabilities: [ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY] } }
+      })),
+      call: vi.fn(async () => ({ id: '1', ok: true as const, result: owner, _meta: {} }))
+    }
+  }
+
+  it('refuses a --host that does not own the handle', async () => {
+    const flags = new Map<string, string | boolean>([
+      ['terminal', 'term_remote1'],
+      ['host', 'TEMPLEOFDOOM']
+    ])
+    const client = clientOwnedBy({
+      owner: 'host',
+      name: 'ubuntu-server-local',
+      hostKey: 'env-ubuntu'
+    })
+    await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fake client implements only the calls routing makes.
+      routeTerminalHandlesToOwner(client as never, ['terminal', 'read'], flags)
+    ).rejects.toMatchObject({ code: 'host_mismatch' })
+  })
+
+  it('retargets a host-less handle to the host that owns it', async () => {
+    const flags = new Map<string, string | boolean>([['terminal', 'term_remote1']])
+    const client = clientOwnedBy({
+      owner: 'host',
+      name: 'ubuntu-server-local',
+      hostKey: 'env-ubuntu'
+    })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fake client implements only the calls routing makes.
+    const routed = await routeTerminalHandlesToOwner(client as never, ['terminal', 'read'], flags)
+    expect(routed.handled).toBe(true)
+    expect(routed.client?.isRemote).toBe(true)
+    expect(flags.has('host')).toBe(false)
   })
 })

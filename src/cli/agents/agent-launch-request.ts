@@ -32,12 +32,14 @@ import { RuntimeClientError } from '../runtime/types'
 import type { RuntimeClient } from '../runtime/client'
 import type { RuntimeRpcSuccess } from '../../shared/runtime-rpc-envelope'
 import { withCliAgentLaunchRecovery } from './agent-launch-recovery'
+import { checkCodexModelAgainstVersion } from '../../shared/orchestration/codex-model-version-gate'
 
 type Flags = Map<string, string | boolean>
 
 /** The host strips agent fields from the worktree.create payload. */
 export type CliAgentLaunchTarget =
   | { kind: 'existing'; worktree: string }
+  | { kind: 'orchestration-session' }
   | { kind: 'create-worktree'; create: Record<string, unknown> }
 
 export type CliAgentLaunch = {
@@ -82,6 +84,15 @@ export function readCliAgentLaunch(
   })
   if ('refusal' in checked) {
     throw new RuntimeClientError(checked.refusal.code, checked.refusal.message)
+  }
+  if (agent === 'codex' && checked.preferences?.model) {
+    const gate = checkCodexModelAgainstVersion(checked.preferences.model, null)
+    if (gate.status === 'refused') {
+      throw new RuntimeClientError('invalid_argument', gate.message)
+    }
+    if (gate.status === 'unknown') {
+      process.stderr.write(`warning: ${gate.message}\n`)
+    }
   }
   const prompt = flags.get('prompt')
   rejectValuelessFlag(prompt, 'prompt')
@@ -171,6 +182,14 @@ export function formatAgentLaunch(result: AgentLaunchResult & { operationId?: st
     `handle: ${outcome.handle}`,
     ...(outcome.kind === 'structured' ? [`sessionId: ${outcome.sessionId}`] : []),
     `worktreeId: ${result.worktreeId}`,
+    ...(result.sessionPlacement
+      ? [
+          `placement.source: ${result.sessionPlacement.source}`,
+          ...(result.sessionPlacement.group
+            ? [`placement.group: ${result.sessionPlacement.group.name}`]
+            : [])
+        ]
+      : []),
     ...(result.operationId ? [`operationId: ${result.operationId}`] : []),
     `why: ${receipt.detail}`,
     ...(prompt ? [`prompt: ${prompt.outcome}`] : []),

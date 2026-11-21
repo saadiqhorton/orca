@@ -52,7 +52,23 @@ export class TerminalWorkerTurnStops {
   }
 
   observe(change: AgentPaneChange): void {
+    if (change.kind === 'moved' && change.to === 'working') {
+      this.clearResolvedPrompt(change.paneKey)
+    }
     this.news.observe(change)
+  }
+
+  /** A turn that started means the agent got past any startup prompt it was waiting at. */
+  private clearResolvedPrompt(paneKey: string): void {
+    const resolved = this.resolve(paneKey)
+    if (!resolved) {
+      return
+    }
+    if (resolved.target.kind === 'local') {
+      resolved.db.clearWorkerBlockedOnPrompt(resolved.target.dispatch.id)
+    } else {
+      resolved.db.clearRemoteAttachmentBlockedOnPrompt(resolved.target.attachment.dispatch_id)
+    }
   }
 
   private async report(stop: PreparedStop): Promise<void> {
@@ -84,6 +100,10 @@ export class TerminalWorkerTurnStops {
     if (!resolved) {
       return
     }
+    const blockedReason =
+      reason === 'needs-input' && !approval && resolved.target.kind === 'local'
+        ? (resolved.db.getWorkerDispatch(resolved.target.dispatch.id)?.blocked_reason ?? undefined)
+        : undefined
     const sent = reportWorkerTurnStop(
       resolved.db,
       resolved.target,
@@ -93,7 +113,8 @@ export class TerminalWorkerTurnStops {
         turnStartedAt: stop.row.turnStartedAt,
         reason,
         lastOutput,
-        ...(approval ? { approval } : {})
+        ...(approval ? { approval } : {}),
+        ...(blockedReason ? { blockedReason } : {})
       },
       this.deps
     )

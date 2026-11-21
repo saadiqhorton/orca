@@ -172,7 +172,7 @@ async function buildRuntimeAgentTerminalStartupOptions(
   // Repo display metadata may belong to another host; use the already-resolved PTY route for launch.
   const isRemote = Boolean(workspace.connectionId)
   const extraAgentArgs = opts.extraAgentArgs
-  const orcaOwnedAgentArgs = orcaOwnedHostInstructionArgs(agent)
+  const orcaOwnedAgentArgs = orcaOwnedHostInstructionArgs(agent, { isRemote })
   const forceLine = opts.startupPromptCarry === 'force-line'
   // Create has no live PTY for later prompt delivery; refuse uncarryable text. force-line preserves createAgentSession's clean launch.
   if (opts.startupPrompt && !forceLine && !agentPromptRidesLaunchCommand(agent)) {

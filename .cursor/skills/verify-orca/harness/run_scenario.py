@@ -222,7 +222,56 @@ def analyse(cmds, final, prompt_text):
             "hangs_over_60s": hangs, "ssh_used": ssh}
 
 
-def judge(spec, facts, final, cmds, metrics, wall, new_target_terms):
+def desktop_listed_workspaces(inv):
+    listed = set()
+    hosts = (inv or {}).get("hosts") or (inv or {}).get("result", {}).get("hosts") or []
+    for host in hosts if isinstance(hosts, list) else []:
+        if not isinstance(host, dict):
+            continue
+        body = host.get("inventory") if isinstance(host.get("inventory"), dict) else host
+        for repo in body.get("repos") or []:
+            if not isinstance(repo, dict):
+                continue
+            for key in ("path", "selector", "id", "name"):
+                if repo.get(key):
+                    listed.add(str(repo[key]))
+            if repo.get("id"):
+                listed.add("id:" + str(repo["id"]))
+        for folder in body.get("folderWorkspaces") or []:
+            if not isinstance(folder, dict):
+                continue
+            for key in ("path", "selector", "id", "name"):
+                if folder.get(key):
+                    listed.add(str(folder[key]))
+            if folder.get("id"):
+                listed.add("folder:" + str(folder["id"]))
+    return listed
+
+
+def worktree_is_listed(worktree, listed):
+    wt = str(worktree or "")
+    if not wt or not listed:
+        return False
+    if wt in listed:
+        return True
+    return any(token and (token in wt or wt in token) for token in listed)
+
+
+def tab_is_visible(tab, listed=None):
+    if worktree_is_listed(tab.get("worktree"), listed):
+        return True
+    group = str(tab.get("group") or "")
+    if group.startswith("headless"):
+        return False
+    return bool(tab.get("tabId"))
+
+
+def host_inventory():
+    r = orca(["host", "inventory", "--json"], timeout=40)
+    return jparse(r["out"]) or {}
+
+
+def judge(spec, facts, final, cmds, metrics, wall, new_target_terms, listed=None):
     s = spec.get("success", {})
     fin = final or ""
     reasons = []
@@ -262,13 +311,18 @@ def judge(spec, facts, final, cmds, metrics, wall, new_target_terms):
         elif not no_tab:
             ok = False
             reasons.append("unknown host created a tab")
+    visible_tab = None
+    if spec.get("expect_tab"):
+        visible_tab = any(tab_is_visible(t, listed) for t in new_target_terms.values())
+        if not visible_tab:
+            ok = False
+            reasons.append("target tab is missing or headless")
     bar = {"result": ok,
            "le_6_orca_cmds": metrics["orca_invocations"] <= 6,
            "zero_wrong_host": not metrics["wrong_host_errors"],
            "no_hang": not metrics["hangs_over_60s"],
            "no_ssh": not metrics["ssh_used"],
-           "visible_tab": (any(t.get("tabId") and not str(t.get("group") or "").startswith("headless") for t in new_target_terms.values())
-                           if spec.get("expect_tab") else None)}
+           "visible_tab": visible_tab}
     return ok, reasons, bar
 
 
@@ -347,6 +401,23 @@ def scripted(sid, spec, facts, env, title, before=None):
             run(["orchestration", "worker-stop", "--host", T, "--dispatch", d])
     elif sid == "S08":
         r = run(["agent", "launch", "--host", T, "--agent", "claude", "--prompt", "hello", "--json"], timeout=150); final = r["out"]
+    elif sid == "R10":
+        r = run(["terminal", "create", "--host", T, "--worktree", 'group:"dockhand group"', "--json"])
+        final = r["out"]
+    elif sid == "R11":
+        r = run(["agent", "launch", "--host", T, "--agent", "claude", "--prompt", "print hostname", "--json"])
+        final = r["out"]
+    elif sid == "R12":
+        r1 = run(["terminal", "create", "--host", T, "--json"])
+        r2 = run(["terminal", "create", "--host", T, "--json"])
+        inv = run(["host", "inventory", "--json"])
+        final = r1["out"] + "\n" + r2["out"] + "\n" + inv["out"]
+    elif sid == "R13":
+        r = run(["orchestration", "worker-start", "--help"]); final = r["out"]
+    elif sid == "R14":
+        r = run(["agent", "launch", "--help"]); final = r["out"]
+    elif sid == "R15":
+        r = run(["terminal", "create", "--host", T or "dockhand", "--json"]); final = r["out"]
     cmds = [{"cmd": x["cmd"], "exit": x["exit"], "secs": x["secs"], "out": x["out"][:4000], "ts": ""} for x in log]
     return {"commands": cmds, "final": final, "done": True, "messages": [final]}
 
@@ -445,13 +516,15 @@ def main():
         if h not in new_terms:
             new_terms[h] = dict(v, gone_by_end=True)
     metrics = analyse(sess["commands"], sess["final"], spec["text"])
-    ok, reasons, bar = judge(spec, facts, sess["final"], sess["commands"], metrics, wall, new_terms)
+    listed = desktop_listed_workspaces(host_inventory()) if spec.get("expect_tab") else None
+    ok, reasons, bar = judge(spec, facts, sess["final"], sess["commands"], metrics, wall, new_terms, listed)
     if blocked:
         reasons.append("source agent blocked on startup dialog: %s" % blocked["reason"])
     res.update({"wall_s": wall, "completed": bool(sess.get("done")), "timed_out": wall >= a.timeout - 5 and not sess.get("done"),
                 "source_blocked": blocked, "source_handle": source_handle, "final_answer": sess["final"], "commands": sess["commands"],
                 "metrics": metrics, "new_target_terminals": new_terms, "hub_after": hub_after, "pass": ok and not blocked,
-                "fail_reasons": reasons, "bar": bar, "facts": facts})
+                "fail_reasons": reasons, "bar": bar, "facts": facts,
+                "listed_workspaces": sorted(listed) if listed else []})
     # cleanup: never touch terminals that existed before; keep a clearly named demo if asked
     closed = []
     if not a.keep_target_tabs and T:

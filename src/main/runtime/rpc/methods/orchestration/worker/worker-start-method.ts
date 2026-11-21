@@ -21,7 +21,8 @@ import { parseTaskDeps } from './start/admission/task-deps-argument'
 import { WorkerStartParams } from '../../../../../../shared/rpc-contract/orchestration/orchestration-worker-start-params'
 import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 import { remoteWorktreeRequiredMessage } from '../../../../../../shared/orchestration/desktop-hub-placement-flag'
-import { ensureOrchestrationScratchWorkspace } from '../surface/ensure-orchestration-scratch'
+import { resolveOrchestrationSessionPlacement } from '../surface/orchestration-session-placement'
+import { resolveLocalWorkerGroupPlacement } from './start/local-worker-group-placement'
 import {
   isWorkerStartTimeoutWithinTimerLimit,
   resolveWorkerStartReadinessTimeoutMs
@@ -141,24 +142,27 @@ export async function prepareWorkerStart(
       { effectsApplied: false }
     )
   }
+  params = await resolveLocalWorkerGroupPlacement(runtime, params)
   let placement = params.worktree ?? 'current'
-  if (
-    orchestrationCaller?.kind === 'peer' &&
+  const remoteSession =
     !followUp &&
     !params.terminal &&
+    (orchestrationCaller?.kind === 'peer' || Boolean(params.host)) &&
     /^(current|new-child)$/.test(placement)
-  ) {
+  if (remoteSession) {
     if (placement === 'current') {
       try {
-        const scratch = await ensureOrchestrationScratchWorkspace(runtime, {})
-        placement = scratch.worktree
-        params = { ...params, worktree: scratch.worktree }
+        const placed = await resolveOrchestrationSessionPlacement(runtime)
+        placement = placed.worktree
+        params = { ...params, worktree: placed.worktree }
       } catch {
         throw new OrchestrationError(
           'invalid_argument',
           remoteWorktreeRequiredMessage(
             params,
-            `${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree current, and a scratch project could not be created. No effects were applied.`
+            orchestrationCaller?.kind === 'peer'
+              ? `${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree current, and a scratch project could not be created. No effects were applied.`
+              : 'Remote worker-start without --worktree could not create the visible Orca orchestration scratch. No effects were applied.'
           ),
           { effectsApplied: false }
         )
@@ -168,7 +172,9 @@ export async function prepareWorkerStart(
         'invalid_argument',
         remoteWorktreeRequiredMessage(
           params,
-          `${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree ${placement}. No effects were applied.`
+          orchestrationCaller?.kind === 'peer'
+            ? `${orchestrationCaller.peerRun.home_label} has no workspace on this server for --worktree ${placement}. No effects were applied.`
+            : `--worktree ${placement} needs an explicit remote selector.`
         ),
         { effectsApplied: false }
       )

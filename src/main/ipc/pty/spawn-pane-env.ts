@@ -35,6 +35,7 @@ type PtySpawnPaneEnvArgs = {
   /** Null when the spawn's own tab+leaf ids don't name a valid pane. */
   pane: PtySpawnPane | null
   jcodeRuntimeDir: string | undefined
+  isRemote?: boolean
 }
 
 export function stampPtySpawnPaneEnv(
@@ -51,7 +52,7 @@ export function stampPtySpawnPaneEnv(
     delete env.ORCA_TAB_ID
     delete env.ORCA_WORKTREE_ID
     delete env.ORCA_AGENT_LAUNCH_TOKEN
-    applyOrcaHostAwarenessEnv(env)
+    applyOrcaHostAwarenessEnv(env, { isRemote: args.isRemote })
     applyScrubSafeAgentEnvAliases(env)
     return
   }
@@ -71,7 +72,7 @@ export function stampPtySpawnPaneEnv(
     env[JCODE_RUNTIME_DIR_ENV_KEY] = args.jcodeRuntimeDir
   }
   // Why: SSH relay spawns skip the local/daemon env builders that otherwise mirror these.
-  applyOrcaHostAwarenessEnv(env)
+  applyOrcaHostAwarenessEnv(env, { isRemote: args.isRemote })
   applyScrubSafeAgentEnvAliases(env)
 }
 

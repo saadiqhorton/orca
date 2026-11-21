@@ -23,6 +23,10 @@ import { readTextOrFileFlag } from '../../arguments/command-body-input'
 import { refuseAgentServerRoute } from '../identity/agent-server-route'
 import { isDesktopHubHostValue } from '../../hosts/desktop-hub-host-flag'
 import { resolveDesktopHubHost, throwDesktopHubHostResolution } from '../../hosts/desktop-hub-bind'
+import { applyGroupWorktreeFlag } from '../../hosts/orchestration-group-flag'
+import { formatSameGroupWorktreeSelector } from '../../../shared/orchestration/orchestration-group-selector'
+import { readCallerProjectGroupName } from '../../hosts/caller-project-group'
+import { checkCodexModelAgainstVersion } from '../../../shared/orchestration/codex-model-version-gate'
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async (ctx) => {
@@ -43,6 +47,16 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     const terminal = getPresentStringFlag(flags, 'terminal')
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
+    const requestedAgent = getOptionalStringFlag(flags, 'agent')
+    if ((!requestedAgent || requestedAgent === 'codex') && model) {
+      const gate = checkCodexModelAgainstVersion(model, null)
+      if (gate.status === 'refused') {
+        throw new RuntimeClientError('invalid_argument', gate.message)
+      }
+      if (gate.status === 'unknown') {
+        process.stderr.write(`warning: ${gate.message}\n`)
+      }
+    }
     if (model || effort) {
       const status = await client.call<RuntimeStatus>('status.get')
       if (
@@ -57,6 +71,13 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       }
     }
     const task = getOptionalStringFlag(flags, 'task')
+    applyGroupWorktreeFlag(flags)
+    if (!getOptionalStringFlag(flags, 'worktree') && (host || on)) {
+      const callerGroup = await readCallerProjectGroupName(client, cwd).catch(() => undefined)
+      if (callerGroup) {
+        flags.set('worktree', formatSameGroupWorktreeSelector(callerGroup))
+      }
+    }
     const spec = await readTextOrFileFlag(flags, cwd, 'spec', false)
     const taskTitle = getOptionalStringFlag(flags, 'task-title')
     const deps = getOptionalStringFlag(flags, 'deps')
