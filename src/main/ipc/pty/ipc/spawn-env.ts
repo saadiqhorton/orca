@@ -111,7 +111,8 @@ export async function assemblePtyIpcSpawnEnv(ctx: PtyIpcSpawnState): Promise<voi
     jcodeRuntimeDir:
       ctx.baseEnv && ctx.stablePaneKey
         ? selectWindowJcodeRuntimeDir(ctx.stablePaneKey, ctx.isDaemonHostSpawn)
-        : undefined
+        : undefined,
+    isRemote: Boolean(args.connectionId)
   })
   ctx.validatedPaneKey = ctx.stablePaneKey
   // Tab/leaf metadata still identifies the pane when its supplied ORCA_PANE_KEY was unproved.

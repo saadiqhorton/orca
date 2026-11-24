@@ -125,11 +125,23 @@ function refuseSessionIdForAnotherAgent(
   }
 }
 
-export const AgentLaunch = AgentLaunchFields.superRefine(refuseSessionIdForAnotherAgent)
+export const AgentLaunchResolved = AgentLaunchFields.superRefine(refuseSessionIdForAnotherAgent)
 
-export type AgentLaunchParams = z.infer<typeof AgentLaunch>
+export type AgentLaunchParams = z.infer<typeof AgentLaunchResolved>
+
+/** The wire target the host places itself: `orchestration-session` resolves to an existing workspace before admission. */
+const OrchestrationSessionAgentLaunchTarget = z.object({
+  kind: z.literal('orchestration-session')
+})
+const AgentLaunchRequestFields = AgentLaunchFields.extend({
+  target: z.union([AgentLaunchFields.shape.target, OrchestrationSessionAgentLaunchTarget])
+})
+
+export const AgentLaunch = AgentLaunchRequestFields.superRefine(refuseSessionIdForAnotherAgent)
+
+export type AgentLaunchRequestParams = z.infer<typeof AgentLaunch>
 
 // A distinct method prevents an older receiver from silently dropping the replay requirement.
-export const AgentLaunchReplay = AgentLaunchFields.required({ operationId: true }).superRefine(
-  refuseSessionIdForAnotherAgent
-)
+export const AgentLaunchReplay = AgentLaunchRequestFields.required({
+  operationId: true
+}).superRefine(refuseSessionIdForAnotherAgent)

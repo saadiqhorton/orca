@@ -4,11 +4,39 @@ import { normalizeTypedName } from '../../shared/typed-name-normalization'
 export type SshTargetSummary = {
   id: string
   label: string
+  host?: string
   remotePlatform?: 'linux' | 'darwin' | 'win32'
   connected?: boolean
   connectionStatus?: string
 }
-export type EnvironmentSummary = { id: string; name: string }
+export type EnvironmentSummary = {
+  id: string
+  name: string
+  orcadDeployment?: { sshTargetId?: string } | null
+  endpoints?: readonly { endpoint: string }[]
+}
+
+export function toEnvironmentSummary(candidate: {
+  id: string
+  name: string
+  orcadDeployment?: unknown
+  endpoints?: readonly { endpoint: string }[]
+}): EnvironmentSummary {
+  const deployment = candidate.orcadDeployment
+  const sshTargetId =
+    deployment &&
+    typeof deployment === 'object' &&
+    'sshTargetId' in deployment &&
+    typeof (deployment as { sshTargetId?: unknown }).sshTargetId === 'string'
+      ? (deployment as { sshTargetId: string }).sshTargetId
+      : undefined
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    ...(sshTargetId ? { orcadDeployment: { sshTargetId } } : {}),
+    endpoints: candidate.endpoints
+  }
+}
 
 export const LOCAL_HOST_LIST_NAME = 'this machine'
 
@@ -31,7 +59,11 @@ export function findSshTargetByName(
 
 function matchesByLabel(targets: readonly SshTargetSummary[], name: string): SshTargetSummary[] {
   const wanted = normalizeTypedName(name)
-  return targets.filter((target) => normalizeTypedName(target.label) === wanted)
+  return targets.filter(
+    (target) =>
+      normalizeTypedName(target.label) === wanted ||
+      (target.host !== undefined && normalizeTypedName(target.host) === wanted)
+  )
 }
 
 export function ambiguousSshTargets(

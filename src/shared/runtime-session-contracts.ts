@@ -83,6 +83,8 @@ export type RuntimeStatus = {
   /** Absent on older hosts; missing degradation reports never prove all optional features work. */
   degradations?: RuntimeDegradation[]
   appVersion?: string
+  /** Agent ids detected on this host; absent until its first detection finishes. */
+  installedAgents?: string[]
   remoteUpdateSupport?: RemoteServerUpdateSupport
   remoteControl?: RemoteRuntimeSharedConnectionDiagnostics | null
   hostPlatform?: NodeJS.Platform

@@ -121,7 +121,7 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     path: ['terminal', 'list'],
     summary: 'List live Orca-managed terminals',
     usage:
-      'orca terminal list [--host <desktop-connected-host>] [--worktree <selector>] [--limit <n>] [--include-visual-layouts] [--json]',
+      'orca terminal list [--host <name>] [--worktree <selector>] [--limit <n>] [--include-visual-layouts] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'worktree', 'limit', 'include-visual-layouts'],
     notes: [
       'JSON omits visualLayouts by default; pass --include-visual-layouts when machine-readable tab and pane topology is required.',
@@ -132,16 +132,18 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
   {
     path: ['terminal', 'show'],
     summary: 'Show terminal metadata and preview',
-    usage: 'orca terminal show [--host <desktop-connected-host>] [--terminal <handle>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'terminal']
+    usage: 'orca terminal show [--host <name>] [--terminal <handle>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'terminal'],
+    notes: ['--host <name> is where the session lives; optional once Orca can locate it.']
   },
   {
     path: ['terminal', 'read'],
     summary: 'Read bounded terminal output',
     usage:
-      'orca terminal read [--host <desktop-connected-host>] [--terminal <handle>] [--cursor <n>] [--limit <n>] [--screen] [--json]',
+      'orca terminal read [--host <name>] [--terminal <handle>] [--cursor <n>] [--limit <n>] [--screen] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'cursor', 'limit', 'screen'],
     notes: [
+      '--host <name> is where the session lives; optional once Orca can locate it.',
       'Omit --terminal to target the active terminal in the current worktree.',
       'By default this returns accumulated terminal output with escape sequences stripped, not the rendered screen. Any program that repaints a line — shells, progress bars, TUIs — comes back as stacked fragments, so one `clear` keystroke by keystroke reads as `cclclecleaclear`, and spaces a prompt draws by moving the cursor are absent.',
       'Use --screen to read what the terminal actually renders. Prefer it whenever the answer depends on how output looks rather than what was emitted over time; the default is unsuitable for verifying rendered output.',
@@ -167,8 +169,9 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     path: ['terminal', 'wait'],
     summary: 'Wait for a terminal condition',
     usage:
-      'orca terminal wait [--terminal <handle>] --for exit|tui-idle [--timeout-ms <ms>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'for', 'timeout-ms']
+      'orca terminal wait [--host <name>] [--terminal <handle>] --for exit|tui-idle [--timeout-ms <ms>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'for', 'timeout-ms'],
+    notes: ['--host <name> is where the session lives; optional once Orca can locate it.']
   },
   {
     path: ['terminal', 'stop'],
@@ -184,11 +187,11 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     path: ['terminal', 'create'],
     summary: 'Create a terminal session in the current worktree',
     usage:
-      'orca terminal create [--host <desktop-connected-host>] [--worktree <selector>] [--title <name>] [--command <text>] [--shell <shell>] [--focus] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'worktree', 'command', 'shell', 'title', 'focus'],
+      'orca terminal create [--host <name>] [--worktree <selector>] [--group "<name>"] [--title <name>] [--command <text>] [--shell <shell>] [--focus] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'worktree', 'group', 'command', 'shell', 'title', 'focus'],
     notes: [
       'Creates a visible terminal tab without switching focus when possible; falls back to a background handle if the UI cannot adopt it. Pass --focus to switch to it.',
-      '--host <name> creates the tab on a machine the desktop app is connected to. It shows up in the desktop Orca window. Without --worktree, Orca creates or reuses ~/orca-orchestration on that host. Do not use SSH.',
+      '--host <name> creates the tab on a machine the desktop app is connected to. It shows up in the desktop Orca window. Without --worktree, Orca uses a workspace in the same-named project group when the caller is in one, otherwise ~/orca-orchestration on that host — never the most recently used real checkout. `--group "<name>"` (or `--worktree group:"<name>"`) targets that group\'s single workspace. Name --worktree only when the task should run in that repo. Do not use SSH. Terminal commands use exit 2–6 for host_mismatch, unknown_host/session_not_found, host_unreachable/host_offline/needs_sign_in, agent_blocked_on_prompt, and incompatible_runtime.',
       'This creates a terminal and runs --command in it. To start an agent, use `orca agent launch` (or `orca worktree create --agent` for a new checkout), which follows your Chat | CLI choice.',
       '--shell picks the shell the terminal IS on a Windows host (cmd.exe, powershell.exe, pwsh.exe, wsl.exe, bash.exe, git-bash); --command is typed into whatever shell the host started, so `--command cmd.exe` leaves a cmd running INSIDE the default shell and exiting it drops back to that shell.',
       'A host that cannot apply --shell refuses the create rather than quietly spawning its default shell: macOS and Linux execution hosts spawn the login shell, terminals routed over SSH resolve their shell on the SSH host, a --shell that contradicts the project execution runtime (WSL vs Windows host) is refused, and an Orca host older than --shell is refused by the CLI.'
@@ -207,9 +210,10 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     // Preserve the legacy focus verb.
     aliases: [['terminal', 'focus']],
     summary: 'Switch to a terminal tab in the UI',
-    usage: 'orca terminal switch [--terminal <handle>] [--json]',
+    usage: 'orca terminal switch [--host <name>] [--terminal <handle>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'terminal'],
     notes: [
+      '--host <name> is where the session lives; optional once Orca can locate it.',
       'It changes the terminal the user is looking at; agents should run it only when the user asked to switch.',
       "With --environment, the desktop app on this machine switches to that server's terminal; a server has no window of its own."
     ],
@@ -219,9 +223,12 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
   {
     path: ['terminal', 'rename'],
     summary: 'Set or clear the title of a terminal tab',
-    usage: 'orca terminal rename [--terminal <handle>] [--title <text>] [--json]',
+    usage: 'orca terminal rename [--host <name>] [--terminal <handle>] [--title <text>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'title'],
-    notes: ['Omit --title or pass an empty string to reset to the auto-generated title.'],
+    notes: [
+      '--host <name> is where the session lives; optional once Orca can locate it.',
+      'Omit --title or pass an empty string to reset to the auto-generated title.'
+    ],
     examples: [
       'orca terminal rename --terminal term_abc123 --title "RUNNER"',
       'orca terminal rename --terminal term_abc123 --json'
@@ -232,9 +239,10 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
     path: ['terminal', 'split'],
     summary: 'Split an existing terminal pane',
     usage:
-      'orca terminal split [--terminal <handle>] [--direction horizontal|vertical] [--command <text>] [--retry-split <leafId>] [--json]',
+      'orca terminal split [--host <name>] [--terminal <handle>] [--direction horizontal|vertical] [--command <text>] [--retry-split <leafId>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'terminal', 'direction', 'command', 'retry-split'],
     notes: [
+      '--host <name> is where the session lives; optional once Orca can locate it.',
       'A timeout does not mean the split failed: the pane may still open and run --command. Re-run the same command with --retry-split <leafId> from the error to wait for that pane instead of splitting again.'
     ],
     examples: [

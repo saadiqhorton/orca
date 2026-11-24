@@ -4,11 +4,19 @@ import {
   bindDesktopHubHost,
   isFolderWorktreeCreateWithoutRepo,
   needsDefaultRemoteWorktree,
+  ORCHESTRATION_SESSION_PLACEMENT_FLAG,
   shouldWrapDesktopHubHost
 } from './desktop-hub-command-route'
+import { ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
 import { formatScratchWorkspace } from './host-format'
-import { resolveRemoteSelectorsAcrossHosts } from './desktop-hub-selector-resolve'
+import {
+  resolveRemoteSelectorsAcrossHosts,
+  routeTerminalHandlesToOwner
+} from './desktop-hub-selector-resolve'
 import { warnIfLaunchPromptLooksSecret } from '../agents/agent-launch-secret-prompt'
+import { applyGroupWorktreeFlag } from './orchestration-group-flag'
+import { formatSameGroupWorktreeSelector } from '../../shared/orchestration/orchestration-group-selector'
+import { readCallerProjectGroupName } from './caller-project-group'
 
 type ScratchWorkspace = {
   path: string
@@ -40,16 +48,48 @@ async function applyBoundHubDefaults(
   host: string,
   json: boolean
 ): Promise<{ commandPath: string[]; printed: boolean }> {
+  applyGroupWorktreeFlag(flags)
   if (needsDefaultRemoteWorktree(commandPath, flags)) {
-    const scratch = await client.call<{ worktree: string }>(
-      'orchestration.surface.ensureScratch',
-      {}
-    )
-    flags.set('worktree', scratch.result.worktree)
+    const callerGroup = flags.get('caller-project-group')
+    if (typeof callerGroup === 'string' && callerGroup.trim()) {
+      flags.set('worktree', formatSameGroupWorktreeSelector(callerGroup.trim()))
+    } else if (await hostPlacesOrchestrationSessions(client)) {
+      flags.set(ORCHESTRATION_SESSION_PLACEMENT_FLAG, true)
+    } else {
+      await applyScratchWorktreeDefault(flags, client)
+    }
   }
   if (!isFolderWorktreeCreateWithoutRepo(commandPath, flags)) {
     return { commandPath, printed: false }
   }
+  return applyScratchFolderCreateDefaults(commandPath, flags, client, host, json)
+}
+
+async function hostPlacesOrchestrationSessions(client: RuntimeClient): Promise<boolean> {
+  const status = await client.getCliStatus()
+  return (
+    status.result.runtime.capabilities?.includes(
+      ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY
+    ) === true
+  )
+}
+
+/** Older hosts without session placement keep the scratch default the CLI always chose. */
+async function applyScratchWorktreeDefault(
+  flags: Map<string, string | boolean>,
+  client: RuntimeClient
+): Promise<void> {
+  const scratch = await client.call<{ worktree: string }>('orchestration.surface.ensureScratch', {})
+  flags.set('worktree', scratch.result.worktree)
+}
+
+async function applyScratchFolderCreateDefaults(
+  commandPath: string[],
+  flags: Map<string, string | boolean>,
+  client: RuntimeClient,
+  host: string,
+  json: boolean
+): Promise<{ commandPath: string[]; printed: boolean }> {
   const name = flags.get('name')
   const scratch = await client.call<ScratchWorkspace>(
     'orchestration.surface.ensureScratch',
@@ -85,6 +125,21 @@ export async function prepareDesktopHubCliClient(
   warnIfLaunchPromptLooksSecret(flags)
   let nextClient = client
   let nextPath = commandPath
+  if (
+    shouldWrapDesktopHubHost(commandPath, flags) &&
+    needsDefaultRemoteWorktree(commandPath, flags)
+  ) {
+    const callerGroup = await readCallerProjectGroupName(client, process.cwd()).catch(
+      () => undefined
+    )
+    if (callerGroup) {
+      flags.set('caller-project-group', callerGroup)
+    }
+  }
+  const handleRoute = await routeTerminalHandlesToOwner(client, commandPath, flags)
+  if (handleRoute.client) {
+    return { client: handleRoute.client, commandPath, printed: false }
+  }
   const requestedHost = flags.get('host')
   if (shouldWrapDesktopHubHost(commandPath, flags)) {
     nextClient = await bindDesktopHubHost(client, flags)
@@ -97,6 +152,8 @@ export async function prepareDesktopHubCliClient(
       }
     }
   }
-  nextClient = await resolveRemoteSelectorsAcrossHosts(nextClient, nextPath, flags)
+  nextClient = await resolveRemoteSelectorsAcrossHosts(nextClient, nextPath, flags, {
+    skipHandles: handleRoute.handled
+  })
   return { client: nextClient, commandPath: nextPath, printed: false }
 }

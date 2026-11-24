@@ -66,6 +66,13 @@ describe('orchestration RPC methods', () => {
         accepted: true,
         bytesWritten: 1
       })
+      vi.spyOn(runtime, 'readTerminal').mockResolvedValue({
+        handle: 'term_worker',
+        status: 'running',
+        tail: ['thinking about the task'],
+        truncated: false,
+        nextCursor: '1'
+      })
     }
 
     it('rejects a declared caller that disagrees with complete attested evidence', async () => {

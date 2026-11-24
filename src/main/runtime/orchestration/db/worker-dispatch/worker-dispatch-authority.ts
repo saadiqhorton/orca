@@ -207,14 +207,52 @@ export function recordCreatedWorkerTerminalCustody(
   }
 }
 
+export function rebindWorkerTerminalHandle(
+  this: OrchestrationDb,
+  dispatchId: string,
+  handle: string
+): boolean {
+  const dispatch = this.getDispatchContextById(dispatchId)
+  const worker = this.getWorkerDispatch(dispatchId)
+  if (
+    !dispatch ||
+    worker?.state !== 'ready' ||
+    !['pending', 'dispatched'].includes(dispatch.status)
+  ) {
+    return false
+  }
+  const holder = this.findActiveDispatchForAssignee(handle, dispatch.assignee_pane_key ?? undefined)
+  if (holder && holder.id !== dispatchId) {
+    return false
+  }
+  this.db.exec('BEGIN IMMEDIATE')
+  try {
+    this.db
+      .prepare('UPDATE dispatch_contexts SET assignee_handle = ? WHERE id = ?')
+      .run(handle, dispatchId)
+    this.db
+      .prepare(
+        "UPDATE worker_dispatches SET agent_terminal_handle = ?, updated_at = datetime('now') WHERE dispatch_id = ?"
+      )
+      .run(handle, dispatchId)
+    this.db.exec('COMMIT')
+  } catch (error) {
+    this.db.exec('ROLLBACK')
+    throw error
+  }
+  return true
+}
+
 export type WorkerDispatchAuthorityMethods = {
   prepareStartingWorkerAuthority: typeof prepareStartingWorkerAuthority
+  rebindWorkerTerminalHandle: typeof rebindWorkerTerminalHandle
   recordCreatedWorkerTerminalCustody: typeof recordCreatedWorkerTerminalCustody
 }
 
 export function attachWorkerDispatchAuthority(ctor: { prototype: object }): void {
   Object.assign(ctor.prototype, {
     prepareStartingWorkerAuthority,
+    rebindWorkerTerminalHandle,
     recordCreatedWorkerTerminalCustody
   })
 }

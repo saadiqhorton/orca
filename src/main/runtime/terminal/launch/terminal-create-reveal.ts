@@ -1,3 +1,4 @@
+import { hostname } from 'node:os'
 import type { TerminalCreateOptions } from './terminal-create-options'
 import type { RuntimeTerminalCreate } from '../../../../shared/runtime-terminal-create-contract'
 import { createTerminalRevealWarning, ownerSurfacing } from './terminal-presentation'
@@ -24,7 +25,10 @@ function terminalRevealViewerOptions(
 }
 
 export function revealCreatedTerminal(args: {
-  notifier: Pick<RuntimeNotifier, 'revealTerminalSession' | 'rememberLaunchRecipe'> | null
+  notifier: Pick<
+    RuntimeNotifier,
+    'revealTerminalSession' | 'rememberLaunchRecipe' | 'terminalRevealPending'
+  > | null
   workspace: Pick<TerminalWorkspaceLaunchScope, 'id' | 'path'>
   ptyId: string
   handle: string
@@ -41,8 +45,8 @@ export function revealCreatedTerminal(args: {
   tabId: string
   leafId: string
 }):
-  | Pick<RuntimeTerminalCreate, 'surface' | 'warning'>
-  | Promise<Pick<RuntimeTerminalCreate, 'surface' | 'warning'>> {
+  | Pick<RuntimeTerminalCreate, 'surface' | 'warning' | 'revealPending'>
+  | Promise<Pick<RuntimeTerminalCreate, 'surface' | 'warning' | 'revealPending'>> {
   const {
     notifier,
     workspace,
@@ -92,10 +96,12 @@ export function revealCreatedTerminal(args: {
       } catch (err) {
         console.warn(`[terminal-create] failed to create inactive tab for ${ptyId}:`, err)
         rememberLaunchRecipe()
-        return {
-          surface: 'background' as const,
-          warning: createTerminalRevealWarning(handle, err)
-        }
+        return revealPendingResult(
+          notifier,
+          handle,
+          launchOpts.title,
+          createTerminalRevealWarning(handle, err)
+        )
       }
     })()
   }
@@ -105,8 +111,23 @@ export function revealCreatedTerminal(args: {
   if (publishedMobileSession && presentation !== 'background') {
     return { surface: 'visible' as const }
   }
-  return {
-    surface: 'background',
-    warning: presentation !== 'background' ? createTerminalRevealWarning(handle) : undefined
+  if (presentation !== 'background') {
+    return revealPendingResult(
+      notifier,
+      handle,
+      launchOpts.title,
+      createTerminalRevealWarning(handle)
+    )
   }
+  return { surface: 'background' }
+}
+
+function revealPendingResult(
+  notifier: Pick<RuntimeNotifier, 'terminalRevealPending'> | null,
+  handle: string,
+  tabTitle: string | null | undefined,
+  warning: string
+): Pick<RuntimeTerminalCreate, 'surface' | 'warning' | 'revealPending'> {
+  notifier?.terminalRevealPending?.({ handle, tabTitle: tabTitle ?? null, host: hostname() })
+  return { surface: 'background', warning, revealPending: true }
 }

@@ -27,6 +27,7 @@ export function projectStructuredAgentStartItem(
       ? { agentFollowUp: body.followUp.reopened ? ('reopened' as const) : ('fresh' as const) }
       : {}),
     ...(body.kind === 'agent-handoff' ? { agentHandoff: true as const } : {}),
+    ...(body.permissionMode ? { agentPermissionMode: body.permissionMode } : {}),
     from: readAgentMessageSource({
       kind: 'agent',
       senders: [body.kind === 'agent-handoff' ? body.agent : body.worker],

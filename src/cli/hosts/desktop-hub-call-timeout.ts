@@ -35,7 +35,7 @@ export function desktopHubCallTimeoutMessage(args: {
 }): string {
   return (
     `Desktop hub call timed out after ${args.timeoutMs}ms forwarding ${args.method} to "${args.host}". ` +
-    `The tab may still be opening. Check with \`orca terminal list --host ${args.host}\` or \`orca host inventory --json\`. ` +
+    `The tab on "${args.host}" may still be opening. Check with \`orca terminal list --host ${args.host}\` or \`orca host inventory --json\`. ` +
     'If a trust, hooks, or security dialog is on screen, open the tab in the desktop Orca window and answer it yourself — never via keystrokes. Retry the same command with --host.'
   )
 }

@@ -5,6 +5,10 @@ import type {
 } from '../../../../../shared/agent-session/journal/agent-journal-creation-facts'
 import type { AgentMessageSender } from '../../../../../shared/agent-session/agent-session-message-source'
 import type { AgentType } from '../../../../../shared/agent-status/contracts/agent-status-types'
+import {
+  launchedAgentChatPermissionMode,
+  type AgentChatPermissionMode
+} from '../../../../../shared/agent-launch/permissions/agent-chat-permission-mode'
 import type { OrcaRuntimeService } from '../../../orca-runtime'
 import type { OrchestrationEntryCaller } from '../../addressing/orchestration-caller-identity'
 
@@ -46,6 +50,21 @@ export function startedAgentSender(
   return sender.agent || !agent ? sender : { ...sender, agent }
 }
 
+/** The permission a launch on this host runs with; absent when settings cannot be read, so the card omits it. */
+export function startedAgentPermissionMode(
+  runtime: OrcaRuntimeService,
+  agent: string | null
+): AgentChatPermissionMode | undefined {
+  if (!agent) {
+    return undefined
+  }
+  try {
+    return launchedAgentChatPermissionMode(agent, runtime.requireStore().getSettings())
+  } catch {
+    return undefined
+  }
+}
+
 export function prepareWorkerStartCard(
   runtime: OrcaRuntimeService,
   callerSession: OrchestrationEntryCaller | undefined
@@ -56,6 +75,8 @@ export function prepareWorkerStartCard(
   /** What this start launched; the only kind known for a worker on another host. */
   agent: AgentType | null
   followUp?: AgentJournalAgentStartItem['followUp']
+  /** Only for a launch on this host, whose settings decide the permission it runs with. */
+  permissionMode?: AgentChatPermissionMode
 }) => void {
   // A paired Orca has no chat here to show the card in.
   const publish = prepareAgentCreationCard(
@@ -70,7 +91,8 @@ export function prepareWorkerStartCard(
       dispatchId: args.dispatchId,
       worker: startedAgentSender(runtime, args.workerAddress, args.agent, args.dispatchId),
       task: args.task,
-      ...(args.followUp ? { followUp: args.followUp } : {})
+      ...(args.followUp ? { followUp: args.followUp } : {}),
+      ...(args.permissionMode ? { permissionMode: args.permissionMode } : {})
     }))
 }
 

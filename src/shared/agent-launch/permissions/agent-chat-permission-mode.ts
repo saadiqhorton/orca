@@ -2,6 +2,7 @@ import type { GlobalSettings } from '../../global-settings-types'
 import { resolvedTuiAgentArgsBypassPermissions } from '../choices/tui-agent-launch-defaults'
 import { YOLO_TUI_AGENT_ARGS } from './tui-agent-permissions'
 import {
+  agentPermissionChoices,
   hasTypedAgentPermission,
   resolveAgentPermission,
   type AgentPermissionSettings
@@ -112,4 +113,18 @@ export function preModeChatGetsFullAccess(
   return agent in YOLO_TUI_AGENT_ARGS
     ? resolvedTuiAgentArgsBypassPermissions(agent, settings, platform)
     : settings.nativeChatPermissionMode === 'full-access'
+}
+
+/** The chat permission a launch of this agent on this host runs with; undefined when it is the agent's own or unsupported. */
+export function launchedAgentChatPermissionMode(
+  agent: string,
+  settings: NewChatPermissionSettings | null | undefined
+): AgentChatPermissionMode | undefined {
+  if (!isTuiAgent(agent)) {
+    return undefined
+  }
+  const choice = resolveAgentPermission(agent, settings).choice
+  return isAgentChatPermissionMode(choice) && agentPermissionChoices(agent).includes(choice)
+    ? choice
+    : undefined
 }

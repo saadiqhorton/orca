@@ -190,3 +190,15 @@ function answer(
   }
   return { ok: true, result: CONNECTED }
 }
+
+describe('desktop hub session index', () => {
+  it('remembers which host returned a terminal handle', () => {
+    const registry = getDesktopHubRegistry({})
+    registry.rememberSessionHandles('env-ubuntu', {
+      ok: true,
+      result: { terminal: { handle: 'term_abc123' } }
+    })
+    expect(registry.knownSessionHost('term_abc123')).toBe('env-ubuntu')
+    expect(registry.knownSessionHost('term_other')).toBeUndefined()
+  })
+})

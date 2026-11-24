@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { AgentLaunch } from '../../../../shared/rpc-contract/agent-launch/agent-launch-params'
+import { AgentLaunchResolved } from '../../../../shared/rpc-contract/agent-launch/agent-launch-params'
 import { toAgentLaunchPreferences } from '../../../../shared/agent-launch/choices/agent-launch-preferences'
 import { hasClosedTerminalTabRecord } from '../../../../shared/workspace-layout/terminal-surfaces/closed-terminal-tab-tombstones'
 import { parsePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
@@ -82,7 +82,7 @@ export async function planPaneAgentLaunch(ctx: PtyIpcSpawnState): Promise<void> 
     request && 'launch' in request && typeof request.launch === 'object'
       ? request.launch
       : undefined
-  const params = AgentLaunch.safeParse({ ...launch, paneKey })
+  const params = AgentLaunchResolved.safeParse({ ...launch, paneKey })
   const suppressStartupUpdatePrompt =
     request !== null &&
     'suppressStartupUpdatePrompt' in request &&

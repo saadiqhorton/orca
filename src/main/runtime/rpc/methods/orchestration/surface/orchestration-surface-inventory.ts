@@ -3,26 +3,26 @@ import {
   type AgentDetectionHost
 } from '../../../../../preflight/workspace-agent-detection'
 import { agentCommandOverrideDetectionOptions } from '../../../../../preflight/installed-agent-detection'
+import type { InventoryProjectGroup } from '../../../../../../shared/orchestration/orchestration-group-selector'
+import {
+  folderInventoryRow,
+  projectGroupsWithMembers,
+  repoInventoryRow,
+  type InventoryFolderRow,
+  type InventoryGroupRow,
+  type InventoryRepoRow
+} from './orchestration-inventory-membership'
 
-type InventoryRuntime = {
-  listVisibleProjectGroups: () => { id: string; name: string; parentPath: string | null }[]
-  listVisibleFolderWorkspaces: () => {
-    id: string
-    name: string
-    folderPath: string
-    projectGroupId: string
-  }[]
-  listVisibleRepos?: () => {
-    id: string
-    path: string
-    displayName?: string
-    kind?: string
-  }[]
+export type InventoryRuntime = {
+  listVisibleProjectGroups: () => InventoryGroupRow[]
+  listVisibleFolderWorkspaces: () => InventoryFolderRow[]
+  listVisibleRepos?: () => InventoryRepoRow[]
   listTerminals?: () => Promise<{
     terminals: {
       handle: string
       title?: string | null
       worktree?: string
+      status?: string
       agentIdentity?: { agent?: string } | string | null
     }[]
   }>
@@ -39,9 +39,23 @@ type InventoryRuntime = {
 export type HostSurfaceInventory = {
   machineName?: string
   platform?: string
-  projects: { id: string; name: string; parentPath: string | null }[]
-  folderWorkspaces: { id: string; name: string; path: string; projectGroupId: string }[]
-  repos: { id: string; name: string; path: string; selector: string }[]
+  projects: InventoryProjectGroup[]
+  folderWorkspaces: {
+    id: string
+    name: string
+    path: string
+    projectGroupId: string
+    projectGroupName?: string
+    selector: string
+  }[]
+  repos: {
+    id: string
+    name: string
+    path: string
+    selector: string
+    projectGroupId?: string
+    projectGroupName?: string
+  }[]
   agents: string[]
   sessions: {
     handle: string
@@ -55,41 +69,59 @@ export async function collectHostSurfaceInventory(
   runtime: InventoryRuntime
 ): Promise<HostSurfaceInventory> {
   const status = runtime.getStatus?.()
-  const projects = runtime.listVisibleProjectGroups().map((group) => ({
-    id: group.id,
-    name: group.name,
-    parentPath: group.parentPath
-  }))
-  const folderWorkspaces = runtime.listVisibleFolderWorkspaces().map((folder) => ({
-    id: folder.id,
-    name: folder.name,
-    path: folder.folderPath,
-    projectGroupId: folder.projectGroupId
-  }))
-  const repos = listHostRepos(runtime)
+  const groups = runtime.listVisibleProjectGroups()
+  const folders = runtime.listVisibleFolderWorkspaces()
+  const repos = runtime.listVisibleRepos?.() ?? []
+  const nameById = new Map(groups.map((group) => [group.id, group.name]))
+  const projects = projectGroupsWithMembers(groups, folders, repos)
   const agents = await listHostAgents(runtime)
   const sessions = await listHostSessions(runtime)
   return {
     ...(status?.machineName ? { machineName: status.machineName } : {}),
     ...(status?.hostPlatform ? { platform: status.hostPlatform } : {}),
     projects,
-    folderWorkspaces,
-    repos,
+    folderWorkspaces: folders.map((folder) => {
+      const row = folderInventoryRow(folder, nameById.get(folder.projectGroupId))
+      return {
+        id: row.id,
+        name: row.name,
+        path: row.folderPath,
+        projectGroupId: row.projectGroupId,
+        selector: row.selector,
+        ...(row.projectGroupName ? { projectGroupName: row.projectGroupName } : {})
+      }
+    }),
+    repos: repos.map((repo) =>
+      repoInventoryRow(repo, repo.projectGroupId ? nameById.get(repo.projectGroupId) : undefined)
+    ),
     agents,
     sessions
   }
 }
 
-function listHostRepos(runtime: InventoryRuntime): HostSurfaceInventory['repos'] {
-  return (runtime.listVisibleRepos?.() ?? []).map((repo) => ({
-    id: repo.id,
-    name: repo.displayName || repo.id,
-    path: repo.path,
-    selector: `path:${repo.path}`
-  }))
+export function filterHostSurfaceInventory(
+  inventory: HostSurfaceInventory,
+  groupName: string
+): HostSurfaceInventory {
+  const wanted = groupName.trim().toLowerCase()
+  const projects = inventory.projects.filter((group) => group.name.trim().toLowerCase() === wanted)
+  const ids = new Set(projects.map((group) => group.id))
+  return {
+    ...inventory,
+    projects,
+    folderWorkspaces: inventory.folderWorkspaces.filter(
+      (folder) =>
+        ids.has(folder.projectGroupId) || folder.projectGroupName?.toLowerCase() === wanted
+    ),
+    repos: inventory.repos.filter(
+      (repo) =>
+        (repo.projectGroupId && ids.has(repo.projectGroupId)) ||
+        repo.projectGroupName?.toLowerCase() === wanted
+    )
+  }
 }
 
-async function listHostAgents(runtime: InventoryRuntime): Promise<string[]> {
+export async function listHostAgents(runtime: InventoryRuntime): Promise<string[]> {
   try {
     const host = runtime.resolveAgentDetectionHost
       ? await runtime.resolveAgentDetectionHost(null)
@@ -109,12 +141,16 @@ async function listHostSessions(
   }
   try {
     const { terminals } = await runtime.listTerminals()
-    return terminals.map((terminal) => ({
-      handle: terminal.handle,
-      ...(terminal.title ? { title: terminal.title } : {}),
-      ...(terminal.worktree ? { worktree: terminal.worktree } : {}),
-      ...(agentOf(terminal.agentIdentity) ? { agent: agentOf(terminal.agentIdentity) } : {})
-    }))
+    return terminals.map((terminal) => {
+      const exited = terminal.status === 'exited' || terminal.status === 'stopped'
+      const agent = exited ? undefined : agentOf(terminal.agentIdentity)
+      return {
+        handle: terminal.handle,
+        ...(terminal.title ? { title: terminal.title } : {}),
+        ...(terminal.worktree ? { worktree: terminal.worktree } : {}),
+        ...(agent ? { agent } : {})
+      }
+    })
   } catch {
     return []
   }

@@ -1,11 +1,12 @@
 import type { PtyControllerInventory } from '../../terminal/lifecycle/runtime-pty-controller-contract'
 import type { RuntimeLegacyWorkerTerminalRecoveryController } from './runtime-legacy-worker-terminal-recovery-controller'
-import type {
-  LegacyWorkerRecoveryCandidate,
-  LegacyWorkerRecoveryOptions,
-  LegacyWorkerRecoveryPorts,
-  LegacyWorkerRecoveryResolution,
-  LegacyWorkerRecoveryWorkspace
+import {
+  LEGACY_WORKER_RECOVERY_ATTEMPT_CAP,
+  type LegacyWorkerRecoveryCandidate,
+  type LegacyWorkerRecoveryOptions,
+  type LegacyWorkerRecoveryPorts,
+  type LegacyWorkerRecoveryResolution,
+  type LegacyWorkerRecoveryWorkspace
 } from './structured-sessions/runtime-legacy-worker-terminal-recovery-types'
 
 export async function isAbsentLegacyWorkerTerminalProvenExited(
@@ -24,6 +25,23 @@ export async function isAbsentLegacyWorkerTerminalProvenExited(
   }
 }
 
+function deferUnprovenBinding(args: {
+  controller: RuntimeLegacyWorkerTerminalRecoveryController
+  candidate: LegacyWorkerRecoveryCandidate
+  deferredDispatchIds: Set<string>
+  pendingResolutions: LegacyWorkerRecoveryResolution[]
+}): void {
+  const { controller, candidate, deferredDispatchIds, pendingResolutions } = args
+  if (
+    controller.recordUnprovenBindingPass(candidate.dispatchId) < LEGACY_WORKER_RECOVERY_ATTEMPT_CAP
+  ) {
+    deferredDispatchIds.add(candidate.dispatchId)
+    return
+  }
+  controller.clearUnprovenBindingPasses(candidate.dispatchId)
+  pendingResolutions.push({ candidate, resolution: 'abandoned' })
+}
+
 export async function reconcileLegacyWorkerCandidate(args: {
   controller: RuntimeLegacyWorkerTerminalRecoveryController
   ports: LegacyWorkerRecoveryPorts
@@ -35,7 +53,8 @@ export async function reconcileLegacyWorkerCandidate(args: {
   deferredDispatchIds: Set<string>
   pendingResolutions: LegacyWorkerRecoveryResolution[]
 }): Promise<void> {
-  const { controller, ports, options, candidate, workspace, resolvedWorktrees } = args
+  const { controller, ports, options, workspace, resolvedWorktrees } = args
+  let { candidate } = args
   if (!args.inventory.livePtyIds.has(candidate.ptyId)) {
     if (
       await isAbsentLegacyWorkerTerminalProvenExited(ports, candidate, workspace.scope.connectionId)
@@ -51,13 +70,18 @@ export async function reconcileLegacyWorkerCandidate(args: {
     args.deferredDispatchIds.add(candidate.dispatchId)
     return
   }
-  if (
-    controllerIdentity.handle !== candidate.terminalHandle ||
-    controllerIdentity.incarnationId !== candidate.incarnationId
-  ) {
-    args.pendingResolutions.push({ candidate, resolution: 'exited' })
+  if (controllerIdentity.incarnationId !== candidate.incarnationId) {
+    // A live PTY under another binding is not an exit; only proven exit marks the worker lost.
+    deferUnprovenBinding(args)
     return
   }
+  let rebound = false
+  if (controllerIdentity.handle !== candidate.terminalHandle) {
+    // Same PTY incarnation: only the handle moved, so adoption and persistence follow the PTY.
+    candidate = { ...candidate, terminalHandle: controllerIdentity.handle }
+    rebound = true
+  }
+  controller.clearUnprovenBindingPasses(candidate.dispatchId)
   let adoptionStatus: 'ready' | 'unverifiable' | 'exited'
   try {
     adoptionStatus = await ports.runMutation(candidate.worktreeId, async () => {
@@ -85,7 +109,7 @@ export async function reconcileLegacyWorkerCandidate(args: {
         preAdoptionIdentity.handle !== candidate.terminalHandle ||
         preAdoptionIdentity.incarnationId !== candidate.incarnationId
       ) {
-        return 'exited'
+        return 'unverifiable'
       }
       const exactSurfaceAlreadyPublished =
         ports.hasExactPersistedSurface(candidate) && ports.hasExactSurface(candidate)
@@ -182,8 +206,12 @@ export async function reconcileLegacyWorkerCandidate(args: {
     finalIdentity.incarnationId !== candidate.incarnationId
   ) {
     controller.deleteReceipt(candidate.paneKey)
-    args.pendingResolutions.push({ candidate, resolution: 'exited' })
+    args.deferredDispatchIds.add(candidate.dispatchId)
     return
   }
-  args.pendingResolutions.push({ candidate, resolution: 'adopted' })
+  args.pendingResolutions.push({
+    candidate,
+    resolution: 'adopted',
+    ...(rebound ? { rebound: true } : {})
+  })
 }

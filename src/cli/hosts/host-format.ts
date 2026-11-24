@@ -1,3 +1,9 @@
+import type { TuiAgent } from '../../shared/agent-launch/catalog/tui-agent'
+import {
+  orchestrationTiersFor,
+  type OrchestrationTier
+} from '../../shared/orchestration/orchestration-knowledge-tier'
+
 export type HostListEntry = {
   kind: 'local' | 'ssh' | 'environment' | 'execution'
   name: string
@@ -60,12 +66,41 @@ type HostInventorySession = {
   agent?: string
 }
 
+type HostInventoryProjectMember = {
+  kind: 'repo' | 'folder'
+  id: string
+  name: string
+  path: string
+  selector: string
+  projectGroupId: string
+  projectGroupName: string
+}
+
 type HostInventory = {
   machineName?: string
   platform?: string
-  projects: { id: string; name: string; parentPath: string | null }[]
-  folderWorkspaces: { id: string; name: string; path: string; projectGroupId: string }[]
-  repos?: { id: string; name: string; path: string; selector: string }[]
+  projects: {
+    id: string
+    name: string
+    parentPath: string | null
+    members?: HostInventoryProjectMember[]
+  }[]
+  folderWorkspaces: {
+    id: string
+    name: string
+    path: string
+    projectGroupId: string
+    projectGroupName?: string
+    selector?: string
+  }[]
+  repos?: {
+    id: string
+    name: string
+    path: string
+    selector: string
+    projectGroupId?: string
+    projectGroupName?: string
+  }[]
   agents: string[]
   sessions: HostInventorySession[]
 }
@@ -77,6 +112,24 @@ export type HostInventoryRow = {
   selector?: string
   error?: string
   inventory?: HostInventory
+  orchestrationTiers?: Partial<Record<TuiAgent, OrchestrationTier>>
+}
+
+export function withHostOrchestrationTiers<T extends { result: { hosts: HostInventoryRow[] } }>(
+  envelope: T
+): T {
+  const { hosts } = envelope.result
+  return {
+    ...envelope,
+    result: {
+      ...envelope.result,
+      hosts: hosts.map((host) =>
+        host.inventory
+          ? { ...host, orchestrationTiers: orchestrationTiersFor(host.inventory.agents) }
+          : host
+      )
+    }
+  }
 }
 
 export function formatHostInventory(result: {
@@ -97,10 +150,13 @@ export function formatHostInventory(result: {
       inventory.projects.length === 0
         ? '  projects: (none)'
         : inventory.projects
-            .map(
-              (project) =>
-                `  project: ${project.name}${project.parentPath ? `  ${project.parentPath}` : ''}`
-            )
+            .map((project) => {
+              const members =
+                project.members && project.members.length > 0
+                  ? `  members: ${project.members.map((member) => member.selector).join(', ')}`
+                  : ''
+              return `  project: ${project.name}${project.parentPath ? `  ${project.parentPath}` : ''}${members}`
+            })
             .join('\n')
     const folders =
       inventory.folderWorkspaces.length === 0

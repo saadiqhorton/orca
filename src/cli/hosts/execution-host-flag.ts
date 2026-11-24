@@ -14,6 +14,7 @@ import {
   fetchSshTargetSummaries,
   LOCAL_HOST_LIST_NAME,
   resolveSshHostTargetId,
+  toEnvironmentSummary,
   type EnvironmentSummary,
   type SshTargetSummary
 } from './host-selector-alternatives'
@@ -22,6 +23,7 @@ import type { RuntimeClient } from '../runtime/client'
 import { RuntimeClientError } from '../runtime/types'
 import { isLocalEnvironmentSelector } from './local-environment-selector'
 import { refuseDesktopHubHostAlias } from './desktop-hub-host-refusal'
+import { preferPairedServerForSameMachine } from '../../shared/orchestration/host-same-machine'
 
 export type HostFlagRoutingSelection = {
   // Enumerating SSH targets needs the running host; defer lookup until error recovery.
@@ -81,10 +83,7 @@ export async function resolveHostFlagEnvironmentId(
       import('../../shared/remote-runtime/host-store/runtime-environment-store.js')
     ])
   const userDataPath = getDefaultUserDataPath()
-  const environments = listEnvironments(userDataPath).map((candidate) => ({
-    id: candidate.id,
-    name: candidate.name
-  }))
+  const environments = listEnvironments(userDataPath).map(toEnvironmentSummary)
   const wanted = host.kind === 'runtime' ? host.environmentId : host.alias
   const flagSpelling = host.kind === 'runtime' ? `--host ${host.id}` : `--host ${host.alias}`
   // An explicit server selection scopes bare aliases to that server's local/SSH hosts.
@@ -178,6 +177,9 @@ async function assertAliasNamesOneHost(
   if (conflicts.length === 0) {
     return
   }
+  if (preferPairedServerForSameMachine(environment, conflicts)) {
+    return
+  }
   const sshCount =
     conflicts.length === 1 ? 'an SSH target' : `${conflicts.length} SSH targets sharing that label`
   throw new RuntimeClientError(
@@ -222,10 +224,7 @@ export async function resolveHostFlagTarget(
     import('../runtime/metadata.js'),
     import('../../shared/remote-runtime/host-store/runtime-environment-store.js')
   ])
-  const environments = listEnvironments(getDefaultUserDataPath()).map((candidate) => ({
-    id: candidate.id,
-    name: candidate.name
-  }))
+  const environments = listEnvironments(getDefaultUserDataPath()).map(toEnvironmentSummary)
   if (host.kind === 'alias' && isLocalHostListName(host.alias)) {
     return resolveLocalHostListName(host.alias, client)
   }

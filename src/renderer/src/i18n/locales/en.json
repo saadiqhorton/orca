@@ -2676,6 +2676,10 @@
       "ipcEvents": {
         "sshManagedServer": {
           "refusedBlocked": "Orca couldn’t set itself up on this SSH host. SSH Hosts in Settings shows why."
+        },
+        "terminalRevealPending": {
+          "opened": "Opened a tab on {{value0}}. Orca could not show it.",
+          "showTab": "Show tab"
         }
       },
       "composerState": {
@@ -5604,7 +5608,11 @@
             "open_settings": "Open settings…",
             "server_replaced": "Different server",
             "server_replaced_summary": "This host now runs a different Orca server than the one this computer paired with",
-            "server_replaced_explanation": "Orca connects to the host as a different SSH user, or its server was reinstalled. In Settings › Remote Orca Servers, open the ⋯ menu on this server and choose Forget…, then connect the SSH host to pair with its current server."
+            "server_replaced_explanation": "Orca connects to the host as a different SSH user, or its server was reinstalled. In Settings › Remote Orca Servers, open the ⋯ menu on this server and choose Forget…, then connect the SSH host to pair with its current server.",
+            "orchestration_ready": "Orchestration: ready",
+            "orchestration_prompts_only": "Orchestration: prompts only",
+            "orchestration_ready_agents": "Agents that take orchestration instructions: {{agents}}",
+            "orchestration_prompts_only_detail": "Detected agents can receive prompts but not orchestration instructions."
           },
           "NativeChatResumeStatusSegment": {
             "tooltip": "Open interrupted chats available to resume",
@@ -21150,7 +21158,8 @@
         "senderReplaced": "{{name}} is no longer running in its terminal; another agent is running there now. Open that terminal from the sidebar if you need it.",
         "senderAmbiguous": "Orca can't tell which terminal {{name}} is running in. Open it from the sidebar.",
         "senderNotRunning": "{{name}} is no longer running. Start a new agent from the sidebar to continue its work.",
-        "unnamedSenderSubject": "An agent"
+        "unnamedSenderSubject": "An agent",
+        "blockedOnPrompt": "Blocked on prompt: {{reason}}"
       },
       "goal": {
         "placeholder": "Describe your goal, define measurable outcomes for best results",

@@ -27,11 +27,12 @@ import {
   federatedFailedReceipt,
   federatedProtocolVersion,
   federatedUnknownReceipt,
-  isKnownRemoteStartFailure
+  isKnownRemoteStartFailure,
+  persistFederatedHomeBlockedPrompt
 } from './federated-worker-start-receipts'
 import { releaseRetriedWorkerTerminal } from '../../rpc/methods/orchestration/worker/release/retried-worker-terminal-release'
 import { withWorkerStartNext } from '../../rpc/methods/orchestration/receipt-next'
-import { recordReadyFederatedDispatch } from './federated-worker-ready-record'
+import { settleReadyFederatedHome } from './federated-worker-ready-record'
 import { resolveFederatedChildParent } from './federated-worker-child-parent'
 import { assertRemoteHostHasAgent } from '../../rpc/methods/orchestration/worker/start/launch/worker-agent-cli-installed'
 import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
@@ -218,9 +219,14 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       remote.state === 'ready'
     )
     if (isReadyRemoteFederatedWorkerStartReceipt(remote)) {
-      recordReadyFederatedDispatch(db, started.dispatch.id, remote)
-      const readyWorker = db.markWorkerDispatchReady(started.dispatch.id)
-      runtime.ensureOrchestrationFederationRelay(runId)
+      const readyWorker = settleReadyFederatedHome({
+        runtime,
+        db,
+        dispatchId: started.dispatch.id,
+        remote,
+        environmentId: server.environmentId,
+        runId
+      })
       const reportsTurnStops = status.capabilities?.includes(
         ORCHESTRATION_WORKER_TURN_STOP_REPORTS_RUNTIME_CAPABILITY
       )
@@ -260,9 +266,7 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
         remote.failedStage ?? 'remote_attach',
         remote.lastError ?? `The worker server returned ${remote.state}.`
       )
-      reportFailedWorkerStart(db, worker, (handle, type) =>
-        runtime.notifyMessageArrived(handle, type)
-      )
+      reportFailedWorkerStart(db, worker, (h, t) => runtime.notifyMessageArrived(h, t))
       return federatedFailedReceipt(worker, { runId, taskId: taskForRemote.id }, server, {
         setup: remote.setup,
         launch,
@@ -271,12 +275,17 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       })
     }
   } catch (error) {
+    const blocked = persistFederatedHomeBlockedPrompt({
+      db, dispatchId: started.dispatch.id, error, host: server.name,
+      notify: (h, t) => runtime.notifyMessageArrived(h, t)
+    })
+    if (blocked) {
+      throw blocked
+    }
     const reason = error instanceof Error ? error.message : String(error)
     if (error instanceof OrchestrationError && isKnownRemoteStartFailure(error.code)) {
       const worker = db.failWorkerStart(started.dispatch.id, 'remote_attach', reason)
-      reportFailedWorkerStart(db, worker, (handle, type) =>
-        runtime.notifyMessageArrived(handle, type)
-      )
+      reportFailedWorkerStart(db, worker, (h, t) => runtime.notifyMessageArrived(h, t))
       return federatedFailedReceipt(worker, { runId, taskId: taskForRemote.id }, server, {
         launch: requestedLaunch
       })

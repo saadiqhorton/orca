@@ -25,28 +25,35 @@ export function writeGlobalAgentInstructionsEnabled(
   return settings?.orcaWriteGlobalAgentInstructions !== false
 }
 
-export function settingsWriteGlobalSlice(host: object | undefined): {
-  orcaWriteGlobalAgentInstructions?: boolean
-} | undefined {
-  if (!host) {
+type GlobalInstructionSettings = { orcaWriteGlobalAgentInstructions?: boolean }
+
+export type GlobalInstructionSettingsSource = {
+  getSettings?: () => GlobalInstructionSettings
+  requireStore?: () => { getSettings: () => GlobalInstructionSettings }
+}
+
+export function settingsWriteGlobalSlice(
+  source: GlobalInstructionSettingsSource | undefined
+): GlobalInstructionSettings | undefined {
+  if (!source) {
     return undefined
   }
-  const rec = host as {
-    getSettings?: () => { orcaWriteGlobalAgentInstructions?: boolean }
-    store?: { getSettings?: () => { orcaWriteGlobalAgentInstructions?: boolean } }
+  if (typeof source.getSettings === 'function') {
+    return source.getSettings()
   }
-  if (typeof rec.getSettings === 'function') {
-    return rec.getSettings()
+  try {
+    return source.requireStore?.().getSettings()
+  } catch {
+    // Why: a runtime without a store yet falls back to the default (on).
+    return undefined
   }
-  return rec.store?.getSettings?.()
 }
 
 export async function writeOrcaHostInstructionFile(
   path: string,
-  hosts: readonly string[],
   opts?: { strip?: boolean }
 ): Promise<void> {
-  const preamble = formatOrcaHostPreamble(hosts)
+  const preamble = formatOrcaHostPreamble()
   let existing: string | undefined
   try {
     existing = await readFile(path, 'utf8')
@@ -105,7 +112,6 @@ function writeGlobalFrom(args: {
 }
 
 export async function installOrcaHostInstructions(args: {
-  hosts: readonly string[]
   userDataPath?: string
   home?: string
   extraDirs?: readonly string[]
@@ -130,15 +136,15 @@ export async function installOrcaHostInstructions(args: {
   const globalFiles =
     args.home !== undefined || !process.env.VITEST ? globalAgentInstructionFiles(home) : []
   for (const file of localFiles) {
-    await writeOrcaHostInstructionFile(file, args.hosts)
+    await writeOrcaHostInstructionFile(file)
     written.push(file)
   }
   for (const file of globalFiles) {
     if (writeGlobal) {
-      await writeOrcaHostInstructionFile(file, args.hosts)
+      await writeOrcaHostInstructionFile(file)
       written.push(file)
     } else {
-      await writeOrcaHostInstructionFile(file, args.hosts, { strip: true })
+      await writeOrcaHostInstructionFile(file, { strip: true })
     }
   }
   return written

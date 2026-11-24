@@ -75,6 +75,24 @@ orca host rm --host ssh:<target-id> --json
 
 It removes the target the same way Settings does, so the passive `~/.ssh/config` import does not add the alias back on the next launch. It takes only the `ssh:<target-id>` form, not the bare name, because it deletes data. It refuses `--host local`, paired servers (use `orca environment rm`), and an id this Orca host does not have.
 
+## Exit codes
+
+Scripts and orchestrators can branch on the exit status of `orca orchestration`, `terminal`, `agent` and `host` commands. Codes 0 to 6 are stable there; other commands exit 1 on any error; `orca plugin` keeps its own mapping (`plugin_invalid` is 2, `approval_required` and `approval_stale` are 3).
+
+| Exit | Meaning                              | Error codes                                         |
+| ---- | ------------------------------------ | --------------------------------------------------- |
+| 0    | Success                              |                                                     |
+| 1    | Generic failure                      | Any code not listed below                           |
+| 2    | Host mismatch                        | `host_mismatch`                                     |
+| 3    | Unknown host or session              | `unknown_host`, `session_not_found`                 |
+| 4    | Host unreachable or not signed in    | `host_unreachable`, `host_offline`, `needs_sign_in` |
+| 5    | Blocked on an agent prompt           | `agent_blocked_on_prompt`                           |
+| 6    | Version skew between CLI and runtime | `incompatible_runtime`                              |
+
+Exit 5 means the tab is waiting on a trust, hooks, or security prompt. Open the tab in the desktop Orca window and answer it there; never answer with keystrokes.
+
+`--host` on `agent launch`, `terminal create`, and `orchestration worker-start` without `--worktree` uses `~/orca-orchestration` (the visible **Orca orchestration** project). Name a workspace or repo only when the task should run in that checkout. Those tabs always land in a group the desktop shows.
+
 ## Runtime commands
 
 ```bash

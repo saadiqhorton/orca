@@ -35,12 +35,13 @@ export const ENVIRONMENT_COMMAND_SPECS: CommandSpec[] = [
   {
     path: ['host', 'inventory'],
     summary: 'List every connected host with its projects, agent CLIs, and live sessions',
-    usage: 'orca host inventory [--json]',
-    allowedFlags: [...LOCAL_COMMAND_FLAGS],
+    usage: 'orca host inventory [--json] [--group "<name>"]',
+    allowedFlags: [...LOCAL_COMMAND_FLAGS, 'group'],
     notes: [
-      'One command an agent can run to see the desktop-connected fleet: each host, whether it is connected, the Orca projects and folder workspaces on it, which agent CLIs are installed, and live terminal/agent tabs.',
+      'One command an agent can run to see the desktop-connected fleet: each host, whether it is connected, the Orca projects and folder workspaces on it, which agent CLIs are installed, and live terminal/agent tabs. Each repo and folder includes projectGroupId, projectGroupName, and a ready selector (`id:<repo>::<path>` or `folder:<id>`). Each project lists its members. `--group "<name>"` filters to that project group.',
       'Then act with `orca agent launch --host <name>`, `orca terminal create --host <name>`, `orca terminal list --host <name>`, `orca terminal send --host <name>`, `orca worktree create --host <name> --name <name>`, or `orca orchestration send --host <name>`. Those commands open or drive real tabs in the desktop Orca window.',
-      'Do not use SSH. needs_sign_in and unreachable hosts are listed with that status and are not dialed.'
+      'Do not use SSH. needs_sign_in and unreachable hosts are listed with that status and are not dialed.',
+      'Host commands use exit 2 host_mismatch, 3 unknown_host or session_not_found, 4 host_unreachable / host_offline / needs_sign_in, 5 agent_blocked_on_prompt, 6 incompatible_runtime.'
     ],
     examples: ['orca host inventory', 'orca host inventory --json']
   },

@@ -53,4 +53,36 @@ describe('ensureOrchestrationScratchWorkspace', () => {
     expect(groups).toHaveLength(1)
     expect(folders).toHaveLength(1)
   })
+
+  it('reuses the scratch folder by path even when listings hide it', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'orca-scratch-hidden-'))
+    homes.push(home)
+    const hidden = {
+      id: 'fld_persist',
+      name: 'scratch',
+      folderPath: path.join(home, 'orca-orchestration'),
+      projectGroupId: 'grp_persist'
+    }
+    let created = 0
+    const first = await ensureOrchestrationScratchWorkspace(
+      {
+        listVisibleProjectGroups: () => [],
+        listVisibleFolderWorkspaces: () => [],
+        listProjectGroups: () => [{ id: 'grp_persist', name: 'Orca orchestration' }],
+        listFolderWorkspaces: () => [hidden],
+        createProjectGroup: async () => {
+          throw new Error('must not mint a second group')
+        },
+        createFolderWorkspace: async () => {
+          created += 1
+          throw new Error('must not mint a second folder')
+        }
+      },
+      undefined,
+      home
+    )
+    expect(first.created).toBe(false)
+    expect(first.folderWorkspaceId).toBe('fld_persist')
+    expect(created).toBe(0)
+  })
 })

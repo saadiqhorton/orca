@@ -1,10 +1,12 @@
 import type { RuntimeTerminalCreate } from '../../../../shared/runtime-terminal-create-contract'
-import { waitForWorkerAgentReady } from '../../terminal/wait/launched-agent-composer-readiness'
-import { describeTerminalWaitBlockedReason } from '../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
 import {
-  isWorkerStartBlockedPromptError,
-  throwIfWorkerStartBlockedOnPrompt
+  settleCaughtWorkerStartError,
+  workerStartBlockedPromptReason
 } from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+import {
+  completeFederatedAgentReadiness,
+  readyFederatedAttachmentAfterFirstTurn
+} from './federation-attach-readiness'
 import { buildDispatchPreamble } from '../workers/launch/worker-dispatch-preamble'
 import { sendAgentTurn } from '../turn-delivery/send-agent-turn'
 import { createWorkerBriefWriteGuard } from '../../terminal/wait/launched-agent-write-guard'
@@ -17,8 +19,7 @@ import type { WorkerSetupReceipt } from '../../rpc/methods/orchestration/worker/
 import {
   monitorFederatedSetup,
   persistFederatedReadinessStage,
-  persistFederatedSetupSpawnFailure,
-  persistFederatedSetupWaitOutcome
+  persistFederatedSetupSpawnFailure
 } from './federation-setup'
 import { FederationAttachStartParams } from '../../../../shared/rpc-contract/orchestration/orchestration-federation-start-params'
 import { failFederatedAttachmentWithReceipt } from './federation-start-receipt'
@@ -196,24 +197,22 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
         }
         persistFederatedReadinessStage(setupStage)
         failedStage = 'agent_readiness'
-        const wait = await waitForWorkerAgentReady(runtime, terminalHandle, {
-          agent,
+        await completeFederatedAgentReadiness({
+          runtime,
+          db,
+          dispatchId: params.dispatchId,
+          terminalHandle,
+          worktreeId: worktree.id,
+          setup,
+          effects,
           reusesTerminal: Boolean(params.terminal),
+          readinessTimeoutMs,
+          agent,
           creation: terminalCreation,
-          timeoutMs: readinessTimeoutMs
-        })
-        persistFederatedSetupWaitOutcome({ ...setupStage, wait })
-        if (!wait.satisfied) {
-          if (setup.state === 'failed') {
+          onSetupWaitFailed: () => {
             failedStage = 'setup_wait'
           }
-          throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
-          throw new Error(
-            wait.blockedReason
-              ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
-              : `Agent did not become ready (${wait.status}).`
-          )
-        }
+        })
         prepareFederatedAttachmentAuthority({
           runtime,
           db,
@@ -255,7 +254,13 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           id: terminalHandle,
           state: 'accepted'
         })
-        const attachment = db.markRemoteAttachmentReady(params.dispatchId, effects)
+        const attachment = await readyFederatedAttachmentAfterFirstTurn({
+          runtime,
+          db,
+          dispatchId: params.dispatchId,
+          terminalHandle,
+          effects
+        })
         monitorFederatedSetup({ ...setupStage, runtime })
         return {
           dispatchId: params.dispatchId,
@@ -271,19 +276,17 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           residualResources: []
         }
       } catch (error) {
-        const failed = failFederatedAttachmentWithReceipt({
-          db,
-          dispatchId: params.dispatchId,
-          runtimeEpoch: runtime.getRuntimeId(),
-          failedStage,
-          error,
-          setup,
-          launch: launch.receipt
-        })
-        if (isWorkerStartBlockedPromptError(error)) {
-          throw error
-        }
-        return failed
+        return await settleCaughtWorkerStartError(error, () =>
+          failFederatedAttachmentWithReceipt({
+            db,
+            dispatchId: params.dispatchId,
+            runtimeEpoch: runtime.getRuntimeId(),
+            failedStage: workerStartBlockedPromptReason(error) ?? failedStage,
+            error,
+            setup,
+            launch: launch.receipt
+          })
+        )
       } finally {
         releaseTerminalClaim()
       }

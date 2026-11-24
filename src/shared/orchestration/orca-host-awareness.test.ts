@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  formatOrcaHostListStamp,
   formatOrcaHostPreamble,
   formatOrcaHostsEnv,
   parseOrcaHostsEnv,
@@ -11,14 +10,15 @@ import {
 
 describe('orca host awareness copy', () => {
   it('names connected machines and forbids ssh', () => {
-    const now = new Date('2026-11-17T18:23:00.000Z')
-    const preamble = formatOrcaHostPreamble(['dockhand', 'ubuntu-server-local'], now)
-    expect(preamble).toContain('You run inside Orca.')
-    expect(preamble).toContain('dockhand, ubuntu-server-local')
-    expect(preamble).toContain('never ssh')
+    const preamble = formatOrcaHostPreamble()
+    expect(preamble).toContain('Never use ssh')
     expect(preamble).toContain('orca host inventory --json')
-    expect(preamble).toContain('Host list as of 2026-11-17T18:00Z')
-    expect(formatOrcaHostListStamp(now)).toBe('2026-11-17T18:00Z')
+    expect(preamble).toContain('pass its selector as --worktree')
+    expect(preamble).toContain('never leave placeholders or shell variables unset')
+    expect(preamble).toContain('gpt 6 luna maps to gpt-6-luna')
+    expect(preamble).toContain('orca terminal read --terminal')
+    expect(preamble).toContain('Copy handles exactly')
+    expect(preamble).not.toMatch(/Host list as of|Connected machines/)
     expect(formatOrcaHostsEnv(['dockhand', 'ubuntu-server-local'])).toBe(
       'dockhand,ubuntu-server-local'
     )
@@ -41,9 +41,7 @@ describe('orca host awareness copy', () => {
 
   it('removeManagedHostInstruction is the inverse of an append upsert', () => {
     const original = '# mine\n\n\nthree-newline gap above\n'
-    expect(removeManagedHostInstruction(upsertManagedHostInstruction(original, 'p'))).toBe(
-      original
-    )
+    expect(removeManagedHostInstruction(upsertManagedHostInstruction(original, 'p'))).toBe(original)
   })
 
   it('refuses an unknown host with the connected names', () => {

@@ -33,6 +33,34 @@ export class RuntimeLegacyWorkerTerminalRecoveryPersistence {
     private readonly getHostId: (worktreeId: string) => ExecutionHostId | null
   ) {}
 
+  /** The live PTY's handle moved; the worker follows the PTY only when the orchestration binding accepts it. */
+  private rebindWorkerToTerminal(candidate: LegacyWorkerRecoveryCandidate): boolean {
+    const db = this.getDb()
+    return db?.rebindWorkerTerminalHandle(candidate.dispatchId, candidate.terminalHandle) ?? false
+  }
+
+  private abandonUnprovenWorker(candidate: LegacyWorkerRecoveryCandidate): boolean {
+    const db = this.getDb()
+    const worker = db?.getWorkerDispatch(candidate.dispatchId)
+    if (!db || !worker) {
+      return false
+    }
+    try {
+      db.abandonWorkerDispatch(
+        candidate.dispatchId,
+        worker.runtime_epoch ?? '',
+        'legacy worker recovery: live terminal under another binding was never proven to be this worker'
+      )
+      return true
+    } catch (error) {
+      console.warn('[orchestration] legacy worker recovery abandon failed', {
+        dispatchId: candidate.dispatchId,
+        error
+      })
+      return false
+    }
+  }
+
   prepare(dispatchIds?: readonly string[]): LegacyWorkerTerminalRecoveryPlan {
     return this.getPlan(dispatchIds) ?? { candidates: [], ambiguousDispatchIds: [] }
   }
@@ -55,7 +83,16 @@ export class RuntimeLegacyWorkerTerminalRecoveryPersistence {
     let adopted = false
     try {
       return await store.runDurableMutation(() => {
-        for (const { candidate, resolution, hostId: observedHostId } of resolutions) {
+        for (const { candidate, resolution, hostId: observedHostId, rebound } of resolutions) {
+          if (resolution === 'abandoned') {
+            if (this.abandonUnprovenWorker(candidate)) {
+              dispatchIds.add(candidate.dispatchId)
+            }
+            continue
+          }
+          if (rebound && !this.rebindWorkerToTerminal(candidate)) {
+            continue
+          }
           const hostId = observedHostId ?? this.getHostId(candidate.worktreeId)
           const session = hostId ? getWorkspaceSession(hostId) : null
           if (!hostId || !session) {

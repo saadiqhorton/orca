@@ -101,7 +101,9 @@ const orchestration = z.discriminatedUnion('message', [
           content: z
             .object({ subject: salvaged, body: salvaged, payload: salvaged })
             .nullable()
-            .optional()
+            .optional(),
+          stopKind: salvaged,
+          blockedReason: salvaged
         })
       )
       .nullable()

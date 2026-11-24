@@ -15,6 +15,13 @@ import { resolvePinnedFederatedServer } from './pinned-federated-server'
 import { applyFederatedFleetObservations } from './federated-fleet-snapshot'
 import { applyConfirmedFederatedReleaseHomeProjection } from './federated-worker-release'
 
+/** A first-turn failure is already on the home record; remote show would later return dispatch_not_found. */
+export function shouldShowFederatedWorkerRemotely(
+  worker: { state: string } | null | undefined
+): boolean {
+  return worker?.state !== 'failed'
+}
+
 /** Query host evidence: push-fed fleet snapshots cover only local panes and would fabricate unverifiable for federated workers. */
 export function projectFederatedFleetWorker(args: {
   runtime: OrcaRuntimeService

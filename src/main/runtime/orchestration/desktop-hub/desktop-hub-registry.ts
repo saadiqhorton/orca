@@ -10,6 +10,7 @@ import {
   type DesktopHubPlacement,
   type DesktopHubRequestEvent
 } from '../../../../shared/orchestration/desktop-hub-contract'
+import { isTerminalHandle } from '../../../../shared/terminal-handle-prefix'
 import { readDesktopHubPlacement, writeDesktopHubPlacement } from './desktop-hub-placement-store'
 
 function desktopHubAskTimeoutMessage(
@@ -23,6 +24,25 @@ function desktopHubAskTimeoutMessage(
     `The tab may still be opening. Check with \`orca terminal list --host ${host}\` or \`orca host inventory --json\`. ` +
     'If a trust, hooks, or security dialog is on screen, open the tab in the desktop Orca window and answer it yourself — never via keystrokes. Retry the same command with --host.'
   )
+}
+
+function collectTerminalHandles(value: unknown, depth: number, found: Set<string>): void {
+  if (depth < 0 || typeof value !== 'object' || value === null) {
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectTerminalHandles(item, depth - 1, found)
+    }
+    return
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'handle' && typeof child === 'string' && isTerminalHandle(child)) {
+      found.add(child)
+    } else {
+      collectTerminalHandles(child, depth - 1, found)
+    }
+  }
 }
 
 type Volunteer = {
@@ -45,9 +65,9 @@ type BoundHub = {
   pairedDeviceId: string
 }
 
-const registries = new WeakMap<object, DesktopHubRegistry>()
+const registries = new WeakMap<WeakKey, DesktopHubRegistry>()
 
-export function getDesktopHubRegistry(runtime: object): DesktopHubRegistry {
+export function getDesktopHubRegistry(runtime: WeakKey): DesktopHubRegistry {
   const existing = registries.get(runtime)
   if (existing) {
     return existing
@@ -62,6 +82,7 @@ export class DesktopHubRegistry {
   private readonly volunteers: Volunteer[] = []
   private readonly pending = new Map<string, Pending>()
   private readonly placements = new Map<string, DesktopHubPlacement>()
+  private readonly sessionHosts = new Map<string, string>()
 
   register(input: Volunteer): { accepted: boolean; stop: () => void } {
     if (
@@ -149,6 +170,22 @@ export class DesktopHubRegistry {
     }
     this.placements.set(selector, cached)
     return cached
+  }
+
+  rememberSession(handle: string, hostKey: string): void {
+    this.sessionHosts.set(handle, hostKey)
+  }
+
+  rememberSessionHandles(hostKey: string, result: unknown): void {
+    const found = new Set<string>()
+    collectTerminalHandles(result, 4, found)
+    for (const handle of found) {
+      this.rememberSession(handle, hostKey)
+    }
+  }
+
+  knownSessionHost(handle: string): string | undefined {
+    return this.sessionHosts.get(handle)
   }
 
   hasPlacement(selector: string): boolean {

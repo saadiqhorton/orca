@@ -237,7 +237,7 @@ describe('orchestration federated worker output', () => {
       return {
         handle: 'term_windows_worker',
         status: 'running',
-        tail: ['remote output'],
+        tail: ['thinking about the task', 'remote output'],
         truncated: false,
         nextCursor: '1'
       }

@@ -3,14 +3,9 @@
  * operationId adds durable at-most-once execution and recorded replay; unknown outcomes refuse, while stranded-surface recovery remains separate. */
 
 import { agentLaunchFeatureRequirement } from '../../startup/agent-launch-feature-requirement'
-import { AgentLaunchTabClosedError } from '../../../../../shared/agent-launch/contracts/agent-launch-tab-closed'
 import { computeAgentLaunchFingerprint } from '../../../../../shared/agent-launch/contracts/agent-launch-operation'
 import type { AgentLaunchResult } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
 import { agentSessionOperationKey } from '../../../../../shared/agent-session/lifecycle/agent-session-operation-ledger'
-import {
-  WorktreeCreateCollisionError,
-  WORKTREE_CREATE_COLLISION_CODE
-} from '../../../../../shared/new-workspace/worktree-create-collision'
 import { executeAgentLaunch } from '../../../../agent-launch/agent-launch-executor'
 import { trackTerminalSpawnDispatch } from '../../../../agent-launch/agent-launch-not-started'
 import type { OrcaRuntimeService } from '../../../orca-runtime'
@@ -23,7 +18,9 @@ import {
 import {
   AgentLaunchExecutionError,
   agentLaunchRefusalError,
-  agentLaunchTabClosedAnswer,
+  rethrowOptionalIdentityLaunchError,
+  rethrowRecordedAgentLaunchError,
+  failSettledAgentLaunchOnFirstTurn,
   settleLaunchWhoseTabWasClosed,
   settleQuietly,
   withEarlyTab
@@ -31,7 +28,8 @@ import {
 import {
   AgentLaunch,
   AgentLaunchReplay,
-  type AgentLaunchParams
+  type AgentLaunchParams,
+  type AgentLaunchRequestParams
 } from '../../../../../shared/rpc-contract/agent-launch/agent-launch-params'
 import { agentLaunchSurfaceFactory } from './agent-launch-surfaces'
 import { prepareAgentHandoffCard } from './agent-launch-handoff-card'
@@ -45,11 +43,17 @@ import {
   selectLaunchedTab
 } from './agent-launch-caller-selection'
 import { agentLaunchWorkspaceFactory } from './agent-launch-worktree-creation'
-import {
-  assertAgentLaunchTargetAuthorized,
-  supportsAgentLaunch
-} from './agent-launch-target-authorization'
+import { supportsAgentLaunch } from './agent-launch-target-authorization'
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
+import {
+  placeAuthorizedAgentLaunch,
+  withSessionPlacement
+} from './agent-launch-orchestration-placement'
+import {
+  beginAgentLaunchFirstTurnWatch,
+  finishAgentLaunchFirstTurnWatch
+} from './agent-launch-first-turn-watch'
+import { assertRequestedCodexModelSupported } from './agent-launch-codex-model-gate'
 import {
   publishEarlyTab,
   withPlacement,
@@ -67,6 +71,7 @@ async function runAgentLaunch(
   replaySafe?: ReplaySafeLaunch
 ): Promise<AgentLaunchResult> {
   const callerNavigationId = agentLaunchCallerNavigationId(intent.target, context)
+  let firstTurnWatch: ReturnType<typeof beginAgentLaunchFirstTurnWatch> | null = null
   const result = await executeAgentLaunch({
     runtime: context.runtime,
     intent,
@@ -88,11 +93,19 @@ async function runAgentLaunch(
         console.warn('[agent-launch] publication bookkeeping failed', error)
       }
       view.early?.surfacePublished(surface)
-      replaySafe?.recordSurface(withPlacement(surface, view))
+      const placed = withPlacement(surface, view)
+      replaySafe?.recordSurface(placed)
       selectLaunchedTab(context, surface, view.presentation, callerNavigationId)
+      firstTurnWatch ??= beginAgentLaunchFirstTurnWatch(context.runtime, placed)
     }
   })
-  return withPlacement(result, view)
+  return finishAgentLaunchFirstTurnWatch(
+    context.runtime,
+    withPlacement(result, view),
+    firstTurnWatch,
+    Date.now,
+    replaySafe?.failFirstTurn
+  )
 }
 
 /** Legacy unnamed launches retain the 60-second create dedupe cache (repo/mutation id, no caller partition).
@@ -205,7 +218,8 @@ async function executeAdmittedAgentLaunch(
       attachOperationId: admission.attachOperationId,
       callerKey: admission.callerKey,
       terminalSpawn,
-      recordSurface: (provisional) => void settleQuietly(admission.record(provisional))
+      recordSurface: (provisional) => void settleQuietly(admission.record(provisional)),
+      failFirstTurn: (reason) => failSettledAgentLaunchOnFirstTurn(admission.fail, reason)
     })
   } catch (error) {
     if (view.early?.closedByUser()) {
@@ -262,30 +276,20 @@ export const AGENT_LAUNCH_METHODS = [
     requires: agentLaunchFeatureRequirement,
     permission: 'workspace',
     params: AgentLaunchReplay,
-    handler: async (params, context): Promise<AgentLaunchResult> => {
+    handler: async (requested, context): Promise<AgentLaunchResult> => {
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
-      assertAgentLaunchTargetAuthorized(params.target, context)
+      // CLI always sends launchReplay; gate before admission so gpt-6-luna on 0.154 is refused, not recorded.
+      await assertRequestedCodexModelSupported(requested)
+      const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, context)
       try {
-        return await runReplaySafeAgentLaunch(params, context)
+        return withSessionPlacement(
+          await runReplaySafeAgentLaunch(params, context),
+          sessionPlacement
+        )
       } catch (error) {
-        // Nested failures cannot authorize another workspace, regardless of their message or code.
-        if (error instanceof AgentLaunchExecutionError) {
-          if (error.cause instanceof WorktreeCreateCollisionError) {
-            throw Object.assign(new Error(error.cause.message, { cause: error.cause }), {
-              code: WORKTREE_CREATE_COLLISION_CODE
-            })
-          }
-          if (error.cause instanceof AgentLaunchTabClosedError) {
-            throw agentLaunchTabClosedAnswer(context)
-          }
-          if (error.failedWithoutEffects) {
-            throw error.cause
-          }
-          throw new Error('agent_session_operation_unknown', { cause: error.cause })
-        }
-        throw error
+        rethrowRecordedAgentLaunchError(error, context)
       }
     }
   }),
@@ -300,7 +304,7 @@ export const AGENT_LAUNCH_METHODS = [
 
 /** In-process schedules and RPC callers share admission, factories and prompt settlement. */
 export async function launchAgentOnHost(
-  { operationId, ...params }: AgentLaunchParams,
+  { operationId, ...requested }: AgentLaunchRequestParams,
   context: RpcContext,
   policy?: HostLaunchContext['agentLaunchPolicy']
 ): Promise<AgentLaunchResult> {
@@ -308,17 +312,12 @@ export async function launchAgentOnHost(
   if (!supportsAgentLaunch(host)) {
     throw new Error('agent_launch_unsupported')
   }
-  assertAgentLaunchTargetAuthorized(params.target, host)
+  await assertRequestedCodexModelSupported(requested)
+  const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, host)
   if (!operationId) {
-    return runLegacyAgentLaunch(params, host)
+    return withSessionPlacement(await runLegacyAgentLaunch(params, host), sessionPlacement)
   }
-  return runReplaySafeAgentLaunch({ ...params, operationId }, host).catch((error: unknown) => {
-    // Preserve the original error contract for callers of the optional-identity method.
-    if (error instanceof AgentLaunchExecutionError) {
-      throw error.cause instanceof AgentLaunchTabClosedError
-        ? agentLaunchTabClosedAnswer(host)
-        : error.cause
-    }
-    throw error
-  })
+  return runReplaySafeAgentLaunch({ ...params, operationId }, host)
+    .then((result) => withSessionPlacement(result, sessionPlacement))
+    .catch((error: unknown) => rethrowOptionalIdentityLaunchError(error, host))
 }

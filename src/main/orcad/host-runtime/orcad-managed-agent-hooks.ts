@@ -13,6 +13,7 @@ import type { ProfilePreferences } from '../../persistence/loading-store/profile
 import type { BackendServiceCleanup } from '../../backend/service-composition'
 import type { AgentHookServer } from '../../agent-hooks/server/agent-hook-server'
 import { installLocalHookRootEvidence } from '../../agent-hooks/observations/local-hook-root-evidence'
+import { startManagedHostInstructions } from '../../runtime/orchestration/desktop-hub/managed-host-instructions-startup'
 
 /** SSH and WSL-host panes run beside this host, so it proves which agent owns each pane, from the
  *  first record its startup replay reads. */
@@ -37,6 +38,10 @@ export function startOrcadManagedAgentHooks(
   let stopping = false
   const agentView = getClaudeAgentViewService()
   void agentView.reconcile(store.getSettings())
+  const removeHostInstructionsListener = startManagedHostInstructions(
+    store,
+    getAppEnvironment().getPath('userData')
+  )
   const removeSettingsListener = store.onSettingsChanged((updates, settings) => {
     void agentView.reconcile(settings)
     if ('agentStatusHooksEnabled' in updates) {
@@ -46,6 +51,7 @@ export function startOrcadManagedAgentHooks(
   registerCleanup(() => {
     stopping = true
     removeSettingsListener()
+    removeHostInstructionsListener()
   })
   const getSettings = () => store.getSettings()
   const shouldHydrateShellPath = getAppEnvironment().isPackaged()

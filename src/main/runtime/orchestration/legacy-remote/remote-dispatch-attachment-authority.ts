@@ -132,6 +132,41 @@ export function markRemoteAttachmentReady(
   return this.getRemoteDispatchAttachment(dispatchId) as RemoteDispatchAttachmentRow
 }
 
+export function markRemoteAttachmentBlockedOnPrompt(
+  this: OrchestrationDb,
+  dispatchId: string,
+  blockedReason: string
+): RemoteDispatchAttachmentRow {
+  const result = this.db
+    .prepare(
+      `UPDATE remote_dispatch_attachments
+       SET state = 'ready', blocked_reason = ?, updated_at = datetime('now')
+       WHERE dispatch_id = ? AND state = 'starting'`
+    )
+    .run(blockedReason, dispatchId)
+  if (result.changes !== 1) {
+    throw new OrchestrationError(
+      'dispatch_inactive',
+      `Remote Dispatch ${dispatchId} is not starting.`
+    )
+  }
+  return this.getRemoteDispatchAttachment(dispatchId) as RemoteDispatchAttachmentRow
+}
+
+export function clearRemoteAttachmentBlockedOnPrompt(
+  this: OrchestrationDb,
+  dispatchId: string
+): boolean {
+  const result = this.db
+    .prepare(
+      `UPDATE remote_dispatch_attachments
+       SET blocked_reason = NULL, updated_at = datetime('now')
+       WHERE dispatch_id = ? AND state = 'ready' AND blocked_reason IS NOT NULL`
+    )
+    .run(dispatchId)
+  return result.changes === 1
+}
+
 export function failRemoteAttachment(
   this: OrchestrationDb,
   dispatchId: string,
@@ -144,8 +179,8 @@ export function failRemoteAttachment(
     .prepare(
       `UPDATE remote_dispatch_attachments
        SET state = ?, stage = ?, last_error = ?, capability_hash = NULL,
-           updated_at = datetime('now')
-       WHERE dispatch_id = ? AND state = 'starting'`
+           blocked_reason = NULL, updated_at = datetime('now')
+       WHERE dispatch_id = ? AND state IN ('starting', 'ready')`
     )
     .run(state, stage, reason, dispatchId)
   if (result.changes !== 1) {
@@ -178,6 +213,8 @@ export function isRemoteAttachmentProcessCurrent(
 export type RemoteDispatchAttachmentAuthorityMethods = {
   prepareRemoteAttachmentAuthority: typeof prepareRemoteAttachmentAuthority
   markRemoteAttachmentReady: typeof markRemoteAttachmentReady
+  markRemoteAttachmentBlockedOnPrompt: typeof markRemoteAttachmentBlockedOnPrompt
+  clearRemoteAttachmentBlockedOnPrompt: typeof clearRemoteAttachmentBlockedOnPrompt
   failRemoteAttachment: typeof failRemoteAttachment
   isRemoteAttachmentProcessCurrent: typeof isRemoteAttachmentProcessCurrent
 }
@@ -186,6 +223,8 @@ export function attachRemoteDispatchAttachmentAuthority(ctor: { prototype: objec
   Object.assign(ctor.prototype, {
     prepareRemoteAttachmentAuthority,
     markRemoteAttachmentReady,
+    markRemoteAttachmentBlockedOnPrompt,
+    clearRemoteAttachmentBlockedOnPrompt,
     failRemoteAttachment,
     isRemoteAttachmentProcessCurrent
   })

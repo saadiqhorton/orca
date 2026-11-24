@@ -32,12 +32,15 @@ import { RuntimeClientError } from '../runtime/types'
 import type { RuntimeClient } from '../runtime/client'
 import type { RuntimeRpcSuccess } from '../../shared/runtime-rpc-envelope'
 import { withCliAgentLaunchRecovery } from './agent-launch-recovery'
+import { checkCodexModelAgainstVersion } from '../../shared/orchestration/codex-model-version-gate'
+import { emitCliWarning } from '../output/cli-warning'
 
 type Flags = Map<string, string | boolean>
 
 /** The host strips agent fields from the worktree.create payload. */
 export type CliAgentLaunchTarget =
   | { kind: 'existing'; worktree: string }
+  | { kind: 'orchestration-session' }
   | { kind: 'create-worktree'; create: Record<string, unknown> }
 
 export type CliAgentLaunch = {
@@ -46,6 +49,7 @@ export type CliAgentLaunch = {
   sessionOptions?: Record<string, string>
   operationId?: string
   surface?: AgentLaunchSurface
+  warning?: string
 }
 
 function readSurfaceFlag(flags: Flags): AgentLaunchSurface | undefined {
@@ -70,7 +74,7 @@ export function parseCliAgent(value: string): TuiAgent {
 export function readCliAgentLaunch(
   flags: Flags,
   agent: TuiAgent,
-  target: { createsWorktree: boolean }
+  target: { createsWorktree: boolean; json?: boolean }
 ): CliAgentLaunch {
   const checked = checkAgentLaunchModelPreferences({
     agent,
@@ -82,6 +86,16 @@ export function readCliAgentLaunch(
   })
   if ('refusal' in checked) {
     throw new RuntimeClientError(checked.refusal.code, checked.refusal.message)
+  }
+  let warning: string | undefined
+  if (agent === 'codex' && checked.preferences?.model) {
+    const gate = checkCodexModelAgainstVersion(checked.preferences.model, null)
+    if (gate.status === 'refused') {
+      throw new RuntimeClientError('invalid_argument', gate.message)
+    }
+    if (gate.status === 'unknown') {
+      warning = emitCliWarning(gate.message, target.json === true)
+    }
   }
   const prompt = flags.get('prompt')
   rejectValuelessFlag(prompt, 'prompt')
@@ -99,7 +113,8 @@ export function readCliAgentLaunch(
     ...(typeof prompt === 'string' && prompt.trim()
       ? { prompt: { text: prompt, delivery: 'submit' as const } }
       : {}),
-    ...(checked.preferences ? { sessionOptions: { ...checked.preferences } } : {})
+    ...(checked.preferences ? { sessionOptions: { ...checked.preferences } } : {}),
+    ...(warning ? { warning } : {})
   }
 }
 
@@ -171,6 +186,14 @@ export function formatAgentLaunch(result: AgentLaunchResult & { operationId?: st
     `handle: ${outcome.handle}`,
     ...(outcome.kind === 'structured' ? [`sessionId: ${outcome.sessionId}`] : []),
     `worktreeId: ${result.worktreeId}`,
+    ...(result.sessionPlacement
+      ? [
+          `placement.source: ${result.sessionPlacement.source}`,
+          ...(result.sessionPlacement.group
+            ? [`placement.group: ${result.sessionPlacement.group.name}`]
+            : [])
+        ]
+      : []),
     ...(result.operationId ? [`operationId: ${result.operationId}`] : []),
     `why: ${receipt.detail}`,
     ...(prompt ? [`prompt: ${prompt.outcome}`] : []),

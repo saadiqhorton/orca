@@ -5,6 +5,9 @@ import type { LegacyWorkerTerminalRecoveryPlan } from '../release/orchestration-
 import type { PtyControllerInventory } from '../../../terminal/lifecycle/runtime-pty-controller-contract'
 import type { ResolvedWorktree } from '../../../workspaces/catalog/runtime-worktree-path-identity'
 
+/** Reconcile passes a live terminal may stay unproven to the worker before its Dispatch is abandoned. */
+export const LEGACY_WORKER_RECOVERY_ATTEMPT_CAP = 5
+
 export type LegacyWorkerTerminalRecoveryResult = {
   adoptedDispatchIds: string[]
   exitedDispatchIds: string[]
@@ -23,7 +26,9 @@ export type LegacyWorkerRecoveryCandidate = LegacyWorkerTerminalRecoveryPlan['ca
 
 export type LegacyWorkerRecoveryResolution = {
   candidate: LegacyWorkerRecoveryCandidate
-  resolution: 'adopted' | 'exited'
+  resolution: 'adopted' | 'exited' | 'abandoned'
+  /** The live PTY's handle moved; persistence must rebind the worker to it before it counts as adopted. */
+  rebound?: true
   hostId?: ExecutionHostId
 }
 

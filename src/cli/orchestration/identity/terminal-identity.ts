@@ -8,6 +8,7 @@ import {
   readInjectedAgentSessionId
 } from '../../../shared/agent-session/lifecycle/agent-session-caller-env'
 import { sessionAddressForHost } from './session-caller-flags'
+import { CLI_COORDINATOR_HANDLE } from '../../../shared/orchestration/cli-coordinator-identity'
 
 // --worktree/--terminal name the command's target, possibly on another host; only the caller's cwd scopes inference.
 const callerScopeFlags = (): Map<string, string | boolean> => new Map()
@@ -171,9 +172,24 @@ export async function resolveCoordinatorTerminalHandle(
   cwd: string,
   client: RuntimeClient
 ): Promise<string | undefined> {
-  return await resolveOrchestrationTerminalHandle(flags, cwd, client, 'from', {
-    validateEnvHandle: true
-  })
+  if (flags.get('as-coordinator') === true && getPresentStringFlag(flags, 'from') === undefined) {
+    return CLI_COORDINATOR_HANDLE
+  }
+  try {
+    return await resolveOrchestrationTerminalHandle(flags, cwd, client, 'from', {
+      validateEnvHandle: true
+    })
+  } catch (error) {
+    if (getClientErrorCode(error) !== 'no_active_sender_terminal') {
+      throw error
+    }
+    throw new RuntimeClientError(
+      'no_active_sender_terminal',
+      'Could not determine the calling terminal for this orchestration command. ' +
+        'Pass --from with your own terminal handle, or pass --as-coordinator to start a worker as ' +
+        'coordinator without an Orca terminal.'
+    )
+  }
 }
 
 async function resolveImplicitOrchestrationCaller(

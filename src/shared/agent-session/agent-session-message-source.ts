@@ -31,6 +31,9 @@ export type OrchestrationMailMessage = Readonly<{
   from: string
   /** Exact field ranges in the canonical text; avoids duplicating large messages in bounded frames. */
   content?: OrchestrationMailContent
+  /** A turn stop that left its worker blocked on a startup prompt; `blockedReason` names the prompt. */
+  stopKind?: 'blocked-on-prompt'
+  blockedReason?: string
 }>
 
 /** "You have N orchestration messages": the pointer a terminal agent is typed, for a mailbox's
@@ -60,6 +63,14 @@ export type AgentMessageSource = Readonly<{
   /** Null when this build cannot read the kind a newer one wrote; the senders still stand. */
   orchestration: OrchestrationAgentMessage | null
 }>
+
+/** The prompt a worker is blocked on, from the first notice that reports one; null when none does. */
+export function orchestrationMailBlockedReason(
+  from: AgentMessageSource | undefined
+): string | null {
+  const messages = orchestrationMailNotice(from)?.messages ?? []
+  return messages.find((message) => message.stopKind === 'blocked-on-prompt')?.blockedReason ?? null
+}
 
 /** The mail a message notices, if it is orchestration mail; a person's message, a Task, or a kind this
  *  build cannot read is not. */
@@ -103,7 +114,9 @@ const mailNoticeSchema = z.object({
       messageId: z.string(),
       runId: z.string(),
       from: z.string(),
-      content: salvagedOptional('content', mailContentSchema)
+      content: salvagedOptional('content', mailContentSchema),
+      stopKind: salvagedOptional('stopKind', z.literal('blocked-on-prompt')),
+      blockedReason: salvagedOptional('blockedReason', z.string().min(1))
     })
   )
 })

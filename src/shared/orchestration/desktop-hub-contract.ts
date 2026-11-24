@@ -2,6 +2,9 @@ import { z } from 'zod'
 import type { ExecutionHostHealth } from '../execution-host/execution-host-health'
 
 /** Advertised by the desktop app on the client-event socket it already holds to each execution host. */
+/** Terminal handles minted by an execution host's runtime. */
+export const TERMINAL_HANDLE_PREFIX = 'term_'
+
 export const DESKTOP_HUB_CLIENT_CAPABILITY = 'orchestration.desktop-hub.v1' as const
 
 /** Environment id stored on a dispatch when the worker was placed through the desktop hub. */
@@ -22,6 +25,7 @@ export const DesktopHubHostRowSchema = z.object({
   machineName: z.string().min(1).max(256).optional(),
   label: z.string().min(1).max(256).optional(),
   id: z.string().min(1).max(256),
+  aliases: z.array(z.string().min(1).max(256)).max(16).optional(),
   selector: z.string().min(1).max(512),
   status: DesktopHubHostStatusSchema,
   hostKey: z.string().min(1).max(256)
@@ -89,13 +93,31 @@ export function desktopHubHostKey(selector: string): string {
   return selector.slice(DESKTOP_HUB_SELECTOR_PREFIX.length)
 }
 
+/** The hub's own desktop row — `--host` with this machine's name is local, not a remote wrap. */
+export function isLocalDesktopHubRow(row: {
+  kind?: string
+  hostKey?: string
+  id?: string
+}): boolean {
+  return row.kind === 'desktop' || row.hostKey === 'desktop'
+}
+
 export function desktopHubRowMatches(
-  row: { name: string; machineName?: string; label?: string; id?: string },
+  row: {
+    name: string
+    machineName?: string
+    label?: string
+    id?: string
+    aliases?: readonly string[]
+  },
   query: string
 ): boolean {
   const wanted = query.trim()
   // `orca host list --json` prints the environment id too; accept it as a selector.
-  return [row.name, row.machineName, row.label, row.id].some((value) => value === wanted)
+  // SSH host/label aliases let `--host 192.168.1.35` match a managed target named clawd.
+  return [row.name, row.machineName, row.label, row.id, ...(row.aliases ?? [])].some(
+    (value) => value === wanted
+  )
 }
 
 /** Sidebar health, as the desktop already computed it, in the three statuses an agent can act on. */
@@ -147,6 +169,38 @@ export function unknownDesktopHubHost(
   return new DesktopHubError(
     'unknown_host',
     `Unknown host "${name}". Connected machines: ${listed}. Run \`orca host inventory --json\`, then retry with \`orca … --host <connected-name>\`. Orca will not run this command locally or over ssh.`
+  )
+}
+
+export const DesktopHubLocateSchema = z.discriminatedUnion('owner', [
+  z.object({ owner: z.literal('local') }),
+  z.object({ owner: z.literal('none') }),
+  z.object({
+    owner: z.literal('host'),
+    name: z.string().min(1).max(256),
+    hostKey: z.string().min(1).max(256),
+    machineName: z.string().min(1).max(256).optional(),
+    id: z.string().min(1).max(256).optional(),
+    label: z.string().min(1).max(256).optional()
+  })
+])
+export type DesktopHubLocate = z.infer<typeof DesktopHubLocateSchema>
+
+export function sessionNotFoundError(handle: string): DesktopHubError {
+  return new DesktopHubError(
+    'session_not_found',
+    `No session "${handle}" is known to this desktop or any connected host. Run \`orca terminal list --json\` on the host that owns it, or check the handle.`
+  )
+}
+
+export function hostMismatchError(
+  handle: string,
+  owner: string,
+  requested: string
+): DesktopHubError {
+  return new DesktopHubError(
+    'host_mismatch',
+    `Session "${handle}" lives on host "${owner}", not "${requested}". Drop --host, or pass --host ${owner}.`
   )
 }
 

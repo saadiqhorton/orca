@@ -90,11 +90,14 @@ export function shouldWrapDesktopHubHost(
   return true
 }
 
+/** Set on create commands whose workspace the target host picks; the CLI never names scratch for it. */
+export const ORCHESTRATION_SESSION_PLACEMENT_FLAG = 'orchestration-session-placement'
+
 export function needsDefaultRemoteWorktree(
   commandPath: readonly string[],
   flags: ReadonlyMap<string, string | boolean>
 ): boolean {
-  if (flags.has('worktree')) {
+  if (flags.has('worktree') || flags.has('group')) {
     return false
   }
   const key = commandPath.join(' ')

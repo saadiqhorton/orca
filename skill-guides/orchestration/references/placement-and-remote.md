@@ -16,7 +16,11 @@ status, Orca projects and folder workspaces, installed agent CLIs, and live
 tabs/sessions.
 
 Simplest path: launch without `--worktree`, then keep `--host` on every
-follow-up that touches a visible tab.
+follow-up that touches a visible tab. Without `--worktree`, Orca uses
+`~/orca-orchestration` on that host (the visible **Orca orchestration**
+project), not the most recently used real checkout. Name a workspace or
+repo only when the task should run there. Those tabs always show in the
+desktop; they must not land in `headless-terminals:`.
 
 ```text
 orca agent launch --host <name> --agent <agent> --prompt "<task>" --json

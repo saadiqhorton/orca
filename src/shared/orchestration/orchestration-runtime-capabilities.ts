@@ -44,6 +44,14 @@ export const ORCHESTRATION_PEER_MAIL_RUNTIME_CAPABILITY = 'orchestration.peer-ma
 export const ORCHESTRATION_REMOTE_OWNED_WORKERS_RUNTIME_CAPABILITY =
   'orchestration.remote-owned-workers.v1' as const
 
+/** A host with no explicit workspace places the session in its own workspace, never another host's, and names a task's tab after it. */
+export const ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY =
+  'orchestration.session-placement.v1' as const
+
+/** The host answers handle locate, and the desktop hub routes host-less handle calls to the owning host. */
+export const ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY =
+  'orchestration.handle-routing.v1' as const
+
 export const ORCHESTRATION_RUNTIME_CAPABILITIES = [
   ORCHESTRATION_FEDERATION_RUNTIME_CAPABILITY,
   ORCHESTRATION_FEDERATION_CONTROL_MAIL_RUNTIME_CAPABILITY,
@@ -62,5 +70,7 @@ export const ORCHESTRATION_RUNTIME_CAPABILITIES = [
   ORCHESTRATION_ASK_RETURNS_AT_ONCE_RUNTIME_CAPABILITY,
   ORCHESTRATION_CONTRACT_RUNTIME_CAPABILITY,
   ORCHESTRATION_PEER_MAIL_RUNTIME_CAPABILITY,
-  ORCHESTRATION_REMOTE_OWNED_WORKERS_RUNTIME_CAPABILITY
+  ORCHESTRATION_REMOTE_OWNED_WORKERS_RUNTIME_CAPABILITY,
+  ORCHESTRATION_SESSION_PLACEMENT_RUNTIME_CAPABILITY,
+  ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY
 ] as const

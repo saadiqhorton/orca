@@ -2,6 +2,17 @@ import { RuntimeClientError } from '../runtime/types'
 import type { RuntimeClient } from '../runtime/client'
 import { shouldWrapDesktopHubHost } from './desktop-hub-command-route'
 import { wrapDesktopHubClient } from './desktop-hub-forwarding-client'
+import {
+  DesktopHubLocateSchema,
+  desktopHubRowMatches,
+  hostMismatchError,
+  isLocalDesktopHubRow,
+  sessionNotFoundError,
+  type DesktopHubLocate
+} from '../../shared/orchestration/desktop-hub-contract'
+import { ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
+import { isStructuredWorkerHandle } from '../../shared/orchestration/workers/structured-worker-handle'
+import { isTerminalHandle } from '../../shared/terminal-handle-prefix'
 
 const SELECTOR_FLAGS = ['worktree', 'terminal', 'to', 'parent-worktree'] as const
 
@@ -9,6 +20,8 @@ type HostInventorySession = { handle: string }
 type HostInventoryFolder = { id: string }
 type HostInventoryRow = {
   name: string
+  kind?: string
+  hostKey?: string
   status?: string
   inventory?: {
     folderWorkspaces?: HostInventoryFolder[]
@@ -31,6 +44,17 @@ export function collectCrossHostSelectors(flags: ReadonlyMap<string, string | bo
     }
   }
   return values
+}
+
+function collectTerminalHandles(flags: ReadonlyMap<string, string | boolean>): string[] {
+  const handles = new Set<string>()
+  for (const key of SELECTOR_FLAGS) {
+    const value = flags.get(key)
+    if (typeof value === 'string' && isTerminalHandle(value)) {
+      handles.add(value)
+    }
+  }
+  return [...handles]
 }
 
 function folderId(selector: string): string | null {
@@ -138,16 +162,112 @@ async function loadHubInventory(
   }
 }
 
+async function handleRoutingSupported(client: RuntimeClient): Promise<boolean> {
+  try {
+    const status = await client.getCliStatus()
+    return (
+      status.result.runtime.capabilities?.includes(
+        ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY
+      ) === true
+    )
+  } catch {
+    return false
+  }
+}
+
+async function locateTerminalHandle(
+  client: RuntimeClient,
+  handle: string
+): Promise<DesktopHubLocate | null> {
+  try {
+    const response = await client.call<unknown>('orchestration.desktopHub.locate', { handle })
+    const parsed = DesktopHubLocateSchema.safeParse(response.result)
+    return parsed.success ? parsed.data : null
+  } catch (error) {
+    if (
+      error instanceof RuntimeClientError &&
+      (error.code === 'method_not_found' || error.code === 'desktop_hub_unavailable')
+    ) {
+      return null
+    }
+    throw error
+  }
+}
+
+/**
+ * A terminal handle names its own host. Without --host, retarget to that host; with --host,
+ * refuse a different one. Returns `handled` when the hub answered, so the inventory path is skipped.
+ */
+export async function routeTerminalHandlesToOwner(
+  client: RuntimeClient,
+  commandPath: readonly string[],
+  flags: Map<string, string | boolean>
+): Promise<{ client?: RuntimeClient; handled: boolean }> {
+  const handles = collectTerminalHandles(flags)
+  if (client.isRemote || handles.length === 0 || !(await handleRoutingSupported(client))) {
+    return { handled: false }
+  }
+  const located: { handle: string; owner: DesktopHubLocate }[] = []
+  for (const handle of handles) {
+    const owner = await locateTerminalHandle(client, handle)
+    if (!owner) {
+      return { handled: false }
+    }
+    if (owner.owner === 'none') {
+      // Inventory lists only terminals, so a local structured worker is unknown to the hub; the local path resolves it.
+      if (isStructuredWorkerHandle(handle)) {
+        return { handled: false }
+      }
+      throw sessionNotFoundError(handle)
+    }
+    located.push({ handle, owner })
+  }
+  const requested = flags.get('host')
+  if (typeof requested === 'string') {
+    for (const { handle, owner } of located) {
+      if (owner.owner === 'host' && !desktopHubRowMatches(owner, requested)) {
+        throw hostMismatchError(handle, owner.name, requested)
+      }
+    }
+    return { handled: true }
+  }
+  const owners = new Set(
+    located.map(({ owner }) => (owner.owner === 'host' ? owner.name : 'local'))
+  )
+  if (owners.size > 1) {
+    throw new RuntimeClientError(
+      'selector_ambiguous',
+      'These handles live on different hosts. Run each command separately with --host <owner>.'
+    )
+  }
+  const [only] = located
+  if (!only || only.owner.owner !== 'host') {
+    return { handled: true }
+  }
+  const name = only.owner.name
+  const probe = new Map(flags)
+  probe.set('host', name)
+  if (shouldWrapDesktopHubHost(commandPath, probe)) {
+    flags.delete('host')
+    return { client: wrapDesktopHubClient(client, name), handled: true }
+  }
+  flags.set('host', name)
+  return { handled: true }
+}
+
 /** Unique remote folder:/term_ selectors retarget the command; collisions name the owning hosts. */
 export async function resolveRemoteSelectorsAcrossHosts(
   client: RuntimeClient,
   commandPath: readonly string[],
-  flags: Map<string, string | boolean>
+  flags: Map<string, string | boolean>,
+  options: { skipHandles?: boolean } = {}
 ): Promise<RuntimeClient> {
   if (flags.has('host') || client.isRemote) {
     return client
   }
-  const selectors = collectCrossHostSelectors(flags)
+  const selectors = collectCrossHostSelectors(flags).filter(
+    (selector) => !(options.skipHandles && isTerminalHandle(selector))
+  )
   if (selectors.length === 0) {
     return client
   }
@@ -163,6 +283,10 @@ export async function resolveRemoteSelectorsAcrossHosts(
     throwAmbiguous(commandPath, flags, matched.hits)
   }
   const host = matched.host
+  const row = hosts.find((candidate) => candidate.name === host)
+  if (row && isLocalDesktopHubRow(row)) {
+    return client
+  }
   const probe = new Map(flags)
   probe.set('host', host)
   if (shouldWrapDesktopHubHost(commandPath, probe)) {

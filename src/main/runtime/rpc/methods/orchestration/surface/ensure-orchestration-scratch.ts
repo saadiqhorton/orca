@@ -1,10 +1,10 @@
 import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
-import { rememberedOrcaHostNames } from '../../../../orchestration/desktop-hub/orca-host-name-cache'
 import {
   installOrcaHostInstructions,
-  settingsWriteGlobalSlice
+  settingsWriteGlobalSlice,
+  type GlobalInstructionSettingsSource
 } from '../../../../orchestration/desktop-hub/orca-host-instruction-install'
 import {
   orchestrationScratchPaths,
@@ -14,9 +14,12 @@ import {
 type ScratchGroup = { id: string; name: string }
 type ScratchFolder = { id: string; name: string; folderPath: string; projectGroupId: string }
 
-export type OrchestrationScratchRuntime = {
+export type OrchestrationScratchRuntime = GlobalInstructionSettingsSource & {
   listVisibleProjectGroups: () => ScratchGroup[]
   listVisibleFolderWorkspaces: () => ScratchFolder[]
+  /** Full store, including rows desktop listings hide; reuse ~/orca-orchestration by path. */
+  listProjectGroups?: () => ScratchGroup[]
+  listFolderWorkspaces?: () => ScratchFolder[]
   createProjectGroup: (input: {
     name: string
     parentPath?: string | null
@@ -57,7 +60,6 @@ export async function ensureOrchestrationScratchWorkspace(
   await mkdir(paths.workspacePath, { recursive: true })
   try {
     await installOrcaHostInstructions({
-      hosts: rememberedOrcaHostNames(),
       extraDirs: [paths.workspacePath],
       home,
       settings: settingsWriteGlobalSlice(runtime)
@@ -65,7 +67,7 @@ export async function ensureOrchestrationScratchWorkspace(
   } catch {
     // Instruction files are best-effort; the scratch folder must still be created.
   }
-  const groups = runtime.listVisibleProjectGroups()
+  const groups = listedGroups(runtime)
   let group = groups.find((candidate) => candidate.name === paths.groupName)
   if (!group) {
     group = await runtime.createProjectGroup({
@@ -74,8 +76,9 @@ export async function ensureOrchestrationScratchWorkspace(
       createdFrom: 'manual'
     })
   }
-  const folders = runtime.listVisibleFolderWorkspaces()
-  const existing = folders.find((folder) => folder.folderPath === paths.workspacePath)
+  const existing = listedFolders(runtime).find(
+    (folder) => folder.folderPath === paths.workspacePath
+  )
   if (existing) {
     return {
       path: existing.folderPath,
@@ -102,4 +105,31 @@ export async function ensureOrchestrationScratchWorkspace(
     groupName: paths.groupName,
     workspaceName: folderWorkspace.name
   }
+}
+
+function listedGroups(runtime: OrchestrationScratchRuntime): ScratchGroup[] {
+  return uniqueById([
+    ...(runtime.listProjectGroups?.() ?? []),
+    ...runtime.listVisibleProjectGroups()
+  ])
+}
+
+function listedFolders(runtime: OrchestrationScratchRuntime): ScratchFolder[] {
+  return uniqueById([
+    ...(runtime.listFolderWorkspaces?.() ?? []),
+    ...runtime.listVisibleFolderWorkspaces()
+  ])
+}
+
+function uniqueById<T extends { id: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>()
+  const unique: T[] = []
+  for (const row of rows) {
+    if (seen.has(row.id)) {
+      continue
+    }
+    seen.add(row.id)
+    unique.push(row)
+  }
+  return unique
 }

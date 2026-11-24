@@ -3,7 +3,8 @@
 
 Proves: EACCES path probes do not crash; S08 unknown_host + no tab is PASS;
 template version from manifest, resources, ssh/runtime active record; S03 marker
-from a real ls listing; box-rig R07 cds into ~/work; overlay agrees in both modes.
+from a real ls listing; box-rig R07 cds into ~/work; overlay agrees in both modes;
+expect_tab + headless group fails the judge and R09.
 """
 from __future__ import annotations
 
@@ -115,6 +116,146 @@ class S08RefusalIsPass(IsolatedEnv):
         )
         self.assertTrue(result["pass"])
         self.assertTrue(result["bar"]["zero_wrong_host"])
+
+
+class HiddenTabFails(IsolatedEnv):
+    def test_listed_remote_repo_without_tab_id_is_visible(self):
+        spec = {"expect_tab": True, "success": {}}
+        cmds = [
+            {
+                "cmd": "orca agent launch --host ubuntu-server-local --json",
+                "exit": 0,
+                "secs": 0.2,
+                "out": "ok",
+            }
+        ]
+        metrics = harness.analyse(cmds, "ok", spec["success"])
+        terms = {
+            "term_x": {
+                "tabId": None,
+                "group": "dockhand-group",
+                "worktree": "id:repo-clawd::/home/hostb/clawd",
+            }
+        }
+        listed = {"/home/hostb/clawd", "id:repo-clawd"}
+        ok, reasons, bar = harness.judge(spec, {}, "ok", cmds, metrics, 1.0, terms, listed)
+        self.assertTrue(ok, reasons)
+        self.assertTrue(bar["visible_tab"])
+
+    def test_listed_headless_remote_repo_is_visible(self):
+        spec = {"expect_tab": True, "success": {}}
+        cmds = [
+            {
+                "cmd": "orca agent launch --host ubuntu-server-local --json",
+                "exit": 0,
+                "secs": 0.2,
+                "out": "ok",
+            }
+        ]
+        metrics = harness.analyse(cmds, "ok", spec["success"])
+        terms = {
+            "term_x": {
+                "tabId": None,
+                "group": "headless-terminals:folder:fld_clawd",
+                "worktree": "id:repo-clawd::/home/hostb/clawd",
+            }
+        }
+        listed = {"/home/hostb/clawd", "id:repo-clawd"}
+        ok, reasons, bar = harness.judge(spec, {}, "ok", cmds, metrics, 1.0, terms, listed)
+        self.assertTrue(ok, reasons)
+        self.assertTrue(bar["visible_tab"])
+        overlay = live_drive.overlay_from_harness(
+            {
+                "pass": True,
+                "fail_reasons": [],
+                "bar": {"visible_tab": False, "zero_wrong_host": True},
+                "metrics": {"orca_invocations": 1, "ssh_used": [], "wrong_host_errors": []},
+                "new_target_terminals": terms,
+                "listed_workspaces": sorted(listed),
+            },
+            spec,
+            {"out": "ok", "secs": 1.0, "exit": 0},
+            evidence=["listed-headless"],
+        )
+        self.assertTrue(overlay["pass"], overlay["reasons"])
+
+    def test_reverse_s07_listed_headless_tab_is_visible(self):
+        listed = {"/home/hostb/clawd", "id:repo-clawd"}
+        row = {
+            "tabId": None,
+            "group": "headless-terminals:folder:fld_clawd",
+            "worktree": "id:repo-clawd::/home/hostb/clawd",
+        }
+        tab = {**row, "visible": live_drive.tab_is_visible(row, listed)}
+        headless = [
+            t
+            for t in [tab]
+            if not t.get("visible")
+            and str(t.get("group") or "").startswith(live_drive.HEADLESS_PREFIX)
+        ]
+        visible = [t for t in [tab] if t.get("visible")]
+        self.assertTrue(visible)
+        self.assertFalse(headless)
+
+    def test_harness_judge_expect_tab_headless_fails(self):
+        spec = {"expect_tab": True, "success": {}}
+        cmds = [
+            {
+                "cmd": "orca terminal create --host ubuntu-server-local --json",
+                "exit": 0,
+                "secs": 0.2,
+                "out": "ok",
+            }
+        ]
+        metrics = harness.analyse(cmds, "ok", spec["success"])
+        terms = {
+            "term_x": {
+                "tabId": "tab_1",
+                "group": "headless-terminals:folder:fld_work",
+            }
+        }
+        ok, reasons, bar = harness.judge(spec, {}, "ok", cmds, metrics, 1.0, terms)
+        self.assertFalse(ok, reasons)
+        self.assertFalse(bar["visible_tab"])
+        self.assertTrue(any("headless" in r for r in reasons))
+
+    def test_overlay_expect_tab_headless_fails(self):
+        spec = json.loads((SCRIPTS / "scenarios.json").read_text())["S02"]
+        payload = {
+            "pass": True,
+            "fail_reasons": [],
+            "bar": {"result": True, "zero_wrong_host": True, "no_ssh": True, "visible_tab": False},
+            "metrics": {"orca_invocations": 1, "ssh_used": [], "wrong_host_errors": []},
+            "final_answer": "load average",
+            "commands": [],
+        }
+        overlay = live_drive.overlay_from_harness(
+            payload, spec, {"out": "ok", "secs": 1.0, "exit": 0}, evidence=["s02"]
+        )
+        self.assertFalse(overlay["pass"])
+        self.assertTrue(any("headless" in r for r in overlay["reasons"]))
+
+    def test_r09_fails_when_expect_tab_scenario_is_headless(self):
+        specs = json.loads((SCRIPTS / "scenarios.json").read_text())
+        results = {
+            "S02": {
+                "pass": True,
+                "bar": {"visible_tab": False},
+            }
+        }
+        r09 = live_drive.r09_from_results(results, specs, via="selftest")
+        self.assertFalse(r09["pass"])
+        self.assertTrue(any("S02" in r for r in r09["reasons"]))
+
+    def test_r09_passes_when_expect_tab_scenarios_are_visible(self):
+        specs = json.loads((SCRIPTS / "scenarios.json").read_text())
+        results = {
+            sid: {"pass": True, "bar": {"visible_tab": True}}
+            for sid, spec in specs.items()
+            if spec.get("expect_tab")
+        }
+        r09 = live_drive.r09_from_results(results, specs, via="selftest")
+        self.assertTrue(r09["pass"], r09["reasons"])
 
 
 class TemplateAndMode(IsolatedEnv):
@@ -433,6 +574,131 @@ class BoxR07Workspace(IsolatedEnv):
             ]
         }
         self.assertEqual(live_drive.workspace_from_inventory(parsed), "/home/someone/work")
+
+    def test_inventory_keeps_full_json_so_listed_workspaces_parse(self):
+        folders = [
+            {
+                "id": f"fld_{i:04d}",
+                "selector": f"folder:fld_{i:04d}",
+                "path": f"/home/hostb/work/ws{i:04d}",
+            }
+            for i in range(80)
+        ]
+        folders.append(
+            {
+                "id": "fld_clawd",
+                "selector": "folder:fld_clawd",
+                "path": "/home/hostb/clawd",
+            }
+        )
+        payload = {
+            "result": {
+                "hosts": [
+                    {
+                        "name": "ubuntu-server-local",
+                        "inventory": {"folderWorkspaces": folders, "repos": []},
+                    },
+                    {
+                        "name": "dockhand",
+                        "inventory": {"folderWorkspaces": [], "repos": []},
+                    },
+                ]
+            }
+        }
+        raw = "ok " + json.dumps(payload)
+        self.assertGreater(len(raw), 4000)
+        with patch.object(
+            live_drive,
+            "orca",
+            return_value={"exit": 0, "out": raw, "cmd": ["host", "inventory"], "secs": 0.1},
+        ):
+            with patch.object(
+                live_drive, "host_names", return_value=("ubuntu-server-local", "dockhand")
+            ):
+                inv = live_drive.inventory()
+        self.assertGreater(len(inv["out"]), 4000)
+        self.assertIsNone(live_drive.jparse(raw[:4000]))
+        parsed = inv.get("parsed") or live_drive.jparse(inv["out"]) or {}
+        listed = live_drive.desktop_listed_workspaces(parsed)
+        self.assertIn("/home/hostb/clawd", listed)
+        self.assertTrue(live_drive.workspace_from_inventory(parsed))
+
+
+class R08Ingest(IsolatedEnv):
+    def test_ingest_counts_orca_cmds_not_subcheck_keys_and_skips_max_orca(self):
+        ev = Path(tempfile.mkdtemp())
+        payload = {
+            "results": {
+                "R14a": {"pass": True, "detail": "a"},
+                "R14b": {"pass": True, "detail": "b"},
+                "R14T worker-start": {"pass": True, "detail": "t"},
+            },
+            "log": [
+                {
+                    "section": "R14",
+                    "cmd": "~/.orca/cli/bin/orca orchestration worker-start --json",
+                },
+                {
+                    "section": "R14",
+                    "cmd": "~/.orca/cli/bin/orca orchestration worker-show --dispatch ctx_1",
+                },
+                {"section": "R15", "cmd": "orca terminal create --host dockhand --json"},
+                {"section": "R14", "cmd": "echo gpt-5.4 > ~/.stub-reject-models"},
+            ],
+        }
+        ingested = live_drive.ingest_r08_payload(
+            payload, ev, "box-rig-r08", str(ev / "transcripts" / "r08" / "r08-live.json")
+        )
+        self.assertEqual(ingested["R14"]["orca_cmds"], 2)
+        self.assertTrue(ingested["R14"]["skip_max_orca"])
+        self.assertTrue(ingested["R14"]["pass"])
+        extra = {"skip_max_orca": True, "no_ssh": True, "zero_wrong_host": True}
+        judged = verify_orca.scenario_result(
+            "R14",
+            {"max_orca": 6, "kind": "regression", "text": "first-turn"},
+            passed=True,
+            agent="scripted-cli",
+            reasons=[],
+            orca_cmds=10,
+            extra=extra,
+        )
+        self.assertTrue(judged["pass"])
+        self.assertTrue(judged["bar"]["le_6_orca_cmds"])
+        self.assertEqual(
+            ingested["R14"]["evidence"],
+            [str(ev / "transcripts" / "r08" / "r08-live.json")],
+        )
+
+    def test_ingest_evidence_uses_the_file_that_was_read(self):
+        ev = Path(tempfile.mkdtemp())
+        path = str(ev / "transcripts" / "r08" / "r08-live-R10-R11-R12-R13-R14-R15.json")
+        ingested = live_drive.ingest_r08_payload(
+            {"results": {"R10a": {"pass": True, "detail": "ok"}}, "log": []},
+            ev,
+            "box-rig-r08",
+            path,
+        )
+        self.assertEqual(ingested["R10"]["evidence"], [path])
+
+
+class R08LiveSource(IsolatedEnv):
+    def test_r13_restores_scratch_with_host_and_no_worktree(self):
+        source = (SCRIPTS.parent / "harness" / "live" / "r08_live.py").read_text()
+        self.assertIn('terminal create --host ubuntu-server-local --json', source)
+        self.assertNotIn(
+            "terminal create --host ubuntu-server-local --worktree \" + sel",
+            source,
+        )
+
+    def test_r14_caller_record_reads_show_or_list_not_error_payload(self):
+        source = (SCRIPTS.parent / "harness" / "live" / "r08_live.py").read_text()
+        rec = 'R14T caller record after {delay}s 400 is failed agent_turn_failed'
+        start = source.index(rec)
+        chunk = source[start : start + 500]
+        self.assertIn("worker-show --dispatch", source)
+        self.assertIn("worker-list --json", source)
+        self.assertNotIn('r["exit"] != 0 and "state=failed"', chunk)
+        self.assertIn('"state=failed" in home and "agent_turn_failed" in home', chunk)
 
 
 if __name__ == "__main__":

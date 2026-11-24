@@ -1,13 +1,12 @@
 import type { CommandHandler } from '../dispatch/dispatch'
 import { formatEnvironment, formatEnvironmentList } from './environment-format'
 import {
-  formatHostInventory,
   formatHostList,
   formatHostName,
-  type HostInventoryRow,
   type HostListEntry,
   type HostNameResult
 } from './host-format'
+import { handleHostInventory } from './environment-inventory'
 import type { DesktopHubHostRow } from '../../shared/orchestration/desktop-hub-contract'
 import { printResult } from '../output/command-result-output'
 import { parseHostFlag } from './execution-host-flag'
@@ -114,29 +113,7 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
       formatHostList
     )
   },
-  'host inventory': async ({ client, flags, json }) => {
-    rejectLocalPairingStoreRetargeting(
-      flags,
-      '`orca host inventory`. It answers from this machine\u2019s desktop hub, so a routed answer would describe a different fleet.',
-      'Run `orca host inventory` on that machine to see the hosts connected to its desktop app.'
-    )
-    try {
-      const listed = await client.call<{
-        hub: 'desktop' | 'remote' | 'unavailable'
-        hosts: HostInventoryRow[]
-        message?: string
-      }>('orchestration.desktopHub.inventory', {})
-      printResult(listed, json, formatHostInventory)
-    } catch (error) {
-      if (error instanceof RuntimeClientError && error.code === 'method_not_found') {
-        throw new RuntimeClientError(
-          'incompatible_runtime',
-          'This Orca host cannot inventory desktop-connected machines. Update Orca on the desktop and on this host, then retry `orca host inventory`.'
-        )
-      }
-      throw error
-    }
-  },
+  'host inventory': handleHostInventory,
   'host rm': async ({ client, flags, json }) => {
     rejectLocalPairingStoreRetargeting(
       flags,

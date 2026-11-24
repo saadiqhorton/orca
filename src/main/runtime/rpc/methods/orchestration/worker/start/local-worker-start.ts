@@ -5,9 +5,11 @@ import { waitForWorkerAgentReady } from '../../../../../terminal/wait/launched-a
 import type { OrcaRuntimeService } from '../../../../../orca-runtime'
 import { describeTerminalWaitBlockedReason } from '../../../../../../../shared/terminal/runtime-policy/terminal-wait-blocked-reason-legacy-alias'
 import {
-  isWorkerStartBlockedPromptError,
-  throwIfWorkerStartBlockedOnPrompt
+  settleCaughtWorkerStartError,
+  throwIfWorkerStartBlockedOnPrompt,
+  workerStartBlockedPromptReason
 } from './worker-start-blocked-prompt'
+import { isStartupDialogBlockedReason } from '../../../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import type { OrchestrationDb } from '../../../../../orchestration/db/orchestration-db'
 import type {
   DispatchContextRow,
@@ -37,7 +39,10 @@ import { releaseRetriedWorkerTerminal } from '../release/retried-worker-terminal
 import { requireWorkerAuthority, type WorkerEffect } from './placement/worker-placement-topology'
 import { deliverAndSettleWorkerStartReadiness } from './readiness/worker-start-readiness-settlement'
 import type { WorkerStartMutation } from './worker-start-mutation'
-import { prepareWorkerStartCard } from '../../../../../orchestration/workers/launch/worker-start-card'
+import {
+  prepareWorkerStartCard,
+  startedAgentPermissionMode
+} from '../../../../../orchestration/workers/launch/worker-start-card'
 import { rebindReusedStructuredWorker } from '../../structured-workers/orchestration-structured-worker-session'
 import { placedWorkerParty, type WorkerFollowUp } from '../follow-up/worker-follow-up-placement'
 
@@ -137,6 +142,7 @@ export async function startLocalWorker(args: {
       db,
       dispatchId: started.dispatch.id,
       taskId: task.id,
+      taskTitle: task.task_title,
       params,
       requestedWorktree,
       creationTarget,
@@ -195,7 +201,23 @@ export async function startLocalWorker(args: {
         if (setupReceipt.state === 'failed') {
           failedStage = 'setup_wait'
         }
-        throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
+        if (isStartupDialogBlockedReason(wait.blockedReason) && setupReceipt.state !== 'failed') {
+          // The tab stays open at the prompt, so the worker stays ready and blocked instead of failing.
+          db.prepareStartingWorkerAuthority({
+            dispatchId: started.dispatch.id,
+            handle: terminalHandle,
+            ...(authority ?? requireWorkerAuthority(runtime, terminalHandle)),
+            worktreeId: resolvedWorktree.id,
+            effects,
+            setupState: setupReceipt.state,
+            terminalOwnership: external ? 'external' : 'created'
+          })
+          db.markWorkerBlockedOnPrompt(started.dispatch.id, wait.blockedReason)
+        }
+        throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle, {
+          dispatchId: started.dispatch.id,
+          host: params.host ?? params.on
+        })
         throw new Error(
           wait.blockedReason
             ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
@@ -240,25 +262,25 @@ export async function startLocalWorker(args: {
       readinessDeadline,
       effects,
       terminalRevealWarning: placed.warning,
-      onStage
+      onStage,
+      host: params.host ?? params.on
     })
   } catch (error) {
-    result = await failWorkerStartWithReceipt({
-      runtime,
-      structuredSession: placed?.structuredSession ?? null,
-      db,
-      runId: run.id,
-      taskId: task.id,
-      dispatchId: started.dispatch.id,
-      failedStage,
-      error,
-      setup: placed?.setupReceipt ?? EXISTING_WORKTREE_SETUP,
-      launch: launch.receipt,
-      mode
-    })
-    if (isWorkerStartBlockedPromptError(error)) {
-      throw error
-    }
+    result = await settleCaughtWorkerStartError(error, () =>
+      failWorkerStartWithReceipt({
+        runtime,
+        structuredSession: placed?.structuredSession ?? null,
+        db,
+        runId: run.id,
+        taskId: task.id,
+        dispatchId: started.dispatch.id,
+        failedStage: workerStartBlockedPromptReason(error) ?? failedStage,
+        error,
+        setup: placed?.setupReceipt ?? EXISTING_WORKTREE_SETUP,
+        launch: launch.receipt,
+        mode
+      })
+    )
   }
   if (
     !params.terminal &&
@@ -273,7 +295,8 @@ export async function startLocalWorker(args: {
       workerAddress: terminalHandle,
       task: task.spec,
       agent: agent ?? null,
-      followUp: args.followUp && { of: args.followUp.of, reopened: Boolean(placed?.reopened) }
+      followUp: args.followUp && { of: args.followUp.of, reopened: Boolean(placed?.reopened) },
+      permissionMode: startedAgentPermissionMode(runtime, agent ?? null)
     })
   }
   return result

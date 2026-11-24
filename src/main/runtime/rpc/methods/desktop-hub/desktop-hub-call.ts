@@ -1,10 +1,15 @@
-import { DesktopHubError } from '../../../../../shared/orchestration/desktop-hub-contract'
+import {
+  DesktopHubError,
+  desktopHubHostKey,
+  isDesktopHubSelector
+} from '../../../../../shared/orchestration/desktop-hub-contract'
 import type { RuntimeOrchestrationEnvelope } from '../../../../../shared/runtime-rpc-envelope'
 import { desktopHubOnSelector } from '../../../orchestration/desktop-hub/desktop-hub-route'
+import { getDesktopHubRegistry } from '../../../orchestration/desktop-hub/desktop-hub-registry'
 
 const HUB_CONTROL_PREFIX = 'orchestration.desktopHub.'
 
-type HubCallRuntime = {
+export type HubCallRuntime = {
   callOrchestrationWorkerServer: (
     selector: string,
     method: string,
@@ -34,11 +39,16 @@ export async function callDesktopHubHost(
   if (!on) {
     throw new DesktopHubError('invalid_argument', 'Missing host for desktop hub call.')
   }
-  return runtime.callOrchestrationWorkerServer(
+  const result = await runtime.callOrchestrationWorkerServer(
     on,
     params.method,
     params.params ?? {},
     params.timeoutMs,
     params.envelope
   )
+  getDesktopHubRegistry(runtime).rememberSessionHandles(
+    isDesktopHubSelector(on) ? desktopHubHostKey(on) : on,
+    result
+  )
+  return result
 }

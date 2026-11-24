@@ -4,12 +4,16 @@ import {
   collectCrossHostSelectors,
   isCrossHostSelector,
   resolveRemoteSelectorsAcrossHosts,
-  resolveSelectorHostHits
+  resolveSelectorHostHits,
+  routeTerminalHandlesToOwner
 } from './desktop-hub-selector-resolve'
+import { ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY } from '../../shared/orchestration/orchestration-runtime-capabilities'
 
 const inventory = [
   {
     name: 'ubuntu-server-local',
+    kind: 'execution',
+    hostKey: 'env-ubuntu',
     status: 'connected' as const,
     inventory: {
       folderWorkspaces: [{ id: 'fld_remote' }],
@@ -18,6 +22,8 @@ const inventory = [
   },
   {
     name: 'TEMPLEOFDOOM',
+    kind: 'execution',
+    hostKey: 'env-temple',
     status: 'connected' as const,
     inventory: {
       folderWorkspaces: [{ id: 'fld_other' }],
@@ -26,10 +32,22 @@ const inventory = [
   },
   {
     name: 'ARCHIT4ME',
+    kind: 'execution',
+    hostKey: 'env-arch',
     status: 'connected' as const,
     inventory: {
       folderWorkspaces: [],
       sessions: [{ handle: 'term_shared' }]
+    }
+  },
+  {
+    name: 'FLEXTOP',
+    kind: 'desktop',
+    hostKey: 'desktop',
+    status: 'connected' as const,
+    inventory: {
+      folderWorkspaces: [{ id: 'fld_local' }],
+      sessions: []
     }
   }
 ]
@@ -96,6 +114,19 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
     await wrapped.call('agent.launch', { agent: 'claude' })
   })
 
+  it('leaves a local desktop folder worktree on this machine without wrapping --host FLEXTOP', async () => {
+    const flags = new Map<string, string | boolean>([['worktree', 'folder:fld_local']])
+    const inner = clientWithInventory()
+    const result = await resolveRemoteSelectorsAcrossHosts(
+      inner as never,
+      ['orchestration', 'worker-start'],
+      flags
+    )
+    expect(result).toBe(inner)
+    expect(result.isRemote).toBe(false)
+    expect(flags.has('host')).toBe(false)
+  })
+
   it('sets --host on worker-start instead of wrapping the client', async () => {
     const flags = new Map<string, string | boolean>([['worktree', 'folder:fld_remote']])
     const inner = clientWithInventory()
@@ -119,5 +150,47 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
       code: 'selector_ambiguous',
       message: expect.stringContaining('--host TEMPLEOFDOOM')
     })
+  })
+})
+
+describe('routeTerminalHandlesToOwner', () => {
+  function clientOwnedBy(owner: unknown) {
+    return {
+      isRemote: false,
+      getCliStatus: vi.fn(async () => ({
+        result: { runtime: { capabilities: [ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY] } }
+      })),
+      call: vi.fn(async () => ({ id: '1', ok: true as const, result: owner, _meta: {} }))
+    }
+  }
+
+  it('refuses a --host that does not own the handle', async () => {
+    const flags = new Map<string, string | boolean>([
+      ['terminal', 'term_remote1'],
+      ['host', 'TEMPLEOFDOOM']
+    ])
+    const client = clientOwnedBy({
+      owner: 'host',
+      name: 'ubuntu-server-local',
+      hostKey: 'env-ubuntu'
+    })
+    await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fake client implements only the calls routing makes.
+      routeTerminalHandlesToOwner(client as never, ['terminal', 'read'], flags)
+    ).rejects.toMatchObject({ code: 'host_mismatch' })
+  })
+
+  it('retargets a host-less handle to the host that owns it', async () => {
+    const flags = new Map<string, string | boolean>([['terminal', 'term_remote1']])
+    const client = clientOwnedBy({
+      owner: 'host',
+      name: 'ubuntu-server-local',
+      hostKey: 'env-ubuntu'
+    })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fake client implements only the calls routing makes.
+    const routed = await routeTerminalHandlesToOwner(client as never, ['terminal', 'read'], flags)
+    expect(routed.handled).toBe(true)
+    expect(routed.client?.isRemote).toBe(true)
+    expect(flags.has('host')).toBe(false)
   })
 })

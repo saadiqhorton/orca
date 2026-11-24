@@ -1,6 +1,7 @@
 import { closeTestJournalHostDatabases } from '../../../../native-chat/agent-session-journal/store-lifecycle/journal-host-database-test-support'
 /** Pre-dispatch failures prove no effects and record the real cause; a lost reply after dispatch remains unknown. Explicitly unsupported chat is refused before creation. */
 
+import { AgentLaunchResolved } from '../../../../../shared/rpc-contract/agent-launch/agent-launch-params'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -169,7 +170,7 @@ describe('a launch whose terminal fails', () => {
   })
 
   it('preserves a successful recorded model launch even when its placement is now refused', async () => {
-    const launch = AGENT_LAUNCH_REPLAY.params.parse({
+    const launch = AgentLaunchResolved.parse({
       ...CREATE_LAUNCH,
       agent: 'opencode',
       sessionOptions: { model: 'private-proof/model-b' },

@@ -6,7 +6,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     path: ['orchestration', 'worker-start'],
     summary: 'Start one supervised worker on the Run home or a connected Orca server',
     usage:
-      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment> | --host <desktop-connected-host>] [--worktree <current|selector|new-child|new-top-level>] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--retry-request <id>] [--json]',
+      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment> | --host <desktop-connected-host>] [--worktree <current|selector|new-child|new-top-level>] [--group "<name>"] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--as-coordinator] [--retry-request <id>] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'task',
@@ -19,6 +19,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'on',
       'host',
       'worktree',
+      'group',
       'name',
       'repo',
       'base-branch',
@@ -33,6 +34,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'timeout-ms',
       'run',
       'from',
+      'as-coordinator',
       'retry-request'
     ],
     identityFlagRoles: { from: 'caller', terminal: 'target' },
@@ -53,10 +55,11 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'Not every worker has a terminal. Read output with worker-read --source auto or --source transcript, which always work; --source terminal is refused when there is none, and orca terminal verbs do not accept every worker handle. Nothing above needs you to know which kind you have — the orchestration verbs cover all of them.',
       '--host <name> starts the worker on a machine the desktop app is connected to. `orca host inventory` prints those names, their projects, installed agent CLIs, and live tabs. The desktop app routes the call. Do not use SSH. To open a visible tab instead of a hidden worker, use `orca agent launch --host <name>`.',
       '--on selects only a paired Orca server saved on this machine; the Run and this command remain on the current Orca. Use either --host or --on, not both.',
-      'With --host, omitted --worktree (or current) creates or reuses ~/orca-orchestration on that host. With --on, use an exact remote selector, new-child or new-top-level (new-child and new-top-level need a remote --repo); new-child nests the server worktree under your workspace, or starts it top-level with a warning when that server is too old to nest across machines.',
-      '--retry-of needs --task naming the failed Task (--spec creates a new one) and does not inherit placement; repeat the intended --on/worktree and --agent/terminal choices.',
+      'With --host, omitted --worktree (or current) uses a workspace in the same-named project group when the caller is in one, otherwise ~/orca-orchestration on that host — never the most recently used real checkout. `--group "<name>"` (or `--worktree group:"<name>"`) targets that group\'s single workspace. Name --worktree / a repo only when the task should run there. With --on, use an exact remote selector, new-child or new-top-level (new-child and new-top-level need a remote --repo); new-child nests the server worktree under your workspace, or starts it top-level with a warning when that server is too old to nest across machines. Orchestration commands use exit 2–6 for host_mismatch, unknown_host/session_not_found, host_unreachable/host_offline/needs_sign_in, agent_blocked_on_prompt, and incompatible_runtime.',
+      '--retry-of needs --task naming the failed Task (--spec creates a new one) and does not inherit placement; repeat the intended --on/worktree and --agent/terminal choices. A Task whose only Dispatch is stop_unknown can be retried with --retry-of <dispatch>.',
       '--spec-file reads the spec from a file (relative to the current directory) or stdin (-) on this machine, so quotes and backticks need no shell escaping.',
       '--keep-open keeps the worker open after it finishes, as worker-keep-open does right after start.',
+      '--as-coordinator starts a worker as coordinator without ORCA_TERMINAL_HANDLE or --from. Use it from an external agent or a shell that is not an Orca terminal.',
       'The call exits 0 for ready, and in the concise view for a start whose turn was not yet observed (--full exits 1 for anything but ready). Failed or outcome_unknown exits 1 and JSON includes stage/failedStage, setup, effects, residualResources, and recovery commands when needed.'
     ]
   },

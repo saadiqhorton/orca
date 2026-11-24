@@ -47,6 +47,42 @@ describe('resolveDesktopHubHost', () => {
     }
   })
 
+  it('treats --host FLEXTOP as this desktop instead of wrapping the hub client', async () => {
+    const client = hubList([
+      {
+        kind: 'desktop',
+        name: 'FLEXTOP',
+        machineName: 'FLEXTOP',
+        hostKey: 'desktop',
+        id: 'desktop',
+        status: 'connected'
+      },
+      { kind: 'execution', name: 'ubuntu-server-local', status: 'connected', id: 'env-u' }
+    ])
+    const flags = new Map<string, string | boolean>([['host', 'FLEXTOP']])
+    const bound = await bindDesktopHubHost(client as never, flags)
+    expect(bound).toBe(client)
+    expect(bound.isRemote).toBeUndefined()
+    expect(flags.has('host')).toBe(false)
+  })
+
+  it('matches --host 192.168.1.35 when the hub row aliases the SSH address', async () => {
+    const client = hubList([
+      {
+        kind: 'execution',
+        name: 'clawd',
+        label: 'clawd',
+        aliases: ['192.168.1.35'],
+        status: 'connected',
+        id: 'env-clawd'
+      }
+    ])
+    await expect(resolveDesktopHubHost(client as never, '192.168.1.35')).resolves.toMatchObject({
+      status: 'matched',
+      row: { name: 'clawd' }
+    })
+  })
+
   it('refuses when the hub list fails', async () => {
     const client = {
       call: vi.fn(async () => {

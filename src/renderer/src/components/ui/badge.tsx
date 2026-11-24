@@ -23,6 +23,11 @@ const badgeVariants = cva(
           'h-4 rounded border-border bg-[var(--host-badge,var(--accent))] px-1.5 text-[10px] leading-none text-[var(--host-badge-foreground,var(--muted-foreground))] dark:border-border/50 dark:bg-[var(--host-badge,color-mix(in_oklab,var(--accent)_80%,transparent))]',
         /** A task label inside a dense reference row's metadata line. */
         referenceLabel: 'h-3.5 border-border px-1 py-0 text-3xs font-normal text-muted-foreground',
+        /** A quiet metadata chip in a chat card header, such as an agent's permission mode. */
+        metaLabel: 'h-4 border-border px-1.5 py-0 text-2xs font-normal text-muted-foreground',
+        /** A warning chip in a chat card header, such as an agent stopped at a prompt. */
+        warningLabel:
+          'h-4 border-status-warning-border bg-status-warning-background px-1.5 py-0 text-2xs font-normal text-status-warning-text',
         /** An uppercase kind label set before a banner title; takes its color from the parent. */
         paneLabel:
           'h-4 border-current/30 px-1.5 py-0 align-[1px] text-3xs font-semibold tracking-wider uppercase',

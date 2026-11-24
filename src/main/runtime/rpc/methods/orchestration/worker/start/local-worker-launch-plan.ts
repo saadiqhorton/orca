@@ -5,6 +5,7 @@ import { probeWorkerOpenCodeModelLaunchSupport } from './launch/worker-opencode-
 import { resolveWorkerConfiguredAgentParams } from './launch/worker-configured-agent-preflight'
 import { prepareLocalWorkerStart } from './launch/worker-start-validation'
 import { assertAgentCliInstalled } from './launch/worker-agent-cli-installed'
+import { assertWorkerCodexModelSupported } from './launch/worker-codex-model-gate'
 import { resolveWorkerWorktreeCreationTarget } from './placement/worker-worktree-creation'
 import type { WorkerStartInput } from './worker-start-input'
 
@@ -63,6 +64,7 @@ export async function resolveLocalWorkerLaunchPlan(args: {
     openCodeModelLaunchSupported
   })
   if (agent) {
+    await assertWorkerCodexModelSupported(agent, launchParams.model)
     const worktreeId = requestedWorktree === 'current' || createsWorktree ? null : requestedWorktree
     await assertAgentCliInstalled(runtime, agent, worktreeId)
   }

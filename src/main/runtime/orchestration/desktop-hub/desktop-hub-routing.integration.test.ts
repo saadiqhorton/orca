@@ -21,6 +21,7 @@ describe('cross-host orchestration through the desktop hub', () => {
     expect(transcript.unreachable).toBe('host_unreachable')
     expect(transcript.forwardedMethods).toEqual([
       'orchestration.surface.ensureScratch',
+      'orchestration.surface.ensureScratch',
       'orchestration.federationAttachStart',
       'orchestration.federationShow',
       'orchestration.federationStop',
@@ -29,6 +30,8 @@ describe('cross-host orchestration through the desktop hub', () => {
       'local:orchestration.surface.inventory'
     ])
     expect(transcript.scratchWorktree).toBe('folder:fld_e2e')
+    expect(transcript.lines.join('\n')).toContain('scratch reuse: folder:fld_e2e')
+    expect(transcript.lines.join('\n')).toContain('folderWorkspaces lists folder:fld_e2e')
     expect(transcript.desktopInventoryMachine).toBe('windows-desktop')
     expect(transcript.launchedTab).toBe('term_visible_e2e')
     expect(transcript.inventoryAgents).toEqual(['claude', 'codex'])
