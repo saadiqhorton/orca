@@ -42,6 +42,7 @@ export const ROOT_HELP_TEXT_PRIMARY = [
   '',
   'Hosts:',
   '  host list                 List targetable machines and how to name each one',
+  '  host inventory            List connected hosts with projects, agent CLIs, and live tabs',
   '  host rm                   Remove a saved SSH target',
   '',
   'Environments:',

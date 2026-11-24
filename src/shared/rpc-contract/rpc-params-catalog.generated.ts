@@ -48,6 +48,7 @@ import { MobileWebBundleChunkParamsSchema } from '../mobile-web-bundle/bundle-rp
 import { MobileWebBundleLocaleCatalogParamsSchema } from '../mobile-web-bundle/locale-catalog-contract'
 import { OrcadMigrationBlobChunkRequestSchema } from '../orcad-migration/orcad-migration-blob-transfer'
 import { OrcadMigrationSnapshotChunkRequestSchema } from '../orcad-migration/orcad-migration-scrollback'
+import { DesktopHubAnswerParams } from '../orchestration/desktop-hub-contract'
 import {
   WorkerDockAcknowledge,
   WorkerDockRead,
@@ -664,6 +665,11 @@ import {
   OrcaAccountSignInWaitParams,
   OrcaAccountUnsubscribeParams
 } from './orca-account-params'
+import {
+  DesktopHubCallParams,
+  DesktopHubLocateParams,
+  OrchestrationSurfaceEnsureScratchParams
+} from './orchestration/desktop-hub-call-params'
 import { ApprovalAnswerParams } from './orchestration/orchestration-approval-answer-params'
 import {
   FederationDispatchParams,
@@ -1919,6 +1925,11 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.callerShow': null,
   'orchestration.check': CheckParams,
   'orchestration.crewSubscribe': CrewSubscribeParams,
+  'orchestration.desktopHub.answer': DesktopHubAnswerParams,
+  'orchestration.desktopHub.call': DesktopHubCallParams,
+  'orchestration.desktopHub.inventory': null,
+  'orchestration.desktopHub.list': null,
+  'orchestration.desktopHub.locate': DesktopHubLocateParams,
   'orchestration.dispatch': DispatchParams,
   'orchestration.dispatchShow': DispatchShowParams,
   'orchestration.federationAck': FederationAckParams,
@@ -1955,6 +1966,8 @@ export const RPC_PARAMS_BY_METHOD = {
   'orchestration.runUse': RunUseParams,
   'orchestration.sessionAddress': SessionAddressParams,
   'orchestration.sessionWorkers': SessionWorkersParams,
+  'orchestration.surface.ensureScratch': OrchestrationSurfaceEnsureScratchParams,
+  'orchestration.surface.inventory': null,
   'orchestration.taskCreate': TaskCreateParams,
   'orchestration.taskList': TaskListParams,
   'orchestration.workerAbandon': WorkerDispatchParams,

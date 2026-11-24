@@ -100,9 +100,26 @@ orca orchestration approve --dispatch <dispatchId> --prompt <approvalId> --reaso
 
 Do not leave completed worker terminals open just to re-read output — use `worker-read` after `worker-release`. Do not substitute a broad `terminal close` when release returns `release_pending` or `release_unknown`; follow the receipt's recovery action.
 
+## Desktop-connected hosts
+
+For a machine the desktop app is connected to, start with inventory and pass `--host <name>`. Do not use SSH. `--on` / `--environment` still select a paired Orca server saved on this machine.
+
+```bash
+orca host inventory --json
+orca orchestration worker-start --spec "<task>" --host <name> --agent codex
+orca agent launch --host <name> --agent claude --prompt "<task>" --json
+orca orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
+orca orchestration send --to dispatch:<dispatchId> --subject "Follow-up" --body "…"
+orca orchestration worker-show --dispatch <dispatchId>
+```
+
+`--host` on `worker-start` and `send` to a live tab talks to that machine through the desktop hub. `send --to dispatch:<id>` (or a bare `ctx_…` id) and `worker-show` stay on the Run that owns the Dispatch; `--host` is ignored if present. Unique handles auto-resolve; collisions print the exact `--host` command. Exit 5 (`agent_blocked_on_prompt`) means a trust or hooks dialog is on screen — ask the user to answer it in the desktop Orca window.
+
+Remote bot @mentions of a desktop-connected host are a follow-up; until then, pass `--host <name>` on the CLI.
+
 ## Federated workers (optional)
 
-For a new worktree in another project or on a named machine, run `orca host list --json` (only `kind: environment` rows are paired servers; ask if a user-supplied name matches multiple host kinds, such as an SSH target and a server) and compare `orca project setups --environment local --json` with `orca project setups --environment <server-id> --json` for each paired server. Match by `projectId` and select a row on the answering machine with `setupState: ready`, a non-empty `repoId`, `kind` other than `folder`, and `hostId: local`. Pass its `repoId` as `--repo id:<repoId>`. A row whose `hostId` is not `local` describes an SSH target behind the server and cannot host a new worktree via `--on`: if that is the only setup, or a pinned machine has no usable setup, do not start it — tell the user where it is registered and why it cannot be used. Work in an existing workspace uses its exact worktree selector without `--repo`.
+For a new worktree in another project or on a named paired server, run `orca host list --json` (only `kind: environment` rows are paired servers; ask if a user-supplied name matches multiple host kinds, such as an SSH target and a server) and compare `orca project setups --environment local --json` with `orca project setups --environment <server-id> --json` for each paired server. Match by `projectId` and select a row on the answering machine with `setupState: ready`, a non-empty `repoId`, `kind` other than `folder`, and `hostId: local`. Pass its `repoId` as `--repo id:<repoId>`. A row whose `hostId` is not `local` describes an SSH target behind the server and cannot host a new worktree via `--on`: if that is the only setup, or a pinned machine has no usable setup, do not start it — tell the user where it is registered and why it cannot be used. Work in an existing workspace uses its exact worktree selector without `--repo`.
 
 Honor the user's machine choice. For the full selection order and how to record placement in the Task spec, run `orca skills get orchestration --reference references/placement-and-remote.md`.
 

@@ -1,7 +1,8 @@
 # Recovery and cleanup
 
-Act only on proof. `worker-list --run <run_id> --include-remote` gives
-each worker's liveness and `next`; follow it.
+Act only on proof. `worker-list --run <run_id>` gives each worker's host,
+liveness, and `next`; `--include-remote` still adds connected-server
+observations on older hosts. Follow `next`.
 
 Retry a failed or stopped attempt on the same Task; `--spec` would create a new
 one. Placement is not inherited:

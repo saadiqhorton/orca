@@ -1,9 +1,10 @@
-export const CLI_GLOBAL_VALUE_FLAGS: readonly string[] = ['pairing-code', 'environment']
+export const CLI_GLOBAL_VALUE_FLAGS: readonly string[] = ['pairing-code', 'environment', 'host']
 export const CLI_GLOBAL_FLAGS: readonly string[] = ['help', 'json', ...CLI_GLOBAL_VALUE_FLAGS]
 
 export const CLI_BOOLEAN_FLAGS = new Set([
   'accept-changed-state',
   'activate',
+  'answer-dialog',
   'agent-wait',
   'all',
   'allow-failed-archive-hook',

@@ -21,6 +21,9 @@ import { normalizeTypedName, stripWrappingQuotes } from '../../shared/text/typed
 import type { RuntimeClient } from '../runtime/client'
 import { RuntimeClientError } from '../runtime/connection/types'
 import { isLocalEnvironmentSelector } from './local-environment-selector'
+import { refuseDesktopHubHostAlias } from './desktop-hub-host-refusal'
+import { preferPairedServerForSameMachine } from '../../shared/orchestration/host-same-machine'
+import { isDesktopHubHostValue } from './desktop-hub-host-flag'
 
 export type HostFlagRoutingSelection = {
   // Enumerating SSH targets needs the running host; defer lookup until error recovery.
@@ -54,11 +57,11 @@ export function parseHostFlag(flags: Map<string, string | boolean>): HostFlagSel
     return parsed
   }
   const alias = value.trim()
-  // Prefixed values must parse as IDs, never aliases; malformed IDs could rebind downstream.
-  if (!alias || alias.startsWith('ssh:') || alias.startsWith('runtime:')) {
+  // Prefixed values must parse as IDs; a bare name is never an implicit ssh: id.
+  if (!isDesktopHubHostValue(alias)) {
     throw new RuntimeClientError(
       'invalid_argument',
-      `Invalid --host value: ${raw}. Expected local, ssh:<target-id>, runtime:<environment-id>, or a host name from \`orca host list\`.`
+      `Invalid --host value: ${raw}. Expected local, ssh:<target-id>, runtime:<environment-id>, or a host name from \`orca host inventory\` / \`orca host list\`.`
     )
   }
   return { kind: 'alias', alias }
@@ -175,7 +178,7 @@ async function assertAliasNamesOneHost(
   // Duplicate SSH labels are ambiguous, not evidence that no target matches.
   const matched = findSshTargetByName(sshTargets, alias)
   const conflicts = matched ? [matched] : ambiguousSshTargets(sshTargets, alias)
-  if (conflicts.length === 0) {
+  if (conflicts.length === 0 || preferPairedServerForSameMachine(environment, conflicts)) {
     return
   }
   const sshCount =
@@ -237,7 +240,12 @@ export async function resolveHostFlagTarget(
     readEnvironmentSummaries,
     flagSpelling,
     host.kind === 'alias'
-  )
+  ).catch(async (error: unknown) => {
+    await (host.kind === 'alias'
+      ? refuseDesktopHubHostAlias(client, wanted, flagSpelling)
+      : undefined)
+    throw error
+  })
   const sshHostId = toSshExecutionHostId(targetId)
   return parseExecutionHostId(sshHostId) ?? { kind: 'ssh', id: sshHostId, targetId }
 }

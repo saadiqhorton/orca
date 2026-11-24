@@ -7,6 +7,7 @@ import { attachCliErrorData } from './worktree-setup-decision-recovery'
 export const WORKTREE_SELECTOR_FORMS = [
   'id:<repo-id>::<absolute-path>',
   'folder:<folder-id>',
+  'group:"<project-group-name>"',
   'path:<absolute-path>',
   'name:<display-name>',
   'branch:<branch>',
@@ -68,9 +69,15 @@ export function worktreeSelectorRecovery(
     suggestions,
     nextSteps: [
       `No Orca workspace matched the worktree selector "${selector}".`,
+      ...(selector.startsWith('folder:')
+        ? [
+            `The folder workspace record for "${selector}" is missing from this host's catalog. If that id still appears in \`orca terminal list\`, pass \`id:<repo-id>::<path>\` or \`group:"<project-group-name>"\` from \`orca host inventory --json\` instead of the stale folder id.`
+          ]
+        : []),
       ...(suggestions.length > 0 ? [`Did you mean: ${suggestions.join(', ')}`] : []),
       `Valid selector forms: ${WORKTREE_SELECTOR_FORMS.join(', ')}.`,
-      'List the exact values, folder workspaces included, with `orca worktree ps --json` (add `--environment <id>` for a workspace in another environment); a bare repository id is not a worktree id.'
+      'List the exact values, folder workspaces included, with `orca worktree ps --json` (add `--environment <id>` for a workspace in another environment); a bare repository id is not a worktree id.',
+      'If the folder or handle lives on a desktop-connected machine, run `orca host inventory --json` and retry with `--host <name>` (ids are unique across hosts; if they are not, the error names the owners).'
     ]
   }
 }

@@ -6,11 +6,15 @@ description: >-
   "$orca-cli", "Orca worktree", "child worktree", "spawn codex/claude in a worktree",
   "read/wait/send Orca terminal", "handoff" / "handover" / "give this to another agent",
   "ask/tell/message another agent" (including an agent on a paired Orca server), or
-  "Orca browser". Also use for opening, testing, screenshotting, or checking how a local or
-  external web page renders while working in Orca, unless the user or project names another
-  browser tool; plain HTTP or API calls (curl, fetch) do not need it. Prefer it over raw git
-  worktree, ad hoc PTYs, or Computer Use when Orca state is involved. Use Computer Use only
-  when a visible window needs GUI control that a CLI, filesystem, or API cannot do.
+  "Orca browser". Also use for another machine/host/server, a named host (e.g.
+  ubuntu-server-local), "on <host>", "open a terminal on", "run X on", "what machines/hosts
+  can you use", or anything ssh-like: start with `orca host inventory --json`, then
+  `orca … --host <name>`; never ssh. Also use for opening, testing, screenshotting, or
+  checking how a local or external web page renders while working in Orca, unless the user
+  or project names another browser tool; plain HTTP or API calls (curl, fetch) do not need
+  it. Prefer it over raw git worktree, ad hoc PTYs, or Computer Use when Orca state is
+  involved. Use Computer Use only when a visible window needs GUI control that a CLI,
+  filesystem, or API cannot do.
 ---
 
 # Orca CLI
@@ -24,6 +28,29 @@ Use `orca` when Orca's running editor/runtime is the source of truth. Use plain 
 **Dev builds (`pnpm dev`):** after `pnpm build:cli` the dev CLI is `orca-dev`, and `./config/scripts/orca-dev.mjs` invokes it worktree-locally without depending on the /usr/local/bin symlink. Plain `orca` targets any installed production Orca.
 
 Prefer `--json` for agent-driven calls. If the CLI is missing, say so explicitly instead of inspecting source files first.
+
+## Desktop-connected hosts
+
+When the user names another machine, asks what hosts you can use, or anything
+ssh-like, start with inventory. Do not use SSH.
+
+```text
+ORCA host inventory --json
+ORCA agent launch --host <name> --agent <agent> --prompt "<task>" --json
+ORCA terminal create --host <name> --json
+ORCA terminal list --host <name> --json
+ORCA terminal send --host <name> --terminal <handle> --text "<message>" --enter
+ORCA worktree create --host <name> --name <short-name> --json
+ORCA orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
+```
+
+`--host <name>` is a connected row from `host inventory`. `--group "<name>"`
+places the tab in that project group. Unique handles resolve across hosts
+without `--host`; collisions name the owners. If status is `needs_sign_in` or
+`unreachable`, say so and stop. `--on` / `--environment` still select a paired
+Orca server saved on this machine — they are not desktop-connected hosts.
+Exit 5 (`agent_blocked_on_prompt`) means a trust/hooks dialog is on screen:
+ask the user to answer it in the desktop Orca window; never send keystrokes.
 
 ## Full Handoffs
 

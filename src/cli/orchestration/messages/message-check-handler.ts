@@ -24,6 +24,7 @@ import {
   orchestrationCallerLabel,
   resolveOrchestrationTerminalHandle
 } from '../identity/terminal-identity'
+import { applyDispatchMailboxFlag } from './dispatch-mailbox-flag'
 
 type CheckResult = {
   messages: MessageSummary[]
@@ -42,6 +43,7 @@ export const ORCHESTRATION_CHECK_HANDLER: Record<string, CommandHandler> = {
   'orchestration check': async (ctx) => {
     const { flags, client, cwd, json } = ctx
     await refuseAgentServerRoute('check', ctx)
+    applyDispatchMailboxFlag(flags)
     const wait = flags.has('wait')
     const peek = flags.has('peek')
     // Older runtimes ignore peek, making --unread --peek destructive.
