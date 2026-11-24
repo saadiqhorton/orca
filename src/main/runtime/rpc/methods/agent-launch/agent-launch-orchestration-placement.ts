@@ -1,8 +1,5 @@
 import type { AgentLaunchResult } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
-import type {
-  AgentLaunchParams,
-  AgentLaunchRequestParams
-} from '../../../../../shared/rpc-contract/agent-launch/agent-launch-params'
+import type { AgentLaunchParams } from '../../../../../shared/rpc-contract/agent-launch/agent-launch-params'
 import type { RpcContext } from '../../core'
 import {
   parseGroupWorktreeSelector,
@@ -14,6 +11,10 @@ import {
 } from '../orchestration/surface/orchestration-session-placement'
 import { assertAgentLaunchTargetAuthorized } from './agent-launch-target-authorization'
 
+type AgentLaunchRequestTarget = AgentLaunchParams['target'] | { kind: 'orchestration-session' }
+
+export type AgentLaunchSessionPlacement = Pick<OrchestrationSessionPlacement, 'source' | 'group'>
+
 export type PlacedAgentLaunch<T> = Omit<T, 'target'> & {
   target: AgentLaunchParams['target']
   sessionPlacement?: OrchestrationSessionPlacement
@@ -22,7 +23,7 @@ export type PlacedAgentLaunch<T> = Omit<T, 'target'> & {
 export function withSessionPlacement(
   result: AgentLaunchResult,
   sessionPlacement: OrchestrationSessionPlacement | undefined
-): AgentLaunchResult {
+): AgentLaunchResult & { sessionPlacement?: AgentLaunchSessionPlacement } {
   return sessionPlacement
     ? {
         ...result,
@@ -35,9 +36,10 @@ export function withSessionPlacement(
 }
 
 /** Resolves group:/same-group:/orchestration-session targets to a visible workspace before admission. */
-export async function placeAuthorizedAgentLaunch<
-  T extends { target: AgentLaunchRequestParams['target'] }
->(requested: T, context: RpcContext): Promise<PlacedAgentLaunch<T>> {
+export async function placeAuthorizedAgentLaunch<T extends { target: AgentLaunchRequestTarget }>(
+  requested: T,
+  context: RpcContext
+): Promise<PlacedAgentLaunch<T>> {
   const target = requested.target
   if (target.kind === 'existing') {
     if (

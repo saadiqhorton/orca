@@ -1,6 +1,6 @@
 import { parsePairingCode } from '../../../../shared/remote-runtime/pairing/pairing'
 import type { DesktopHubRequestEvent } from '../../../../shared/orchestration/desktop-hub-contract'
-import type { RuntimeClientEvent } from '../../../../shared/runtime-client-events'
+import type { RuntimeClientEvent } from '../../../../shared/remote-runtime/session-graph/runtime-client-events'
 import type { OrcaRuntimeService } from '../../orca-runtime'
 import type { OrcaRuntimeRpcServer } from '../../rpc/server/runtime-rpc'
 

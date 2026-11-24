@@ -28,7 +28,10 @@ import {
   settingsWriteGlobalSlice,
   type GlobalInstructionSettingsSource
 } from '../../../orchestration/desktop-hub/orca-host-instruction-install'
-import { getAppEnvironment, hasAppEnvironment } from '../../../../../shared/app-environment'
+import {
+  getAppEnvironment,
+  hasAppEnvironment
+} from '../../../../../shared/app-lifecycle/app-environment'
 
 /**
  * Routing control plane, not a Run mutation. A local CLI session may list, place, and forward.
