@@ -2,7 +2,7 @@
 
 Findings from implementer self-review and independent reviewer passes. Resolutions stay next to each item.
 
-Independent reviewers read SHA `4534d6bd012`. Later commits addressed their blocking items and `pnpm check:changed --base=upstream/main` (46/46).
+Independent reviewers read SHA `4534d6bd012`. Later commits addressed their blocking items. A whole-diff pass at `5b937d42040` found two more blocking wiring holes, fixed in the following commit.
 
 ## Scope check
 
@@ -32,7 +32,14 @@ Independent reviewers read SHA `4534d6bd012`. Later commits addressed their bloc
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | On the desktop hub itself, `--host <desktop-name>` for wrapped commands threw `Missing host for desktop hub call`. | `bindDesktopHubHost` returns the local client when the matched row is this desktop. `callDesktopHubHost` uses `dispatchLocalRpc` when the catalog selector is empty. Covered by `desktop-hub-call.test.ts` and `desktop-hub-bind.test.ts`. |
 
-Non-blocking (left as follow-up, not blocking): `--host` + `--environment` not refused on `agent launch` / `terminal create`; Claude first-turn activity tokens can settle early.
+### Whole-diff reviewer (`5b937d42040`) — blocking, then fixed
+
+| Finding                                                                                                                             | Resolution                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker-start --host` rewrote to `--on` then required an exact worktree; `resolveFederatedWorkerWorktree` was never called.         | `routeDesktopHubCommand` keeps `host`. `startFederatedWorker` uses `resolveFederatedStartWorktree` so `--host` can scratch/group-place on the target; classic `--on current` still refuses. |
+| `--host <desktop>` from a remote CLI skipped wrap whenever the catalog row was `hostKey=desktop`, so the command ran on the remote. | Skip wrap only when the list RPC is not `hub: 'remote'`. A remote session wraps and hops `desktopHub.call` so the volunteer can `callLocal` on the desktop.                                 |
+
+Non-blocking (left as follow-up, not blocking): `--host` + `--environment` not refused on `agent launch` / `terminal create`; Claude first-turn activity tokens can settle early; `dispatchLocalRpc` is still optional on `callDesktopHubHost` (CLI self-target and volunteer `callLocal` cover the product paths).
 
 ## Security / authz
 

@@ -37,6 +37,7 @@ import {
   settleReadyFederatedHome
 } from './federated-worker-ready-record'
 import { federatedAttachParent, resolveFederatedChildParent } from './federated-worker-child-parent'
+import { resolveFederatedStartWorktree } from './federated-remote-default-worktree'
 import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
 import { dispatchWorkerStarted, prepareWorkerStartCard } from '../workers/launch/worker-start-card'
 import {
@@ -59,13 +60,8 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       'Remote worker-start requires a durable retry request.'
     )
   }
-  const worktree = params.worktree ?? 'current'
-  if (worktree === 'current') {
-    throw new OrchestrationError(
-      'invalid_argument',
-      '--on requires an exact remote worktree selector, new-child or new-top-level.'
-    )
-  }
+  const server = await runtime.resolveOrchestrationWorkerServer(params.on as string)
+  const worktree = await resolveFederatedStartWorktree(runtime, server.environmentId, params)
   const createMode = worktree === 'new-top-level' || worktree === 'new-child' ? worktree : undefined
   const createsWorktree = createMode !== undefined
   assertWorkerLaunchPreferencesCreateTerminal(params)
@@ -75,7 +71,6 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
     model: params.model,
     effort: params.effort
   })
-  const server = await runtime.resolveOrchestrationWorkerServer(params.on as string)
   const pairingFence = { expectedEnvironmentPairingRevision: server.pairingRevision }
   const budgets = resolveFederatedWorkerStartBudgets(params.timeoutMs)
   const status = (await runtime.callOrchestrationWorkerServer(

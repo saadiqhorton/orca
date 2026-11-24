@@ -37,7 +37,7 @@ describe('desktop hub route', () => {
     }
     await expect(routeDesktopHubCommand(runtime, { host: 'ubuntu-server-local' })).resolves.toEqual(
       {
-        host: undefined,
+        host: 'ubuntu-server-local',
         on: 'env-ubuntu'
       }
     )
@@ -72,7 +72,7 @@ describe('desktop hub route', () => {
     })
     await expect(routeDesktopHubCommand(runtime, { host: 'ubuntu-server-local' })).resolves.toEqual(
       {
-        host: undefined,
+        host: 'ubuntu-server-local',
         on: desktopHubSelector('env-ubuntu')
       }
     )
@@ -82,7 +82,7 @@ describe('desktop hub route', () => {
   it("starts on this desktop when --host is the desktop's own name", async () => {
     setDesktopHubCatalogProvider(async () => catalog)
     await expect(routeDesktopHubCommand({}, { host: 'windows-desktop' })).resolves.toEqual({
-      host: undefined,
+      host: 'windows-desktop',
       on: undefined
     })
   })

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveFederatedWorkerWorktree } from './federated-remote-default-worktree'
+import {
+  resolveFederatedStartWorktree,
+  resolveFederatedWorkerWorktree
+} from './federated-remote-default-worktree'
 
 describe('resolveFederatedWorkerWorktree', () => {
   it('uses the scratch folder workspace selector when --worktree is omitted', async () => {
@@ -79,5 +82,37 @@ describe('resolveFederatedWorkerWorktree', () => {
       {},
       30_000
     )
+  })
+})
+
+describe('resolveFederatedStartWorktree', () => {
+  it('keeps classic --on current as a missing-selector refusal', async () => {
+    const runtime = { callOrchestrationWorkerServer: vi.fn() }
+    await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
+      resolveFederatedStartWorktree(runtime as never, 'env-ubuntu', {
+        on: 'env-ubuntu'
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
+      } as never)
+    ).rejects.toMatchObject({
+      code: 'invalid_argument',
+      message: expect.stringContaining('--on requires an exact remote worktree selector')
+    })
+    expect(runtime.callOrchestrationWorkerServer).not.toHaveBeenCalled()
+  })
+
+  it('defaults --host current to the target scratch folder', async () => {
+    const runtime = {
+      callOrchestrationWorkerServer: vi.fn(async () => ({
+        worktree: 'folder:fld_scratch'
+      }))
+    }
+    await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
+      resolveFederatedStartWorktree(runtime as never, 'env-ubuntu', {
+        host: 'ubuntu-server-local'
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
+      } as never)
+    ).resolves.toBe('folder:fld_scratch')
   })
 })

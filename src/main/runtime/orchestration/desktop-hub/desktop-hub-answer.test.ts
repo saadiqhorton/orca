@@ -74,6 +74,32 @@ describe('desktop hub answerer', () => {
     )
     expect(ssh).not.toHaveBeenCalled()
   })
+
+  it('runs a desktop-targeted call on this process instead of pairing or SSH', async () => {
+    const callHost = vi.fn()
+    const callLocal = vi.fn(async () => ({
+      id: 'desktop',
+      ok: true as const,
+      result: { handle: 'term_desktop' },
+      _meta: { runtimeId: 'desktop' }
+    }))
+    const answered = await answerDesktopHubRequest({
+      request: request('call', {
+        name: 'windows-desktop',
+        method: 'agent.launch',
+        params: { agent: 'claude' }
+      }),
+      catalog: () => catalog,
+      callHost,
+      callLocal
+    })
+    expect(answered).toMatchObject({
+      ok: true,
+      result: { result: { handle: 'term_desktop' } }
+    })
+    expect(callLocal).toHaveBeenCalledOnce()
+    expect(callHost).not.toHaveBeenCalled()
+  })
 })
 
 function request(

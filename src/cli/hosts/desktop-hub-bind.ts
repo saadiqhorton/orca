@@ -23,7 +23,7 @@ export type HubListRow = {
 }
 
 export type DesktopHubHostResolution =
-  | { status: 'matched'; row: HubListRow; names: string[] }
+  | { status: 'matched'; row: HubListRow; names: string[]; hub?: unknown }
   | { status: 'unknown'; names: string[] }
   | { status: 'unavailable'; message: string }
 
@@ -55,10 +55,11 @@ export async function resolveDesktopHubHost(
   client: Pick<RuntimeClient, 'call'>,
   alias: string
 ): Promise<DesktopHubHostResolution> {
-  let hosts: unknown
+  let listed: { hosts?: unknown; hub?: unknown }
   try {
-    hosts = (await client.call<{ hosts?: unknown }>('orchestration.desktopHub.list', {})).result
-      .hosts
+    listed = (
+      await client.call<{ hosts?: unknown; hub?: unknown }>('orchestration.desktopHub.list', {})
+    ).result
   } catch (error) {
     const code = error instanceof RuntimeClientError ? error.code : undefined
     if (code === 'method_not_found') {
@@ -66,11 +67,11 @@ export async function resolveDesktopHubHost(
     }
     return { status: 'unavailable', message: DESKTOP_HUB_UNAVAILABLE_MESSAGE }
   }
-  if (!Array.isArray(hosts)) {
+  if (!Array.isArray(listed.hosts)) {
     return { status: 'unavailable', message: DESKTOP_HUB_UNAVAILABLE_MESSAGE }
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: list RPC hosts are catalog rows; unmatched shapes become unknown_host below.
-  const rows = hosts as HubListRow[]
+  const rows = listed.hosts as HubListRow[]
   const names = connectedNames(rows)
   const row = rows.find(
     (candidate) => typeof candidate?.name === 'string' && desktopHubRowMatches(candidate, alias)
@@ -78,7 +79,7 @@ export async function resolveDesktopHubHost(
   if (!row) {
     return { status: 'unknown', names }
   }
-  return { status: 'matched', row, names }
+  return { status: 'matched', row, names, hub: listed.hub }
 }
 
 /**
@@ -108,11 +109,12 @@ export async function bindDesktopHubHost(
     throw new RuntimeClientError(blocked.code, blocked.message)
   }
   flags.delete('host')
-  if (
+  const namesThisDesktop =
     resolved.row.hostKey === 'desktop' ||
     resolved.row.kind === 'desktop' ||
     resolved.row.id === 'desktop'
-  ) {
+  // Only the desktop process may skip the wrap. A remote listing the same row must hop the hub.
+  if (namesThisDesktop && resolved.hub !== 'remote') {
     return client
   }
   return wrapDesktopHubClient(client, resolved.row.name)

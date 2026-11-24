@@ -1,5 +1,8 @@
 import { OrchestrationError } from '../orchestration-error'
-import { remoteWorktreeRequiredMessage } from '../../../../shared/orchestration/desktop-hub-placement-flag'
+import {
+  remotePlacementFlag,
+  remoteWorktreeRequiredMessage
+} from '../../../../shared/orchestration/desktop-hub-placement-flag'
 import {
   describeGroupMemberCandidates,
   parseGroupWorktreeSelector,
@@ -8,6 +11,25 @@ import {
   type InventoryProjectGroup
 } from '../../../../shared/orchestration/orchestration-group-selector'
 import type { FederatedWorkerStartRequest } from './federated-worker-start-request'
+
+/** Classic `--on` still needs an exact selector. `--host` may fall back to scratch / group: on the target. */
+export async function resolveFederatedStartWorktree(
+  runtime: FederatedWorkerStartRequest['runtime'],
+  environmentId: string,
+  params: FederatedWorkerStartRequest['params']
+): Promise<string> {
+  if (remotePlacementFlag(params) === '--host') {
+    return resolveFederatedWorkerWorktree(runtime, environmentId, params)
+  }
+  const worktree = params.worktree ?? 'current'
+  if (worktree === 'current') {
+    throw new OrchestrationError(
+      'invalid_argument',
+      '--on requires an exact remote worktree selector, new-child or new-top-level.'
+    )
+  }
+  return worktree
+}
 
 /** `--worktree current` on a desktop-connected host becomes ~/orca-orchestration there.
  * group:/same-group: must be resolved on that host, never rewritten to the caller's worktree. */

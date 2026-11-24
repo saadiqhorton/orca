@@ -100,4 +100,46 @@ describe('resolveDesktopHubHost', () => {
     expect(bound).toBe(client)
     expect(flags.has('host')).toBe(false)
   })
+
+  it('wraps --host <desktop> from a remote session instead of running locally', async () => {
+    const inner = {
+      isRemote: false,
+      call: vi.fn(async (method: string) => {
+        if (method === 'orchestration.desktopHub.list') {
+          return {
+            id: '1',
+            ok: true as const,
+            result: {
+              hub: 'remote',
+              hosts: [
+                {
+                  kind: 'desktop',
+                  name: 'windows-desktop',
+                  hostKey: 'desktop',
+                  id: 'desktop',
+                  status: 'connected'
+                }
+              ]
+            },
+            _meta: { runtimeId: 'local' }
+          }
+        }
+        return { id: '1', ok: true as const, result: {}, _meta: { runtimeId: 'local' } }
+      })
+    }
+    const flags = new Map<string, string | boolean>([['host', 'windows-desktop']])
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient stub for a unit test.
+    const wrapped = await bindDesktopHubHost(inner as never, flags)
+    expect(flags.has('host')).toBe(false)
+    expect(wrapped).not.toBe(inner)
+    await wrapped.call('agent.launch', { agent: 'claude' })
+    expect(inner.call).toHaveBeenCalledWith(
+      'orchestration.desktopHub.call',
+      expect.objectContaining({
+        host: 'windows-desktop',
+        method: 'agent.launch'
+      }),
+      expect.anything()
+    )
+  })
 })

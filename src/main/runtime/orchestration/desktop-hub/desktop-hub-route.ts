@@ -57,7 +57,8 @@ export async function routeDesktopHubCommand<T extends { host?: string; on?: str
   if (params.host === undefined) {
     return params
   }
-  return { ...params, on, host: undefined }
+  // Keep `host` so later refusals still name `--host` (catalog `on` is a pairing id, not dhub:).
+  return { ...params, on }
 }
 
 function selectorFromDesktopCatalog(catalog: DesktopHubCatalog, host: string): string | undefined {

@@ -60,7 +60,13 @@ Until those clips exist: **N/A** for landing this draft internally; attach befor
 
 Commands: `pnpm test <paths> --maxWorkers=2`, `pnpm tc` (includes the bun composite TS6307 check), `pnpm lint`, `pnpm build`, `pnpm check:changed --base=upstream/main`.
 
-Recorded on this branch: `pnpm tc` passed; `pnpm check:changed --base=upstream/main` 46/46 passed. `pnpm lint`, full `pnpm test`, and `pnpm build` are run before push.
+Recorded on this branch:
+
+- `pnpm tc` passed (node, web, cli, bot-evals; bun composite included)
+- `pnpm check:changed --base=upstream/main`: **46/46**
+- `ORCA_CODE_QUALITY_BASE=upstream/main pnpm lint`: **49/49**
+- Full `pnpm test --maxWorkers=2`: **5070 passed**, 62 skipped; 6 schema assertions were on v51 (fixed). Remaining isolated failures are in files this branch does not touch (agent-hooks persistence, session-store receipts, GitHub cache flush, Claude folder login, PTY secret-scan matching this VM hostname `cursor`)
+- `pnpm build`: desktop/CLI/electron-vite/web + skills-cli verification passed. `build:mobile-web` stopped because `mobile/` deps are not installed in this environment (this branch does not touch `mobile/`)
 
 ## Performance
 
