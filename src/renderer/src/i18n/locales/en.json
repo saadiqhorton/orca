@@ -3283,6 +3283,10 @@
       "ipcEvents": {
         "sshManagedServer": {
           "refusedBlocked": "Orca couldn’t set itself up on this SSH host. SSH Hosts in Settings shows why."
+        },
+        "terminalRevealPending": {
+          "opened": "Opened a tab on {{value0}}. Orca could not show it.",
+          "showTab": "Show tab"
         }
       },
       "composerState": {

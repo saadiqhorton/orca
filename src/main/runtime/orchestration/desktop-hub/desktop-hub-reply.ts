@@ -27,8 +27,8 @@ export async function sendDesktopHubAnswer(input: {
   callEnvironment?: DesktopHubAnswerCall
 }): Promise<void> {
   const params = { requestId: input.requestId, ...input.answer }
-  const transport = input.subscription as DesktopHubAnswerTransport
-  if (transport.sendRequest) {
+  const transport = input.subscription
+  if ('sendRequest' in transport && typeof transport.sendRequest === 'function') {
     await transport.sendRequest(DESKTOP_HUB_ANSWER_METHOD, params, DESKTOP_HUB_ANSWER_TIMEOUT_MS)
     return
   }

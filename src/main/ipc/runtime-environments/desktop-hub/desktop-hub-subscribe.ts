@@ -7,7 +7,10 @@ import { getPreferredPairedRuntimeConnection } from '../../../../shared/remote-r
 import '../../../../shared/remote-runtime/requests/remote-runtime-request-socket'
 import { subscribeRemoteRuntimeTransport } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-transport'
 import type { RemoteRuntimeTransportSubscription } from '../../../../shared/remote-runtime/requests/remote-runtime-subscription-contract'
-import type { RuntimeOrchestrationEnvelope } from '../../../../shared/remote-runtime/rpc/runtime-rpc-envelope'
+import type {
+  RuntimeOrchestrationEnvelope,
+  RuntimeRpcResponse
+} from '../../../../shared/remote-runtime/rpc/runtime-rpc-envelope'
 import { answerDesktopHubRequest } from '../../../runtime/orchestration/desktop-hub/desktop-hub-answer'
 import {
   createDesktopHubDeliver,
@@ -113,11 +116,11 @@ async function answerAndSend(
         params,
         timeoutMs,
         placement.pairingRevision,
-        envelope as RuntimeOrchestrationEnvelope | undefined
+        hubCallEnvelope(envelope)
       ),
     callLocal: async (_placement, method, params, _timeoutMs, envelope) => {
       const response = await options.callLocal(method, params, envelope)
-      return response as Awaited<ReturnType<typeof callRuntimeEnvironment>>
+      return hubLocalResponse(response)
     }
   })
   await sendDesktopHubAnswer({
@@ -127,6 +130,40 @@ async function answerAndSend(
     callEnvironment: (method, params, timeoutMs) =>
       callRuntimeEnvironment(options.userDataPath, options.environmentId, method, params, timeoutMs)
   })
+}
+
+function hubCallEnvelope(envelope: unknown): RuntimeOrchestrationEnvelope | undefined {
+  if (envelope == null || typeof envelope !== 'object') {
+    return undefined
+  }
+  const parsed: RuntimeOrchestrationEnvelope = {}
+  Object.assign(parsed, envelope)
+  return parsed
+}
+
+function hubLocalResponse(response: {
+  ok: boolean
+  result?: unknown
+  error?: { code: string; message: string }
+}): RuntimeRpcResponse<unknown> {
+  if (response.ok) {
+    const success: RuntimeRpcResponse<unknown> = {
+      id: '',
+      ok: true,
+      result: response.result,
+      _meta: { runtimeId: '' }
+    }
+    return success
+  }
+  const failure: RuntimeRpcResponse<unknown> = {
+    id: '',
+    ok: false,
+    error: response.error ?? {
+      code: 'host_unreachable',
+      message: 'Desktop hub local call failed.'
+    }
+  }
+  return failure
 }
 
 function isHubRequest(value: unknown): value is DesktopHubRequestEvent {

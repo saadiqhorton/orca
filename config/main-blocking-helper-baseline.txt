@@ -1184,12 +1184,14 @@
 9 src/main/runtime/orchestration/db/tasks/task-status-transition.ts
 2 src/main/runtime/orchestration/db/tasks/task-store.ts
 5 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-abandon.ts
-12 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-outcome.ts # the same ready transaction lifts the Task block of a start seen only late, inside orchestration DB writes that were already synchronous
+17 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-outcome.ts # ready-from-start plus blocked-on-prompt mark/clear stay inside the same orchestration DB writes that were already synchronous, so a first-turn 400 can fail a ready worker without deleting the row
 5 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-settlement.ts
 4 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-stage.ts
 6 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-start.ts
 22 src/main/runtime/orchestration/db/worker-dispatch/worker-dispatch-stop.ts
 5 src/main/runtime/orchestration/db/worker-dispatch/worker-terminal-recovery.ts
+2 src/main/runtime/orchestration/desktop-hub/desktop-hub-placement-store.ts # one-shot fingerprint cache so worker-show/stop survive a daemon restart
+4 src/main/runtime/orchestration/desktop-hub/desktop-hub-registry.ts # reads and writes that one-shot placement cache when the desktop hub binds a host
 1 src/main/runtime/orchestration/dock/worker-dock-acknowledgment.ts # only on the user's Clear, Clear all or Show in dock again click; no passive caller
 1 src/main/runtime/orchestration/dock/worker-dock-provider-failures.ts # only when a provider subagent or command fails: one transaction per failure batch, so a failure stays until the user clears it; successful child events never reach the database
 3 src/main/runtime/orchestration/dock/worker-dock-read-snapshot.ts # one consistent read transaction (BEGIN, never IMMEDIATE) per dock read: the cold seed of a visible unknown source, subscribe, a lifecycle or visible activity change of this chat's own workers, or a roster window the user loads; unrelated wakes skip it by version and hidden chats never read

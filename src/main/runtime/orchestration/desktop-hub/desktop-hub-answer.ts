@@ -88,8 +88,9 @@ function findRow(catalog: DesktopHubCatalog, request: DesktopHubRequestEvent) {
   if (request.hostKey) {
     return catalog.hosts.find((row) => row.hostKey === request.hostKey)
   }
-  if (!request.name) {
+  const name = request.name
+  if (!name) {
     return undefined
   }
-  return catalog.hosts.find((row) => desktopHubRowMatches(row, request.name as string))
+  return catalog.hosts.find((row) => desktopHubRowMatches(row, name))
 }
