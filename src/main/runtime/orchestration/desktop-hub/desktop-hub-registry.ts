@@ -106,6 +106,9 @@ export class DesktopHubRegistry {
         if (index !== -1) {
           this.volunteers.splice(index, 1)
         }
+        if (this.volunteers.length === 0) {
+          this.bound = null
+        }
       }
     }
   }

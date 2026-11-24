@@ -1,3 +1,4 @@
+import { quoteCliCommandArgument } from '../arguments/shell-command-quote'
 import { RuntimeClientError } from '../runtime/connection/types'
 import type { RuntimeClient } from '../runtime/client'
 import { shouldWrapDesktopHubHost } from './desktop-hub-command-route'
@@ -88,7 +89,7 @@ function formatCorrectedCommand(
   flags: ReadonlyMap<string, string | boolean>,
   host: string
 ): string {
-  const parts = ['orca', ...commandPath, `--host ${host}`]
+  const parts = ['orca', ...commandPath, `--host ${quoteCliCommandArgument(host)}`]
   for (const [key, value] of flags) {
     if (key === 'host' || key === 'json' || key === 'help') {
       continue

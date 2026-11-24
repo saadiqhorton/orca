@@ -88,6 +88,7 @@ function outline(rows: readonly HostSectionRow[]): string[] {
 
 function build(repos: Repo[], projectGroups: ProjectGroup[], settings = view()) {
   const worktrees = repos.map((entry) => ({
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fixture repos only use the HOSTS tuple ids.
     hostId: entry.executionHostId as (typeof HOSTS)[number],
     repoId: entry.id
   }))

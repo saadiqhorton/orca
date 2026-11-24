@@ -151,6 +151,7 @@ describe('bindDesktopHubHost', () => {
         return { id: '1', ok: true as const, result: {}, _meta: { runtimeId: 'local' } }
       })
     }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     const wrapped = await bindDesktopHubHost(inner as never, flags)
     expect(flags.has('host')).toBe(false)
     expect(wrapped.isRemote).toBe(true)
@@ -178,6 +179,7 @@ describe('bindDesktopHubHost', () => {
         _meta: { runtimeId: 'local' }
       }))
     }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     await expect(bindDesktopHubHost(inner as never, flags)).rejects.toBeInstanceOf(
       RuntimeClientError
     )
@@ -203,6 +205,7 @@ describe('bindDesktopHubHost', () => {
         _meta: { runtimeId: 'local' }
       }))
     }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     await expect(bindDesktopHubHost(inner as never, flags)).rejects.toMatchObject({
       code: 'unknown_host',
       message: expect.stringContaining('ubuntu-server-local')
@@ -217,6 +220,7 @@ describe('bindDesktopHubHost', () => {
         throw new RuntimeClientError('runtime_unavailable', 'hub down')
       })
     }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     await expect(bindDesktopHubHost(inner as never, flags)).rejects.toMatchObject({
       code: 'desktop_hub_unavailable'
     })

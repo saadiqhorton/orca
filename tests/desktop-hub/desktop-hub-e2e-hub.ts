@@ -1,16 +1,16 @@
-import { DESKTOP_HUB_CLIENT_CAPABILITY } from '../../../../shared/orchestration/desktop-hub-contract'
-import type { DesktopHubRequestEvent } from '../../../../shared/orchestration/desktop-hub-contract'
-import { pairedRuntimeConnectionFromOffer } from '../../../../shared/remote-runtime/pairing/paired-runtime-connection'
-import type { PairingOffer } from '../../../../shared/remote-runtime/pairing/mobile-relay-pairing-offer'
-import '../../../../shared/remote-runtime/requests/remote-runtime-request-socket'
-import { RemoteRuntimeSharedControlConnection } from '../../../../shared/remote-runtime/control/remote-runtime-shared-control-connection'
-import type { RemoteRuntimeSharedSubscription } from '../../../../shared/remote-runtime/control/remote-runtime-shared-control-types'
-import { buildDesktopHubCatalog } from './desktop-hub-catalog'
+import { DESKTOP_HUB_CLIENT_CAPABILITY } from '../../src/shared/orchestration/desktop-hub-contract'
+import type { DesktopHubRequestEvent } from '../../src/shared/orchestration/desktop-hub-contract'
+import { pairedRuntimeConnectionFromOffer } from '../../src/shared/remote-runtime/pairing/paired-runtime-connection'
+import type { PairingOffer } from '../../src/shared/remote-runtime/pairing/mobile-relay-pairing-offer'
+import '../../src/shared/remote-runtime/requests/remote-runtime-request-socket'
+import { RemoteRuntimeSharedControlConnection } from '../../src/shared/remote-runtime/control/remote-runtime-shared-control-connection'
+import type { RemoteRuntimeSharedSubscription } from '../../src/shared/remote-runtime/control/remote-runtime-shared-control-types'
+import { buildDesktopHubCatalog } from '../../src/main/runtime/orchestration/desktop-hub/desktop-hub-catalog'
 import {
   createDesktopHubDeliver,
   sendDesktopHubAnswer,
   type DesktopHubAnswerBody
-} from './desktop-hub-reply'
+} from '../../src/main/runtime/orchestration/desktop-hub/desktop-hub-reply'
 import { isHubRequest } from './desktop-hub-e2e-support'
 
 export function crossHostE2eCatalog() {

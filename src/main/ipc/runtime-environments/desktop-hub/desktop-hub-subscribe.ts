@@ -136,9 +136,25 @@ function hubCallEnvelope(envelope: unknown): RuntimeOrchestrationEnvelope | unde
   if (envelope == null || typeof envelope !== 'object') {
     return undefined
   }
+  const record = envelope
   const parsed: RuntimeOrchestrationEnvelope = {}
-  Object.assign(parsed, envelope)
-  return parsed
+  if ('orchestrationRequestId' in record && typeof record.orchestrationRequestId === 'string') {
+    parsed.orchestrationRequestId = record.orchestrationRequestId
+  }
+  if (
+    'orchestrationContractVersion' in record &&
+    typeof record.orchestrationContractVersion === 'number'
+  ) {
+    parsed.orchestrationContractVersion = record.orchestrationContractVersion
+  }
+  if ('orchestrationCapability' in record && typeof record.orchestrationCapability === 'string') {
+    parsed.orchestrationCapability = record.orchestrationCapability
+  }
+  return parsed.orchestrationRequestId ||
+    parsed.orchestrationContractVersion !== undefined ||
+    parsed.orchestrationCapability
+    ? parsed
+    : undefined
 }
 
 function hubLocalResponse(response: {

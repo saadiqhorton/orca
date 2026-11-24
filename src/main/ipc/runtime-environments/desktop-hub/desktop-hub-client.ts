@@ -120,7 +120,7 @@ export function installDesktopConnectedSurfaces(
       runtime.getOrchestrationDb().getOrCreateLocalMutationCallerFingerprint(),
     callLocal: (method, params, envelope) => {
       const record =
-        envelope && typeof envelope === 'object' ? (envelope as Record<string, unknown>) : {}
+        envelope && typeof envelope === 'object' ? Object.fromEntries(Object.entries(envelope)) : {}
       return runtimeRpc.dispatchLocal({
         method,
         params,

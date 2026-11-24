@@ -50,16 +50,20 @@ export async function assertRemoteHostHasAgent(args: {
   }
   let installed: string[]
   try {
-    const inventory = (await args.runtime.callOrchestrationWorkerServer(
+    const inventory: unknown = await args.runtime.callOrchestrationWorkerServer(
       args.environmentId,
       'orchestration.surface.inventory',
       {},
       args.timeoutMs,
       undefined,
       args.pairingFence
-    )) as { agents?: unknown }
-    installed = Array.isArray(inventory.agents)
-      ? inventory.agents.filter((name): name is string => typeof name === 'string')
+    )
+    const agents =
+      typeof inventory === 'object' && inventory !== null && 'agents' in inventory
+        ? inventory.agents
+        : undefined
+    installed = Array.isArray(agents)
+      ? agents.filter((name): name is string => typeof name === 'string')
       : []
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'agent_unconfigured') {

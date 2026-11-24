@@ -27,6 +27,8 @@ describe('resolveDesktopHubHost', () => {
     const client = hubList([
       { kind: 'execution', name: 'ubuntu-server-local', status: 'connected', id: 'env-u' }
     ])
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: vi.fn call mock is a partial RuntimeClient stub.
     await expect(resolveDesktopHubHost(client as never, 'TEMPLEOFDOOM')).resolves.toMatchObject({
       status: 'unknown',
       names: ['ubuntu-server-local']
@@ -58,6 +60,8 @@ describe('resolveDesktopHubHost', () => {
         id: 'env-clawd'
       }
     ])
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: vi.fn call mock is a partial RuntimeClient stub.
     await expect(resolveDesktopHubHost(client as never, '192.168.1.35')).resolves.toMatchObject({
       status: 'matched',
       row: { name: 'clawd' }
@@ -74,6 +78,7 @@ describe('resolveDesktopHubHost', () => {
       status: 'unavailable'
     })
     const flags = new Map<string, string | boolean>([['host', 'ubuntu-server-local']])
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     await expect(bindDesktopHubHost(client as never, flags)).rejects.toMatchObject({
       code: 'desktop_hub_unavailable'
     })

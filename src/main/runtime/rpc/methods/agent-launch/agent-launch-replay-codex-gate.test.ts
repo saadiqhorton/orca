@@ -25,6 +25,7 @@ describe('agent.launchReplay Codex version gate', () => {
       sessionOptions: { model: 'gpt-6-luna' }
     })
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     await expect(AGENT_LAUNCH_REPLAY.handler(params, { runtime } as never)).rejects.toThrow(
       'needs Codex 0.156.0 or newer; this host has 0.154.0'
     )

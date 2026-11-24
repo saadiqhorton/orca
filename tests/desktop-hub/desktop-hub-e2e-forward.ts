@@ -1,7 +1,7 @@
 import { runProcessSync } from '@orca/process-host'
-import type { DesktopHubPlacement } from '../../../../shared/orchestration/desktop-hub-contract'
-import type { RuntimeRpcResponse } from '../../../../shared/remote-runtime/rpc/runtime-rpc-envelope'
-import type { RemoteRuntimeRequestConnection } from '../../../../shared/remote-runtime/requests/remote-runtime-request-connection'
+import type { DesktopHubPlacement } from '../../src/shared/orchestration/desktop-hub-contract'
+import type { RuntimeRpcResponse } from '../../src/shared/remote-runtime/rpc/runtime-rpc-envelope'
+import type { RemoteRuntimeRequestConnection } from '../../src/shared/remote-runtime/requests/remote-runtime-request-connection'
 import { rpcOk } from './desktop-hub-e2e-support'
 
 type Forwarded = string[]

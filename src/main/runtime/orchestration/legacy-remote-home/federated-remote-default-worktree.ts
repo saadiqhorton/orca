@@ -9,8 +9,6 @@ import {
 } from '../../../../shared/orchestration/orchestration-group-selector'
 import type { FederatedWorkerStartRequest } from './federated-worker-start-request'
 
-type ScratchReceipt = { worktree?: string; path?: string }
-
 /** `--worktree current` on a desktop-connected host becomes ~/orca-orchestration there.
  * group:/same-group: must be resolved on that host, never rewritten to the caller's worktree. */
 export async function resolveFederatedWorkerWorktree(
@@ -47,13 +45,17 @@ async function resolveRemoteGroupWorktree(
   name: string,
   named: boolean
 ): Promise<string | null> {
-  const inventory = (await runtime.callOrchestrationWorkerServer(
+  const inventory: unknown = await runtime.callOrchestrationWorkerServer(
     environmentId,
     'orchestration.surface.inventory',
     {},
     30_000
-  )) as { projects?: InventoryProjectGroup[] }
-  const groups = Array.isArray(inventory.projects) ? inventory.projects : []
+  )
+  const projects =
+    typeof inventory === 'object' && inventory !== null && 'projects' in inventory
+      ? inventory.projects
+      : undefined
+  const groups: InventoryProjectGroup[] = Array.isArray(projects) ? projects : []
   const resolved = resolveUniqueGroupMember(groups, name)
   if (resolved.status === 'unique') {
     return resolved.member.selector
@@ -73,17 +75,25 @@ async function ensureRemoteScratchWorktree(
   params: FederatedWorkerStartRequest['params']
 ): Promise<string> {
   try {
-    const scratch = (await runtime.callOrchestrationWorkerServer(
+    const scratch: unknown = await runtime.callOrchestrationWorkerServer(
       environmentId,
       'orchestration.surface.ensureScratch',
       {},
       30_000
-    )) as ScratchReceipt
-    const selector =
-      typeof scratch.worktree === 'string' && scratch.worktree.length > 0
+    )
+    const worktree =
+      typeof scratch === 'object' && scratch !== null && 'worktree' in scratch
         ? scratch.worktree
-        : typeof scratch.path === 'string' && scratch.path.length > 0
-          ? `path:${scratch.path}`
+        : undefined
+    const path =
+      typeof scratch === 'object' && scratch !== null && 'path' in scratch
+        ? scratch.path
+        : undefined
+    const selector =
+      typeof worktree === 'string' && worktree.length > 0
+        ? worktree
+        : typeof path === 'string' && path.length > 0
+          ? `path:${path}`
           : null
     if (selector) {
       return selector

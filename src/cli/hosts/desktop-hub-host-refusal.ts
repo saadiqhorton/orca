@@ -1,3 +1,4 @@
+import { quoteCliCommandArgument } from '../arguments/shell-command-quote'
 import type { RuntimeClient } from '../runtime/client'
 import { RuntimeClientError } from '../runtime/connection/types'
 import { desktopHubRowMatches } from '../../shared/orchestration/desktop-hub-contract'
@@ -24,26 +25,38 @@ export async function refuseDesktopHubHostAlias(
   if (!Array.isArray(hosts)) {
     return
   }
-  const row = (hosts as HubRow[]).find(
-    (candidate): candidate is HubRow & { name: string } =>
-      typeof candidate === 'object' &&
-      candidate !== null &&
-      candidate.kind === 'execution' &&
-      typeof candidate.name === 'string' &&
-      desktopHubRowMatches(candidate as { name: string }, alias)
-  )
+  const listed: unknown[] = hosts
+  const row = listed.find((candidate): candidate is HubRow & { name: string } => {
+    if (typeof candidate !== 'object' || candidate === null) {
+      return false
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: hub list rows are untyped JSON; kind and name are validated before use.
+    const entry = candidate as HubRow
+    if (entry.kind !== 'execution' || typeof entry.name !== 'string') {
+      return false
+    }
+    return desktopHubRowMatches(
+      {
+        name: entry.name,
+        machineName: typeof entry.machineName === 'string' ? entry.machineName : undefined,
+        label: typeof entry.label === 'string' ? entry.label : undefined,
+        id: typeof entry.id === 'string' ? entry.id : undefined
+      },
+      alias
+    )
+  })
   if (!row) {
     return
   }
   throw new RuntimeClientError(
     'invalid_argument',
-    `${flagSpelling} names ${row.name}, a machine the desktop app is connected to. Open a visible tab there with \`orca agent launch --host ${row.name}\` or \`orca terminal create --host ${row.name}\`; inspect the fleet with \`orca host inventory\`. Nothing was created.`,
+    `${flagSpelling} names ${row.name}, a machine the desktop app is connected to. Open a visible tab there with \`orca agent launch --host ${quoteCliCommandArgument(row.name)}\` or \`orca terminal create --host ${quoteCliCommandArgument(row.name)}\`; inspect the fleet with \`orca host inventory\`. Nothing was created.`,
     {
       nextSteps: [
         `orca host inventory --json`,
-        `orca agent launch --host ${row.name} --agent <agent> --prompt "<task>" --json`,
-        `orca terminal create --host ${row.name} --json`,
-        `orca orchestration worker-start --host ${row.name} --agent <agent> --spec "<task>"`
+        `orca agent launch --host ${quoteCliCommandArgument(row.name)} --agent <agent> --prompt "<task>" --json`,
+        `orca terminal create --host ${quoteCliCommandArgument(row.name)} --json`,
+        `orca orchestration worker-start --host ${quoteCliCommandArgument(row.name)} --agent <agent> --spec "<task>"`
       ]
     }
   )

@@ -2,19 +2,29 @@ import { runProcessSync } from '@orca/process-host'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pairedRuntimeConnectionFromOffer } from '../../../../shared/remote-runtime/pairing/paired-runtime-connection'
-import { RemoteRuntimeRequestConnection } from '../../../../shared/remote-runtime/requests/remote-runtime-request-connection'
-import '../../../../shared/remote-runtime/requests/remote-runtime-request-socket'
-import { answerDesktopHubRequest } from './desktop-hub-answer'
+import { pairedRuntimeConnectionFromOffer } from '../../src/shared/remote-runtime/pairing/paired-runtime-connection'
+import { RemoteRuntimeRequestConnection } from '../../src/shared/remote-runtime/requests/remote-runtime-request-connection'
+import '../../src/shared/remote-runtime/requests/remote-runtime-request-socket'
+import { answerDesktopHubRequest } from '../../src/main/runtime/orchestration/desktop-hub/desktop-hub-answer'
 import { crossHostE2eCallHost, crossHostE2eCallLocal } from './desktop-hub-e2e-forward'
 import {
   crossHostE2eCatalog,
   formatDesktopHubList,
   volunteerDesktopHubOverSharedControl
 } from './desktop-hub-e2e-hub'
-import { getDesktopHubRegistry } from './desktop-hub-registry'
-import { OrcaRuntimeRpcServer } from '../../rpc/server/runtime-rpc'
-import { pairingOf, rejectionCode, resultOf, stubRuntime, waitFor } from './desktop-hub-e2e-support'
+import { getDesktopHubRegistry } from '../../src/main/runtime/orchestration/desktop-hub/desktop-hub-registry'
+import { OrcaRuntimeRpcServer } from '../../src/main/runtime/rpc/server/runtime-rpc'
+import {
+  inventoryAgentsFromBody,
+  inventoryFoldersFromBody,
+  listedDesktopHubHosts,
+  oneLineTranscript,
+  pairingOf,
+  rejectionCode,
+  resultOf,
+  stubRuntime,
+  waitFor
+} from './desktop-hub-e2e-support'
 
 const IDENTITY = {
   appInstallationId: 'desktop-install-0001',
@@ -112,11 +122,7 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     if (!listed.ok) {
       throw new Error(listed.error.message)
     }
-    const hosts = (
-      listed.result as {
-        hosts: { name: string; machineName?: string; status: string; selector: string }[]
-      }
-    ).hosts
+    const hosts = listedDesktopHubHosts(listed.result)
     for (const line of formatDesktopHubList(hosts)) {
       say(line)
     }
@@ -187,11 +193,10 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
     const startResult = resultOf(started)
     const readResult = resultOf(read)
     const stopResult = resultOf(stopped)
-    const oneLine = (value: unknown): string => String(value).replace(/\n/g, ' | ')
     say(`forwarded: ${forwardedMethods.join(' -> ')}`)
-    say(`hostname in host B worktree: ${oneLine(startResult.output)}`)
-    say(`worker-read: ${oneLine(readResult.output)}`)
-    say(`worker-stop: ${stopResult.state}`)
+    say(`hostname in host B worktree: ${oneLineTranscript(startResult.output)}`)
+    say(`worker-read: ${oneLineTranscript(readResult.output)}`)
+    say(`worker-stop: ${String(stopResult.state)}`)
     say('$ orca agent launch --host ubuntu-server-local --agent claude')
     const launched = await registry.call(
       placed.selector,
@@ -214,12 +219,9 @@ export async function runCrossHostOrchestrationE2e(): Promise<CrossHostE2eTransc
       8_000,
       undefined
     )
-    const inventoryAgents = Array.isArray(resultOf(inventory).agents)
-      ? (resultOf(inventory).agents as string[])
-      : []
-    const inventoryFolders = Array.isArray(resultOf(inventory).folderWorkspaces)
-      ? (resultOf(inventory).folderWorkspaces as { id?: string; selector?: string }[])
-      : []
+    const inventoryBody = resultOf(inventory)
+    const inventoryAgents = inventoryAgentsFromBody(inventoryBody)
+    const inventoryFolders = inventoryFoldersFromBody(inventoryBody)
     const listedScratch = inventoryFolders.some(
       (folder) => folder.id === 'fld_e2e' || folder.selector === scratchWorktree
     )

@@ -14,8 +14,7 @@ import type { RuntimeRpcSuccess } from '../../shared/remote-runtime/rpc/runtime-
 import type { RuntimeClient } from '../runtime/client'
 import type { RuntimeCallOptions } from '../runtime/connection/types'
 import { desktopHubClientTimeoutMs, desktopHubForwardTimeoutMs } from './desktop-hub-call-timeout'
-
-const HUB_CONTROL_PREFIX = 'orchestration.desktopHub.'
+import { assertDesktopHubForwardableMethod } from '../../shared/orchestration/desktop-hub-forwardable-methods'
 
 function hubEnvelope(
   method: string,
@@ -75,6 +74,7 @@ function cliStatusFromRuntime(
 
 /** Every RPC except hub control-plane methods runs on the named desktop-connected host. */
 export function wrapDesktopHubClient(inner: RuntimeClient, host: string): RuntimeClient {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the wrapper inherits RuntimeClient methods and overrides only call/getCliStatus.
   const wrapped = Object.create(inner) as RuntimeClient
   Object.defineProperty(wrapped, 'isRemote', { get: () => true })
   wrapped.call = async <TResult>(
@@ -82,9 +82,10 @@ export function wrapDesktopHubClient(inner: RuntimeClient, host: string): Runtim
     params?: unknown,
     options?: RuntimeCallOptions
   ): Promise<RuntimeRpcSuccess<TResult>> => {
-    if (method.startsWith(HUB_CONTROL_PREFIX)) {
+    if (method.startsWith('orchestration.desktopHub.')) {
       return inner.call<TResult>(method, params, options)
     }
+    assertDesktopHubForwardableMethod(method)
     const envelope = hubEnvelope(method, params, options)
     const timeoutMs = desktopHubForwardTimeoutMs(method, options?.timeoutMs)
     const callOptions =

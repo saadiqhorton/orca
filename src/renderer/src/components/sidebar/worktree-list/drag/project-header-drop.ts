@@ -1,3 +1,4 @@
+import { isProjectHeaderDragPreviewNode } from './project-header-drag-preview-dom'
 import { measureSidebarHeaderDragRect } from './sidebar-header-drag-geometry'
 import { getEffectiveProjectGroupManualRank } from '../../../../../../shared/project/groups/project-groups'
 import {
@@ -106,6 +107,9 @@ export function measureProjectHeaderDragRects(
   const containerRect = container.getBoundingClientRect()
   const rects: ProjectHeaderDragRect[] = []
   container.querySelectorAll<HTMLElement>('[data-repo-header-id]').forEach((element) => {
+    if (isProjectHeaderDragPreviewNode(element)) {
+      return
+    }
     const repoId = element.getAttribute('data-repo-header-id')
     const elementBucketKey = element.getAttribute('data-repo-header-bucket')
     const rawHeaderIndex = element.getAttribute('data-repo-header-index')

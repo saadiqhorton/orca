@@ -3,7 +3,7 @@ import { assertCodexModelSupported } from '../../../../agent-launch/agent-launch
 import type { TuiAgent } from '../../../../../../../../shared/agent-launch/catalog/tui-agent'
 
 export async function assertWorkerCodexModelSupported(
-  agent: TuiAgent | string | null | undefined,
+  agent: TuiAgent | null | undefined,
   model: string | null | undefined
 ): Promise<void> {
   if (agent !== 'codex') {

@@ -2,7 +2,11 @@ import { z } from 'zod'
 import { OptionalFiniteNumber, requiredString } from '../rpc-param-primitives'
 import { ORCHESTRATION_WORKER_READ_SOURCES } from '../../orchestration/workers/orchestration-worker-output'
 
-export const WorkerDispatchParams = z.object({ dispatch: requiredString('Missing --dispatch') })
+export const WorkerDispatchParams = z.object({
+  dispatch: requiredString('Missing --dispatch').transform((value) =>
+    value.replace(/^dispatch:/i, '')
+  )
+})
 
 export const WorkerReadParams = WorkerDispatchParams.extend({
   cursor: z.union([z.number().int().nonnegative(), z.string().min(1).max(2_048)]).optional(),

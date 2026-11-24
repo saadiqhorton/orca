@@ -103,11 +103,11 @@ export function desktopHubRowMatches(
   },
   query: string
 ): boolean {
-  const wanted = query.trim()
+  const wanted = query.trim().toLowerCase()
   // `orca host list --json` prints the environment id too; accept it as a selector.
   // SSH host/label aliases let `--host 192.168.1.35` match a managed target named clawd.
   return [row.name, row.machineName, row.label, row.id, ...(row.aliases ?? [])].some(
-    (value) => value === wanted
+    (value) => value?.trim().toLowerCase() === wanted
   )
 }
 

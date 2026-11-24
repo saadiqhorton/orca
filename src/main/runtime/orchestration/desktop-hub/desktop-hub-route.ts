@@ -18,7 +18,7 @@ type LocalServerResolver = {
  * The desktop itself already holds the pairing store, so it uses that environment id.
  */
 export async function desktopHubOnSelector(
-  runtime: object,
+  runtime: WeakKey,
   host: string | undefined,
   on: string | undefined
 ): Promise<string | undefined> {
@@ -50,7 +50,7 @@ export async function desktopHubOnSelector(
 }
 
 export async function routeDesktopHubCommand<T extends { host?: string; on?: string }>(
-  runtime: object,
+  runtime: WeakKey,
   params: T
 ): Promise<T> {
   const on = await desktopHubOnSelector(runtime, params.host, params.on)
@@ -78,7 +78,8 @@ function selectorFromDesktopCatalog(catalog: DesktopHubCatalog, host: string): s
   return row.hostKey
 }
 
-function resolveLocalServer(runtime: object, host: string): string | null {
+function resolveLocalServer(runtime: WeakKey, host: string): string | null {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: optional worker-server lookup on runtimes that expose it; missing method means no local row.
   const resolver = runtime as LocalServerResolver
   if (!resolver.resolveOrchestrationWorkerServer) {
     return null

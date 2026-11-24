@@ -1,3 +1,4 @@
+import { isProjectHeaderDragPreviewNode } from './project-header-drag-preview-dom'
 import { measureSidebarHeaderDragRect } from './sidebar-header-drag-geometry'
 import {
   computeWorktreeSidebarHeaderDropPreview,
@@ -134,6 +135,9 @@ export function measureProjectGroupHeaderDragRects(
   const containerRect = container.getBoundingClientRect()
   const rects: ProjectGroupHeaderDragRect[] = []
   container.querySelectorAll<HTMLElement>('[data-project-group-header-id]').forEach((element) => {
+    if (isProjectHeaderDragPreviewNode(element)) {
+      return
+    }
     const groupId = element.getAttribute('data-project-group-header-id')
     const elementBucketKey = element.getAttribute('data-project-group-header-bucket')
     const rawHeaderIndex = element.getAttribute('data-project-group-header-index')

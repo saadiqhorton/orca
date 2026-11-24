@@ -50,7 +50,10 @@ export const DESKTOP_HUB_METHODS = [
     permission: 'workspace',
     params: DesktopHubCallParams,
     access: { kind: 'localOnly', targets: {} },
-    handler: async (params, ctx) => callDesktopHubHost(ctx.runtime, params)
+    handler: async (params, ctx) => {
+      getDesktopHubRegistry(ctx.runtime).assertCaller({ pairedDeviceId: ctx.pairedDeviceId })
+      return callDesktopHubHost(ctx.runtime, params)
+    }
   }),
   defineOrchestrationMethod({
     name: 'orchestration.desktopHub.inventory',

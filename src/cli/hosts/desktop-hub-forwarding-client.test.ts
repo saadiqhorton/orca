@@ -3,8 +3,8 @@ import { wrapDesktopHubClient } from './desktop-hub-forwarding-client'
 import type { RuntimeClient } from '../runtime/client'
 
 function inner(calls: unknown[]): RuntimeClient {
-  return {
-    isRemote: false,
+  const stub = {
+    isRemote: false as const,
     call: vi.fn(async (method: string, params: unknown) => {
       calls.push({ method, params })
       return {
@@ -14,7 +14,9 @@ function inner(calls: unknown[]): RuntimeClient {
         _meta: { runtimeId: 'local' }
       }
     })
-  } as unknown as RuntimeClient
+  }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: vi.fn call mock is a partial RuntimeClient stub.
+  return stub as unknown as RuntimeClient
 }
 
 describe('wrapDesktopHubClient', () => {
@@ -45,36 +47,36 @@ describe('wrapDesktopHubClient', () => {
 
   it('forwards terminal.send prompt envelopes and reads status from the target host', async () => {
     const calls: unknown[] = []
-    const client = wrapDesktopHubClient(
-      {
-        ...inner(calls),
-        call: vi.fn(async (method: string, params: unknown) => {
-          calls.push({ method, params })
-          if (method === 'orchestration.desktopHub.call') {
-            const forwarded = params as { method?: string }
-            if (forwarded.method === 'status.get') {
-              return {
-                id: '1',
-                ok: true as const,
-                result: {
-                  runtimeId: 'host-b',
-                  graphStatus: 'ready',
-                  capabilities: ['terminal.prompt-delivery']
-                },
-                _meta: { runtimeId: 'host-b' }
-              }
+    const remote = {
+      ...inner(calls),
+      call: vi.fn(async (method: string, params: unknown) => {
+        calls.push({ method, params })
+        if (method === 'orchestration.desktopHub.call') {
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: hub call params are an object envelope in this test.
+          const forwarded = params as { method?: string }
+          if (forwarded.method === 'status.get') {
+            return {
+              id: '1',
+              ok: true as const,
+              result: {
+                runtimeId: 'host-b',
+                graphStatus: 'ready',
+                capabilities: ['terminal.prompt-delivery']
+              },
+              _meta: { runtimeId: 'host-b' }
             }
           }
-          return {
-            id: '1',
-            ok: true as const,
-            result: { send: { accepted: true, prompt: { requestId: 'req_1' } } },
-            _meta: { runtimeId: 'host-b' }
-          }
-        })
-      } as never,
-      'ubuntu-server-local'
-    )
+        }
+        return {
+          id: '1',
+          ok: true as const,
+          result: { send: { accepted: true, prompt: { requestId: 'req_1' } } },
+          _meta: { runtimeId: 'host-b' }
+        }
+      })
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: vi.fn call mock is a partial RuntimeClient stub.
+    const client = wrapDesktopHubClient(remote as never, 'ubuntu-server-local')
     const status = await client.getCliStatus()
     expect(status.result.runtime.runtimeId).toBe('host-b')
     expect(status.result.runtime.capabilities).toEqual(['terminal.prompt-delivery'])
@@ -89,14 +91,17 @@ describe('wrapDesktopHubClient', () => {
       },
       { terminalPromptPreflight: { runtimeId: 'host-b' } }
     )
-    const send = calls.find(
-      (entry) =>
-        typeof entry === 'object' &&
-        entry !== null &&
-        'params' in entry &&
-        (entry as { params?: { method?: string } }).params?.method === 'terminal.send'
-    ) as { params: { envelope?: { orchestrationRequestId?: string }; method: string } }
-    expect(send.params.method).toBe('terminal.send')
-    expect(send.params.envelope?.orchestrationRequestId).toEqual(expect.any(String))
+    type SendCall = { params: { envelope?: { orchestrationRequestId?: string }; method: string } }
+    const send = calls.find((entry): entry is SendCall => {
+      if (typeof entry !== 'object' || entry === null || !('params' in entry)) {
+        return false
+      }
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: find only inspects method on captured hub-call params.
+      const params = (entry as { params?: { method?: string } }).params
+      return params?.method === 'terminal.send'
+    })
+    expect(send).toBeDefined()
+    expect(send?.params.method).toBe('terminal.send')
+    expect(send?.params.envelope?.orchestrationRequestId).toEqual(expect.any(String))
   })
 })

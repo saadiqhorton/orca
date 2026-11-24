@@ -1,8 +1,8 @@
-import { parsePairingCode } from '../../../../shared/remote-runtime/pairing/pairing'
-import type { DesktopHubRequestEvent } from '../../../../shared/orchestration/desktop-hub-contract'
-import type { RuntimeClientEvent } from '../../../../shared/remote-runtime/session-graph/runtime-client-events'
-import type { OrcaRuntimeService } from '../../orca-runtime'
-import type { OrcaRuntimeRpcServer } from '../../rpc/server/runtime-rpc'
+import { parsePairingCode } from '../../src/shared/remote-runtime/pairing/pairing'
+import type { DesktopHubRequestEvent } from '../../src/shared/orchestration/desktop-hub-contract'
+import type { RuntimeClientEvent } from '../../src/shared/remote-runtime/session-graph/runtime-client-events'
+import type { OrcaRuntimeService } from '../../src/main/runtime/orca-runtime'
+import type { OrcaRuntimeRpcServer } from '../../src/main/runtime/rpc/server/runtime-rpc'
 
 export function pairingOf(server: OrcaRuntimeRpcServer, name: string) {
   const offer = server.createPairingOffer({ name, scope: 'runtime' })
@@ -78,7 +78,10 @@ export function resultOf(response: {
     throw new Error(response.error?.message ?? 'hub call failed')
   }
   const result = response.result
-  return result && typeof result === 'object' ? (result as Record<string, unknown>) : {}
+  if (!result || typeof result !== 'object') {
+    return {}
+  }
+  return Object.fromEntries(Object.entries(result))
 }
 
 export async function rejectionCode(pending: Promise<unknown>): Promise<string> {
@@ -90,6 +93,67 @@ export async function rejectionCode(pending: Promise<unknown>): Promise<string> 
       : 'error'
   }
   throw new Error('expected the desktop hub to refuse this host')
+}
+
+export type ListedDesktopHubHost = {
+  name: string
+  machineName?: string
+  status: string
+  selector: string
+}
+
+export function listedDesktopHubHosts(result: unknown): ListedDesktopHubHost[] {
+  if (typeof result !== 'object' || result === null || !('hosts' in result)) {
+    return []
+  }
+  const rows = result.hosts
+  if (!Array.isArray(rows)) {
+    return []
+  }
+  return rows.flatMap((row): ListedDesktopHubHost[] => {
+    if (typeof row !== 'object' || row === null) {
+      return []
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: object fields are validated immediately below.
+    const { name, status, selector, machineName } = row as ListedDesktopHubHost
+    if (typeof name !== 'string' || typeof status !== 'string' || typeof selector !== 'string') {
+      return []
+    }
+    return [
+      {
+        name,
+        status,
+        selector,
+        ...(typeof machineName === 'string' ? { machineName } : {})
+      }
+    ]
+  })
+}
+
+export function inventoryAgentsFromBody(body: Record<string, unknown>): string[] {
+  return Array.isArray(body.agents)
+    ? body.agents.filter((agent): agent is string => typeof agent === 'string')
+    : []
+}
+
+export function inventoryFoldersFromBody(
+  body: Record<string, unknown>
+): { id?: string; selector?: string }[] {
+  return Array.isArray(body.folderWorkspaces)
+    ? body.folderWorkspaces.flatMap((folder) => {
+        if (typeof folder !== 'object' || folder === null) {
+          return []
+        }
+        const id = 'id' in folder && typeof folder.id === 'string' ? folder.id : undefined
+        const selector =
+          'selector' in folder && typeof folder.selector === 'string' ? folder.selector : undefined
+        return [{ id, selector }]
+      })
+    : []
+}
+
+export function oneLineTranscript(value: unknown): string {
+  return String(value).replace(/\n/g, ' | ')
 }
 
 export async function waitFor(ready: () => boolean): Promise<void> {

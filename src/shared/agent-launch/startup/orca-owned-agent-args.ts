@@ -13,21 +13,22 @@ export function mergeOrcaOwnedAgentArgs(args: {
   owned: readonly string[] | undefined
   shell: AgentStartupShell
 }): string | null {
-  if (!args.owned?.length) {
+  const owned = args.owned
+  if (!owned?.length) {
     return args.defaultArgs ?? null
   }
+  const emptyDefaults = { ok: true as const, tokens: [] satisfies string[] }
   const defaults = args.defaultArgs?.trim()
     ? tokenizeStartupCommand(args.defaultArgs.trim(), args.shell)
-    : { ok: true as const, tokens: [] as string[] }
+    : emptyDefaults
   if (!defaults.ok) {
     throw new Error(`Default agent arguments are invalid: ${defaults.error}`)
   }
   const already = new Set(defaults.tokens)
-  const inserted = args.owned.filter((token, index) => {
+  const inserted = owned.filter((token, index) => {
     if (!token.startsWith('-')) {
-      return args.owned![index - 1] === undefined || already.has(args.owned![index - 1]!)
-        ? !already.has(token)
-        : true
+      const previous = index > 0 ? owned[index - 1] : undefined
+      return previous === undefined || already.has(previous) ? !already.has(token) : true
     }
     return !already.has(token)
   })

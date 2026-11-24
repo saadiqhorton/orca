@@ -1,4 +1,5 @@
 import { stripWrappingQuotes } from '../text/typed-name-normalization'
+import { composeWorktreeId } from '../worktree/id'
 import { ORCHESTRATION_SCRATCH_GROUP_NAME } from './orchestration-scratch-workspace'
 
 export const GROUP_WORKTREE_PREFIX = 'group:'
@@ -23,7 +24,7 @@ export type InventoryProjectGroup = {
 }
 
 export function repoWorktreeSelector(repoId: string, repoPath: string): string {
-  return `id:${repoId}::${repoPath}`
+  return `id:${composeWorktreeId(repoId, repoPath)}`
 }
 
 export function folderWorktreeSelector(folderId: string): string {

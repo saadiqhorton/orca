@@ -130,6 +130,9 @@ export function collectHeadlessTopLevelTabOrder(
 }
 
 export function getHeadlessMobileSessionGroupId(worktreeId: string): string {
+  if (worktreeId.startsWith('folder:')) {
+    return `orca-orchestration:${worktreeId}`
+  }
   return `headless-terminals:${worktreeId}`
 }
 

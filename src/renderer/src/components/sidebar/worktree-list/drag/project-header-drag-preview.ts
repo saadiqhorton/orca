@@ -195,7 +195,11 @@ export function mountProjectHeaderDragPreview(args: {
     args.pointerY,
     args.sidebar
   )
-  const clone = args.source.cloneNode(true) as HTMLElement
+  const cloned = args.source.cloneNode(true)
+  if (!(cloned instanceof HTMLElement)) {
+    throw new Error('project header drag preview clone must be an HTMLElement')
+  }
+  const clone = cloned
   clone.classList.add(PROJECT_HEADER_DRAG_PREVIEW_CLASS)
   stripPreviewClone(clone)
   clone.style.position = 'fixed'

@@ -16,7 +16,7 @@ export const DesktopHubCallParams = z.object({
       orchestrationContractVersion: z.number().int().nonnegative().optional(),
       orchestrationCapability: z.string().min(1).max(200).optional()
     })
-    .passthrough()
+    .strict()
     .optional()
 })
 

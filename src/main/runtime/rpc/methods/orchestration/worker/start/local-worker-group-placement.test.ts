@@ -9,6 +9,7 @@ describe('resolveLocalWorkerGroupPlacement', () => {
       on: 'env-ubuntu'
     }
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       resolveLocalWorkerGroupPlacement(runtime as never, params as never)
     ).resolves.toEqual(params)
     expect(runtime.listVisibleProjectGroups).not.toHaveBeenCalled()

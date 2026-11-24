@@ -6,6 +6,7 @@ import { measureProjectGroupHeaderDragRects } from './project-group-header-drop'
 import { measureRootProjectHeaderDragRects } from './root-project-header-drop'
 
 function rect(top: number, height = 28, left = 0, width = 240): DOMRect {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: happy-dom does not implement full DOMRect for drag preview measures.
   return {
     top,
     bottom: top + height,

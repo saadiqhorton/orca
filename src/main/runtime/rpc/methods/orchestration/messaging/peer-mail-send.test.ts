@@ -47,9 +47,12 @@ describe('sendStaysOnHomeRun', () => {
 describe('withPeerMailSend', () => {
   it('strips --host when --to is a bare ctx_ id', async () => {
     const send = vi.fn(async (params: { to?: string; on?: string; host?: string }) => params)
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     const handler = withPeerMailSend(send as never)
     await handler(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       { to: 'ctx_home', subject: 'ping', host: 'ubuntu-server-local' } as never,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       { runtime: {}, replayedMutationReceipt: undefined } as never
     )
     expect(send).toHaveBeenCalledWith(

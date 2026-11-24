@@ -28,6 +28,7 @@ afterEach(() => {
 })
 
 function rect(top: number, height: number, left = 0, width = 240): DOMRect {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: happy-dom does not implement full DOMRect for layout drag tests.
   return {
     top,
     bottom: top + height,
@@ -337,6 +338,7 @@ describe('membership section ends', () => {
       key: String(Math.random()),
       ...extra
     })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: fixture rows omit fields the production RenderRow union normally carries.
     const rows = [
       header({ projectGroup: { id: 'infra' }, projectGroupDepth: 0 }),
       header({ projectGroup: { id: 'dockhand' }, projectGroupDepth: 1 }),

@@ -3,11 +3,13 @@ import {
   DesktopHubError,
   desktopHubHostError,
   desktopHubRowMatches,
+  desktopHubSelector,
   unknownDesktopHubHost,
   type DesktopHubCatalog,
   type DesktopHubPlacement,
   type DesktopHubRequestEvent
 } from '../../../../shared/orchestration/desktop-hub-contract'
+import { assertDesktopHubForwardableMethod } from '../../../../shared/orchestration/desktop-hub-forwardable-methods'
 
 export type DesktopHubHostCaller = (
   placement: DesktopHubPlacement,
@@ -41,7 +43,7 @@ export async function answerDesktopHubRequest(input: {
       return { ok: false, error: { code: blocked.code, message: blocked.message } }
     }
     const placement = catalog.placements.find((candidate) => candidate.hostKey === row.hostKey)
-    if (!placement?.peerFingerprint) {
+    if (row.hostKey !== 'desktop' && !placement?.peerFingerprint) {
       return {
         ok: false,
         error: {
@@ -51,12 +53,33 @@ export async function answerDesktopHubRequest(input: {
       }
     }
     if (input.request.op === 'resolve') {
+      if (!placement) {
+        return {
+          ok: false,
+          error: {
+            code: 'host_unreachable',
+            message: `Host "${row.name}" is connected, but this desktop could not open a worker route to it. Orca will not try SSH.`
+          }
+        }
+      }
       return { ok: true, result: placement }
     }
     if (input.request.op !== 'call' || !input.request.method) {
       return {
         ok: false,
         error: { code: 'invalid_argument', message: 'Desktop hub call is missing a method.' }
+      }
+    }
+    try {
+      assertDesktopHubForwardableMethod(input.request.method)
+    } catch (error) {
+      const denied = error instanceof DesktopHubError ? error : null
+      return {
+        ok: false,
+        error: {
+          code: denied?.code ?? 'forbidden',
+          message: denied?.message ?? `Desktop hub cannot forward ${input.request.method}.`
+        }
       }
     }
     const dial = row.hostKey === 'desktop' ? input.callLocal : input.callHost
@@ -70,7 +93,11 @@ export async function answerDesktopHubRequest(input: {
       }
     }
     const result = await dial(
-      placement,
+      placement ?? {
+        ...row,
+        selector: desktopHubSelector(row.hostKey),
+        peerFingerprint: 'local'
+      },
       input.request.method,
       input.request.params,
       input.request.timeoutMs,

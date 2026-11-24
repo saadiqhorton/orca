@@ -41,6 +41,7 @@ function hubClient(calls: { method: string; params: unknown }[]) {
     isRemote: false,
     call: vi.fn(async (method: string, params: unknown) => {
       if (method === 'orchestration.desktopHub.call') {
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: hub call params are an object envelope in this test.
         const forwarded = params as { method: string; params?: unknown }
         return handle(forwarded.method, forwarded.params)
       }
@@ -61,6 +62,7 @@ describe('prepareDesktopHubCliClient', () => {
     const prepared = await prepareDesktopHubCliClient(
       ['worktree', 'create'],
       flags,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       hubClient(calls) as never,
       true
     )
@@ -82,6 +84,7 @@ describe('prepareDesktopHubCliClient', () => {
     const prepared = await prepareDesktopHubCliClient(
       ['worktree', 'create'],
       flags,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       hubClient([]) as never,
       false
     )

@@ -2,10 +2,8 @@ import {
   requestVirtualizedScrollAnchorRecord,
   supersedeVirtualizedScrollAnchorRestore
 } from '@/lib/list-interaction/virtualized-scrolling/requestVirtualizedScrollAnchorRecord'
-import { measureRootProjectHeaderDragRects } from './root-project-header-drop'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { measureProjectHeaderDragRects } from './project-header-drop'
 import { setProjectGroupDropTargetHighlight } from './project-header-membership'
 import {
   computeProjectHeaderSessionDrop,
@@ -20,13 +18,14 @@ import {
   type RepoHeaderDragController,
   type UseRepoHeaderDragArgs
 } from './project-header-drag-contract'
-import { createProjectHeaderDragSession } from './project-header-drag-start'
+import {
+  projectHeaderDragSessionForRepoHeader,
+  refreshProjectHeaderDragSessionRects
+} from './project-header-drag-start'
 import { getWorktreeSidebarDragAutoscroll } from './worktree-sidebar-drag-autoscroll'
 import { hasPointerBeenReleased } from './header-drag-pointer-release'
 import { swallowNextClickOnDragHandle } from './header-drag-click-swallow'
 import type { Repo } from '../../../../../../shared/repository/repo-types'
-
-// Virtualized rows can unmount during drag; pointer events and cached header geometry avoid stale drop targets.
 
 export function useRepoHeaderDrag({
   orderedRepoIds,
@@ -56,17 +55,22 @@ export function useRepoHeaderDrag({
   const usesProjectGroupOrderingRef = useRef(usesProjectGroupOrdering)
   usesProjectGroupOrderingRef.current = usesProjectGroupOrdering
   const membershipOptionsRef = useRef({ canonicalGroupIdOf, allowMembershipDrag, allowReorder })
-  membershipOptionsRef.current = { canonicalGroupIdOf, allowMembershipDrag, allowReorder }
   const onCommitRepoOrderRef = useRef(onCommitRepoOrder)
   onCommitRepoOrderRef.current = onCommitRepoOrder
-  // Read once: callers pass a stable store reader.
   const getLiveReposRef = useRef(getLiveRepos)
   const onCommitProjectGroupOrderRef = useRef(onCommitProjectGroupOrder)
   onCommitProjectGroupOrderRef.current = onCommitProjectGroupOrder
   const rootDragRef = useRef({ rootProjectHeaderKeys, onCommitRootProjectOrder })
   useLayoutEffect(() => {
+    membershipOptionsRef.current = { canonicalGroupIdOf, allowMembershipDrag, allowReorder }
     rootDragRef.current = { rootProjectHeaderKeys, onCommitRootProjectOrder }
-  }, [rootProjectHeaderKeys, onCommitRootProjectOrder])
+  }, [
+    canonicalGroupIdOf,
+    allowMembershipDrag,
+    allowReorder,
+    rootProjectHeaderKeys,
+    onCommitRootProjectOrder
+  ])
   const getContainerRef = useRef(getScrollContainer)
   getContainerRef.current = getScrollContainer
   const autoscrollLastFrameTimeRef = useRef<number | null>(null)
@@ -81,15 +85,7 @@ export function useRepoHeaderDrag({
     if (!container || !session) {
       return []
     }
-    const rects = session.rootProjectHeaderKeys
-      ? measureRootProjectHeaderDragRects(
-          container,
-          session.rootProjectHeaderKeys,
-          session.rootProjectHeaderHostId
-        ).map((rect) => ({ ...rect, repoId: rect.key }))
-      : measureProjectHeaderDragRects(container, session.bucketKey)
-    session.headerRects = rects
-    return rects
+    return refreshProjectHeaderDragSessionRects(session, container)
   }, [])
 
   const computeDrop = useCallback(
@@ -302,14 +298,12 @@ export function useRepoHeaderDrag({
   useGrabbingBodyCursor(state.draggingRepoId !== null)
 
   const onHandlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>, repo: Repo) => {
-    const session = createProjectHeaderDragSession({
+    const session = projectHeaderDragSessionForRepoHeader({
       event,
       repo,
       rootProjectHeaderKeys: rootDragRef.current.rootProjectHeaderKeys,
       sidebarRepoHeaderIdsByBucket: sidebarRepoHeaderIdsByBucketRef.current,
-      canonicalGroupIdOf: membershipOptionsRef.current.canonicalGroupIdOf,
-      allowMembershipDrag: membershipOptionsRef.current.allowMembershipDrag,
-      allowReorder: membershipOptionsRef.current.allowReorder,
+      membership: membershipOptionsRef.current,
       getScrollContainer: getContainerRef.current
     })
     if (!session) {
@@ -318,6 +312,5 @@ export function useRepoHeaderDrag({
     dragSessionRef.current = session
     setSessionArmed(true)
   }, [])
-
   return { state, onHandlePointerDown }
 }

@@ -5,7 +5,9 @@ import { OptionalString, requiredString } from '../rpc-param-primitives'
 export const APPROVAL_REASON_MAX_CHARS = 4_000
 
 export const ApprovalAnswerParams = z.object({
-  dispatch: requiredString('Missing --dispatch'),
+  dispatch: requiredString('Missing --dispatch').transform((value) =>
+    value.replace(/^dispatch:/i, '')
+  ),
   prompt: requiredString('Missing --prompt'),
   decision: z.enum(['allow', 'deny']),
   reason: z.string().max(APPROVAL_REASON_MAX_CHARS).optional(),

@@ -11,8 +11,10 @@ describe('resolveFederatedWorkerWorktree', () => {
       }))
     }
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
       resolveFederatedWorkerWorktree(runtime as never, 'env-ubuntu', {
         host: 'ubuntu-server-local'
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
       } as never)
     ).resolves.toBe('folder:fld_scratch')
     expect(runtime.callOrchestrationWorkerServer).toHaveBeenCalledWith(
@@ -26,8 +28,10 @@ describe('resolveFederatedWorkerWorktree', () => {
   it('keeps an explicit path: worktree, including folder project paths', async () => {
     const runtime = { callOrchestrationWorkerServer: vi.fn() }
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
       resolveFederatedWorkerWorktree(runtime as never, 'env-ubuntu', {
         worktree: 'path:/home/hostb/orca-orchestration/xh-wt'
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
       } as never)
     ).resolves.toBe('path:/home/hostb/orca-orchestration/xh-wt')
     expect(runtime.callOrchestrationWorkerServer).not.toHaveBeenCalled()
@@ -62,9 +66,11 @@ describe('resolveFederatedWorkerWorktree', () => {
       })
     }
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
       resolveFederatedWorkerWorktree(runtime as never, 'env-ubuntu', {
         host: 'ubuntu-server-local',
         worktree: 'group:"dockhand group"'
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial federation runtime stub for a unit test.
       } as never)
     ).resolves.toBe('id:repo-clawd::/home/hostb/clawd')
     expect(runtime.callOrchestrationWorkerServer).toHaveBeenCalledWith(

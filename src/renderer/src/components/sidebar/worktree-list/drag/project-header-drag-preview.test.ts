@@ -21,6 +21,7 @@ import {
 } from './project-header-membership'
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: happy-dom does not implement full DOMRect for drag preview tests.
   return {
     left,
     top,

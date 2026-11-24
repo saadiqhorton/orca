@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { runCrossHostOrchestrationE2e } from './desktop-hub-e2e-scenario'
 
 describe('cross-host orchestration through the desktop hub', () => {
+  // Boots paired RPC runtimes, shared-control hub volunteer, and cross-host placement before assertions.
   it('lists hosts from a session on A, runs hostname on B, and refuses the other cases', async () => {
     const transcript = await runCrossHostOrchestrationE2e()
     const body = transcript.lines.join('\n')

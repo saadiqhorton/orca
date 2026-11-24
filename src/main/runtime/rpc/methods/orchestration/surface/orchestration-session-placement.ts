@@ -9,7 +9,6 @@ import {
 } from '../../../../../../shared/orchestration/orchestration-group-selector'
 import {
   projectGroupsWithMembers,
-  type InventoryFolderRow,
   type InventoryGroupRow,
   type InventoryRepoRow
 } from './orchestration-inventory-membership'
@@ -91,9 +90,13 @@ export async function resolveTerminalCreateWorktree(
 function listPlacementGroups(
   runtime: OrchestrationSessionPlacementRuntime
 ): InventoryProjectGroup[] {
+  const groups: InventoryGroupRow[] = runtime.listVisibleProjectGroups().map((group) => ({
+    ...group,
+    parentPath: null
+  }))
   return projectGroupsWithMembers(
-    runtime.listVisibleProjectGroups() as InventoryGroupRow[],
-    runtime.listVisibleFolderWorkspaces() as InventoryFolderRow[],
+    groups,
+    runtime.listVisibleFolderWorkspaces(),
     runtime.listVisibleRepos?.() ?? []
   )
 }

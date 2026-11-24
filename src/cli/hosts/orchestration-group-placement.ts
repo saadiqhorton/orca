@@ -54,13 +54,13 @@ export async function resolveGroupWorktreeOnTarget(
 
 async function listTargetGroups(client: RuntimeClient): Promise<InventoryProjectGroup[]> {
   const [groups, folders, repos] = await Promise.all([
-    readCatalog(client, 'projectGroup.list', (result: { groups: ProjectGroup[] }) => result.groups),
-    readCatalog(
-      client,
-      'folderWorkspace.list',
-      (result: { folderWorkspaces: FolderWorkspace[] }) => result.folderWorkspaces
+    readCatalog(client, 'projectGroup.list', (result) =>
+      catalogArray<ProjectGroup>(result, 'groups')
     ),
-    readCatalog(client, 'repo.list', (result: { repos: Repo[] }) => result.repos)
+    readCatalog(client, 'folderWorkspace.list', (result) =>
+      catalogArray<FolderWorkspace>(result, 'folderWorkspaces')
+    ),
+    readCatalog(client, 'repo.list', (result) => catalogArray<Repo>(result, 'repos'))
   ])
   return groups.map((group) => ({
     id: group.id,
@@ -93,13 +93,26 @@ async function listTargetGroups(client: RuntimeClient): Promise<InventoryProject
   }))
 }
 
+function catalogArray<T>(result: unknown, field: string): T[] {
+  if (typeof result !== 'object' || result === null || !(field in result)) {
+    return []
+  }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: field was checked on the RPC list body before indexing.
+  const value = (result as Record<string, unknown>)[field]
+  if (!Array.isArray(value)) {
+    return []
+  }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: RPC list endpoints return arrays keyed by field name; non-array values were rejected above.
+  return value as T[]
+}
+
 async function readCatalog<T>(
   client: RuntimeClient,
   method: string,
-  pick: (result: never) => T[]
+  pick: (result: unknown) => T[]
 ): Promise<T[]> {
   try {
-    return pick((await client.call(method)).result as never)
+    return pick((await client.call(method)).result)
   } catch (error) {
     if (error instanceof RuntimeClientError && error.code === 'method_not_found') {
       return []

@@ -1,3 +1,4 @@
+import { isProjectHeaderDragPreviewNode } from './project-header-drag-preview-dom'
 import { measureSidebarHeaderDragRect } from './sidebar-header-drag-geometry'
 import type { ProjectGroup } from '../../../../../../shared/project/groups/project-group-types'
 import type { Repo } from '../../../../../../shared/repository/repo-types'
@@ -118,6 +119,9 @@ export function measureRootProjectHeaderDragRects(
   const containerRect = container.getBoundingClientRect()
   return [...container.querySelectorAll<HTMLElement>('[data-root-project-header-key]')]
     .flatMap((element) => {
+      if (isProjectHeaderDragPreviewNode(element)) {
+        return []
+      }
       if (hostId !== undefined && element.dataset.rootProjectHeaderHost !== hostId) {
         return []
       }

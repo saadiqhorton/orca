@@ -8,7 +8,7 @@ import { getDesktopHubRegistry, type DesktopHubRegistry } from './desktop-hub-re
 /** `dhub:` ids dial through the paired desktop. Every other id stays on the transport this runtime already had. */
 export function wrapDesktopHubTransport(
   inner: OrchestrationEnvironmentTransport | null,
-  runtime: object
+  runtime: WeakKey
 ): OrchestrationEnvironmentTransport | null {
   if (!inner) {
     return null

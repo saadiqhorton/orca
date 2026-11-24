@@ -90,3 +90,42 @@ export function createProjectHeaderDragSession(args: {
     reorderEnabled: canReorder
   }
 }
+
+export function refreshProjectHeaderDragSessionRects(
+  session: ProjectHeaderDragSession,
+  container: HTMLElement
+) {
+  const rects = session.rootProjectHeaderKeys
+    ? measureRootProjectHeaderDragRects(
+        container,
+        session.rootProjectHeaderKeys,
+        session.rootProjectHeaderHostId
+      ).map((rect) => ({ ...rect, repoId: rect.key }))
+    : measureProjectHeaderDragRects(container, session.bucketKey)
+  session.headerRects = rects
+  return rects
+}
+
+export function projectHeaderDragSessionForRepoHeader(args: {
+  event: PointerEvent<HTMLElement>
+  repo: Repo
+  rootProjectHeaderKeys?: readonly string[]
+  sidebarRepoHeaderIdsByBucket: ReadonlyMap<ProjectHeaderDragBucketKey, readonly string[]>
+  membership: {
+    canonicalGroupIdOf?: ProjectGroupCanonicalIdOf
+    allowMembershipDrag?: boolean
+    allowReorder?: boolean
+  }
+  getScrollContainer: () => HTMLElement | null
+}): ProjectHeaderDragSession | null {
+  return createProjectHeaderDragSession({
+    event: args.event,
+    repo: args.repo,
+    rootProjectHeaderKeys: args.rootProjectHeaderKeys,
+    sidebarRepoHeaderIdsByBucket: args.sidebarRepoHeaderIdsByBucket,
+    canonicalGroupIdOf: args.membership.canonicalGroupIdOf,
+    allowMembershipDrag: args.membership.allowMembershipDrag,
+    allowReorder: args.membership.allowReorder,
+    getScrollContainer: args.getScrollContainer
+  })
+}

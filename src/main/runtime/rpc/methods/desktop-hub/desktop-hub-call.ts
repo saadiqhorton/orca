@@ -3,15 +3,20 @@ import {
   desktopHubHostKey,
   isDesktopHubSelector
 } from '../../../../../shared/orchestration/desktop-hub-contract'
+import { assertDesktopHubForwardableMethod } from '../../../../../shared/orchestration/desktop-hub-forwardable-methods'
 import type { RuntimeOrchestrationEnvelope } from '../../../../../shared/remote-runtime/rpc/runtime-rpc-envelope'
 import { desktopHubOnSelector } from '../../../orchestration/desktop-hub/desktop-hub-route'
 import { getDesktopHubRegistry } from '../../../orchestration/desktop-hub/desktop-hub-registry'
 
-const HUB_CONTROL_PREFIX = 'orchestration.desktopHub.'
-
 export type HubCallRuntime = {
   callOrchestrationWorkerServer: (
     selector: string,
+    method: string,
+    params: unknown,
+    timeoutMs?: number,
+    envelope?: RuntimeOrchestrationEnvelope
+  ) => Promise<unknown>
+  dispatchLocalRpc?: (
     method: string,
     params: unknown,
     timeoutMs?: number,
@@ -29,15 +34,18 @@ export async function callDesktopHubHost(
     envelope?: RuntimeOrchestrationEnvelope
   }
 ): Promise<unknown> {
-  if (params.method.startsWith(HUB_CONTROL_PREFIX)) {
-    throw new DesktopHubError(
-      'invalid_argument',
-      'Desktop hub control-plane methods cannot be forwarded to another host.'
-    )
-  }
+  assertDesktopHubForwardableMethod(params.method)
   const on = await desktopHubOnSelector(runtime, params.host, undefined)
   if (!on) {
-    throw new DesktopHubError('invalid_argument', 'Missing host for desktop hub call.')
+    if (!runtime.dispatchLocalRpc) {
+      throw new DesktopHubError('invalid_argument', 'Missing host for desktop hub call.')
+    }
+    return runtime.dispatchLocalRpc(
+      params.method,
+      params.params ?? {},
+      params.timeoutMs,
+      params.envelope
+    )
   }
   const result = await runtime.callOrchestrationWorkerServer(
     on,

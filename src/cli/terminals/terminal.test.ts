@@ -107,6 +107,7 @@ describe('terminal send CLI', () => {
       }
       throw new Error(method)
     })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
     const inner = terminalClient(call as unknown as RuntimeClient['call'])
     const client = wrapDesktopHubClient(inner, 'ubuntu-server-local')
     const log = vi.spyOn(console, 'log').mockImplementation(() => {})

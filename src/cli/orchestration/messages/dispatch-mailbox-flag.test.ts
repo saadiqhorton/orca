@@ -66,6 +66,7 @@ describe('applyDispatchMailboxFlag', () => {
 describe('check and inbox --dispatch', () => {
   it('checks the worker mailbox named by --dispatch', async () => {
     const call = vi.fn().mockResolvedValue({ result: { messages: [], count: 0 } })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: handler fixture only supplies the fields this command reads.
     await ORCHESTRATION_HANDLERS['orchestration check']({
       flags: new Map<string, string | boolean>([
         ['dispatch', 'ctx_793e1b7ab138'],
@@ -83,6 +84,7 @@ describe('check and inbox --dispatch', () => {
 
   it('reads the worker mailbox named by --dispatch', async () => {
     const call = vi.fn().mockResolvedValue({ result: { messages: [], count: 0 } })
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: handler fixture only supplies the fields this command reads.
     await ORCHESTRATION_HANDLERS['orchestration inbox']({
       flags: new Map<string, string | boolean>([['dispatch', 'dispatch:ctx_793e1b7ab138']]),
       client: { call },

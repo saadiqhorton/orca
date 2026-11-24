@@ -17,12 +17,14 @@ describe('refuseStartupDialogKeystrokes', () => {
       }))
     }
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       refuseStartupDialogKeystrokes(client as never, 'term_blocked', new Map())
     ).rejects.toMatchObject({
       code: 'agent_blocked_on_prompt'
     })
     await expect(
       refuseStartupDialogKeystrokes(
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
         client as never,
         'term_blocked',
         new Map([['answer-dialog', true]])
@@ -40,6 +42,7 @@ describe('refuseStartupDialogKeystrokes', () => {
       }))
     }
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       refuseStartupDialogKeystrokes(client as never, 'term_ok', new Map())
     ).resolves.toBeUndefined()
   })

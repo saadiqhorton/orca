@@ -89,6 +89,7 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
   it('wraps unique remote folder selectors so follow-ups do not need --host', async () => {
     const flags = new Map<string, string | boolean>([['worktree', 'folder:fld_remote']])
     const wrapped = await resolveRemoteSelectorsAcrossHosts(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       clientWithInventory() as never,
       ['agent', 'launch'],
       flags
@@ -102,6 +103,7 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
     const flags = new Map<string, string | boolean>([['worktree', 'folder:fld_remote']])
     const inner = clientWithInventory()
     const result = await resolveRemoteSelectorsAcrossHosts(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       inner as never,
       ['orchestration', 'worker-start'],
       flags
@@ -113,9 +115,11 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
   it('errors with the exact --host command when a handle is on two machines', async () => {
     const flags = new Map<string, string | boolean>([['terminal', 'term_shared']])
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       resolveRemoteSelectorsAcrossHosts(clientWithInventory() as never, ['terminal', 'send'], flags)
     ).rejects.toBeInstanceOf(RuntimeClientError)
     await expect(
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient or DOMRect stub for a unit test.
       resolveRemoteSelectorsAcrossHosts(clientWithInventory() as never, ['terminal', 'send'], flags)
     ).rejects.toMatchObject({
       code: 'selector_ambiguous',

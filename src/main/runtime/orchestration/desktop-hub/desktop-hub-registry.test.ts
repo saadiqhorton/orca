@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DesktopHubError,
   desktopHubSelector,
   type DesktopHubRequestEvent
 } from '../../../../shared/orchestration/desktop-hub-contract'
-import { DesktopHubError } from '../../../../shared/orchestration/desktop-hub-contract'
 import { getDesktopHubRegistry } from './desktop-hub-registry'
 
 const HUB = {

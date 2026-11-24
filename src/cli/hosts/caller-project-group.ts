@@ -1,4 +1,5 @@
 import { resolve as resolvePath } from 'node:path'
+import { normalizeRuntimePathForComparison } from '../../shared/file-access/cross-platform-path'
 import type { FolderWorkspace } from '../../shared/folder-workspaces/folder-workspace-types'
 import type { ProjectGroup } from '../../shared/project/groups/project-group-types'
 import type { Repo } from '../../shared/repository/repo-types'
@@ -35,13 +36,11 @@ export async function readCallerProjectGroupName(
     const folder = folders.find((row) => row.id === folderId)
     return groups.find((group) => group.id === folder?.projectGroupId)?.name
   }
-  const cwdPath = resolvePath(cwd)
-  const repo = repos.find(
-    (row) =>
-      cwdPath === row.path ||
-      cwdPath.startsWith(`${row.path}/`) ||
-      cwdPath.startsWith(`${row.path}\\`)
-  )
+  const cwdPath = normalizeRuntimePathForComparison(resolvePath(cwd))
+  const repo = repos.find((row) => {
+    const repoPath = normalizeRuntimePathForComparison(row.path)
+    return cwdPath === repoPath || cwdPath.startsWith(`${repoPath}/`)
+  })
   return groups.find((group) => group.id === repo?.projectGroupId)?.name
 }
 

@@ -5,6 +5,7 @@ import {
   type DesktopHubHostStatus
 } from '../../shared/orchestration/desktop-hub-contract'
 import { unknownDesktopHubHostMessage } from '../../shared/orchestration/orca-host-awareness'
+import { quoteCliCommandArgument } from '../arguments/shell-command-quote'
 import type { RuntimeClient } from '../runtime/client'
 import { RuntimeClientError } from '../runtime/connection/types'
 import { isDesktopHubHostValue } from './desktop-hub-host-flag'
@@ -16,6 +17,7 @@ export type HubListRow = {
   machineName?: string
   label?: string
   id?: string
+  hostKey?: string
   aliases?: string[]
   status?: string
 }
@@ -42,7 +44,8 @@ export function throwDesktopHubHostResolution(
     nextSteps: [
       'orca host inventory --json',
       ...resolved.names.map(
-        (name) => `orca agent launch --host ${name} --agent <agent> --prompt "<task>" --json`
+        (name) =>
+          `orca agent launch --host ${quoteCliCommandArgument(name)} --agent <agent> --prompt "<task>" --json`
       )
     ]
   })
@@ -66,6 +69,7 @@ export async function resolveDesktopHubHost(
   if (!Array.isArray(hosts)) {
     return { status: 'unavailable', message: DESKTOP_HUB_UNAVAILABLE_MESSAGE }
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: list RPC hosts are catalog rows; unmatched shapes become unknown_host below.
   const rows = hosts as HubListRow[]
   const names = connectedNames(rows)
   const row = rows.find(
@@ -93,17 +97,23 @@ export async function bindDesktopHubHost(
   if (resolved.status !== 'matched') {
     throwDesktopHubHostResolution(host, resolved)
   }
-  const blocked = desktopHubHostError(
+  const status: DesktopHubHostStatus =
     resolved.row.status === 'needs_sign_in' ||
-      resolved.row.status === 'unreachable' ||
-      resolved.row.status === 'connected'
-      ? (resolved.row.status as DesktopHubHostStatus)
-      : 'unreachable',
-    resolved.row.name
-  )
+    resolved.row.status === 'unreachable' ||
+    resolved.row.status === 'connected'
+      ? resolved.row.status
+      : 'unreachable'
+  const blocked = desktopHubHostError(status, resolved.row.name)
   if (blocked) {
     throw new RuntimeClientError(blocked.code, blocked.message)
   }
   flags.delete('host')
+  if (
+    resolved.row.hostKey === 'desktop' ||
+    resolved.row.kind === 'desktop' ||
+    resolved.row.id === 'desktop'
+  ) {
+    return client
+  }
   return wrapDesktopHubClient(client, resolved.row.name)
 }
