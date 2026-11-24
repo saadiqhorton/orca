@@ -53,16 +53,7 @@ export function settledAtCreation(
     return structuredLaunchSubmitText(intent) === undefined ? NOT_DELIVERED : UNCONFIRMED
   }
   if (created.promptRodeLaunchCommand) {
-    if (execution.signal?.aborted) {
-      return HANDED_TO_TERMINAL
-    }
-    const observed = await execution.surfaces.observeStartupPrompt?.({
-      handle: created.outcome.handle,
-      agent: execution.intent.agent,
-      terminalCreation: created.terminalCreation,
-      ...(execution.signal ? { signal: execution.signal } : {})
-    })
-    return observed ?? HANDED_TO_TERMINAL
+    return HANDED_TO_TERMINAL
   }
   return intent.prompt?.delivery === 'submit' ? UNCONFIRMED : NOT_DELIVERED
 }
@@ -75,7 +66,16 @@ export async function settleLaunchPromptDisposal(
     return settledAtCreation(execution.intent, created)
   }
   if (created.promptRodeLaunchCommand) {
-    return HANDED_TO_TERMINAL
+    if (execution.signal?.aborted) {
+      return HANDED_TO_TERMINAL
+    }
+    const observed = await execution.surfaces.observeStartupPrompt?.({
+      handle: created.outcome.handle,
+      agent: execution.intent.agent,
+      terminalCreation: created.terminalCreation,
+      ...(execution.signal ? { signal: execution.signal } : {})
+    })
+    return observed ?? HANDED_TO_TERMINAL
   }
   return deliverTerminalLaunchPrompt(execution, created.outcome.handle, {
     freshLaunch: true,
