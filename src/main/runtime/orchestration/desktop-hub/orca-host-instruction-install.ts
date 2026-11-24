@@ -10,6 +10,7 @@ import {
   rememberOrcaWriteGlobalAgentInstructions,
   rememberedOrcaWriteGlobalAgentInstructions
 } from './orca-host-name-cache'
+import { orchestrationScratchPaths } from '../../../../shared/orchestration/orchestration-scratch-workspace'
 
 export const ORCA_AGENT_INSTRUCTIONS_DIR = 'orca-agent-instructions'
 export const ORCA_HOST_INSTRUCTION_FILE = 'ORCA.md'
@@ -126,6 +127,7 @@ export async function installOrcaHostInstructions(args: {
   if (args.userDataPath) {
     dirs.push(join(args.userDataPath, ORCA_AGENT_INSTRUCTIONS_DIR))
   }
+  dirs.push(orchestrationScratchPaths(home).workspacePath)
   const localFiles = dirs.flatMap((dir) => [
     join(dir, 'AGENTS.md'),
     join(dir, 'CLAUDE.md'),

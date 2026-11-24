@@ -2,7 +2,7 @@ import type { TuiAgent } from '../agent-launch/catalog/tui-agent'
 import { isTuiAgent, TUI_AGENT_CONFIG } from '../agent-launch/catalog/tui-agent-config'
 import type { HarnessChannel } from '../agent-launch/harness-launch-capability-types'
 import { HARNESS_LAUNCH_CAPABILITIES } from '../agent-launch/harness-launch-capabilities'
-import { compareAppVersions, isValidAppVersion } from '../app-version'
+import { compareAppVersions, isValidAppVersion } from '../app-lifecycle/identity/app-version'
 
 export type OrchestrationTier = 1 | 2 | 3
 

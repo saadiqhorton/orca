@@ -12,6 +12,7 @@ import {
 import { computerUseErrorRecoveryData } from '../../../../shared/computer/computer-use-error-recovery'
 import { errorResponse, mapEmulatorError, mapRuntimeError } from './rpc-response'
 import { PluginHookDeniedError } from '../../../plugins/hooks/plugin-hook-dispatch'
+import { DesktopHubError } from '../../../../shared/orchestration/desktop-hub-contract'
 
 export function invalidArgumentResponse(
   request: RpcRequest,
@@ -48,6 +49,9 @@ export function mapDispatcherError(
   if (error instanceof PluginHookDeniedError) {
     // Final, not transient: a retry sends the same refused action.
     return errorResponse(request.id, meta, error.code, error.message, error.data)
+  }
+  if (error instanceof DesktopHubError) {
+    return errorResponse(request.id, meta, error.code, error.message)
   }
   if (request.method.startsWith('browser.')) {
     return mapBrowserError(request.id, meta, error)

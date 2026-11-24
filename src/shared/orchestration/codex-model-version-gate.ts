@@ -1,4 +1,4 @@
-import { compareAppVersions } from '../app-version'
+import { compareAppVersions } from '../app-lifecycle/identity/app-version'
 
 /** gpt-6-sol and gpt-6-luna need Codex 0.156.0+. */
 export const CODEX_GPT6_SOL_LUNA_MINIMUM_VERSION = '0.156.0'
