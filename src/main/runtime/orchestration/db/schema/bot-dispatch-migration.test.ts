@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from '../../../../sqlite/sync-database'
 import { afterEach, describe, expect, it } from 'vitest'
+import { SCHEMA_VERSION } from '../contract-constants'
 import { OrchestrationDb } from '../orchestration-db'
 import { createRootDispatch } from '../root-dispatch-test-fixture'
 
@@ -69,7 +70,9 @@ describe('v47-v48 bot dispatch migrations', () => {
   function expectCurrentSchema(path: string, seededTaskId?: string): void {
     const db = new OrchestrationDb(path)
     try {
-      expect(db.db.pragma('user_version', { simple: true })).toBe(51)
+      expect(db.db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+      expect(db.hasColumn('worker_dispatches', 'blocked_reason')).toBe(true)
+      expect(db.hasColumn('remote_dispatch_attachments', 'blocked_reason')).toBe(true)
       expect(db.hasColumn('dispatch_contexts', 'chat_lineage')).toBe(true)
       expect(TAKE_COLUMNS.filter(([table, column]) => !db.hasColumn(table, column))).toEqual([])
       expect(db.hasColumn('dispatch_contexts', 'creator_turn_source')).toBe(true)

@@ -88,6 +88,12 @@ No blocking issues. Nits left documented: bare `--host` is hub-first (prefixed `
 
 `pnpm check:changed --base=upstream/main`: **46/46 passed** after moving hub e2e helpers to `tests/desktop-hub/`, generating skill/i18n artifacts, and landing the allowlist + desktop self-target + quoting fixes.
 
+`pnpm tc`: passed (node, web, cli, bot-evals; bun composite included).
+
+`ORCA_CODE_QUALITY_BASE=upstream/main pnpm lint`: **49/49** passed. Bare `pnpm lint` is not the gate for this branch — it diffs against fork `origin/main` (~15k files).
+
+Full `pnpm test --maxWorkers=2`: **5070 passed**, 62 skipped, 20 failed on the first run. Six of those were `bot-dispatch-migration.test.ts` still expecting schema 51 after the v52 `blocked_reason` bump (fixed to `SCHEMA_VERSION`). The other failures (`agent-hooks` persistence, session-store receipts, GitHub cache flush, Claude folder login, PTY secret-scan matching hostname `cursor`) are in files this branch does not touch and reproduce in isolation here.
+
 Remaining product follow-ups (not blocking this branch):
 
 - Remote bot @mentions across desktop-hub hosts (#45831)
