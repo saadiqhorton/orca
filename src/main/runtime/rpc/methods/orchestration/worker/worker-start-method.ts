@@ -21,7 +21,8 @@ import { parseTaskDeps } from './start/admission/task-deps-argument'
 import { WorkerStartParams } from '../../../../../../shared/rpc-contract/orchestration/orchestration-worker-start-params'
 import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 import { remoteWorktreeRequiredMessage } from '../../../../../../shared/orchestration/desktop-hub-placement-flag'
-import { ensureOrchestrationScratchWorkspace } from '../surface/ensure-orchestration-scratch'
+import { resolveOrchestrationSessionPlacement } from '../surface/orchestration-session-placement'
+import { resolveLocalWorkerGroupPlacement } from './start/local-worker-group-placement'
 import {
   isWorkerStartTimeoutWithinTimerLimit,
   resolveWorkerStartReadinessTimeoutMs
@@ -141,6 +142,7 @@ export async function prepareWorkerStart(
       { effectsApplied: false }
     )
   }
+  params = await resolveLocalWorkerGroupPlacement(runtime, params)
   let placement = params.worktree ?? 'current'
   if (
     orchestrationCaller?.kind === 'peer' &&
@@ -150,9 +152,9 @@ export async function prepareWorkerStart(
   ) {
     if (placement === 'current') {
       try {
-        const scratch = await ensureOrchestrationScratchWorkspace(runtime, {})
-        placement = scratch.worktree
-        params = { ...params, worktree: scratch.worktree }
+        const placed = await resolveOrchestrationSessionPlacement(runtime)
+        placement = placed.worktree
+        params = { ...params, worktree: placed.worktree }
       } catch {
         throw new OrchestrationError(
           'invalid_argument',

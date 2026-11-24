@@ -57,6 +57,7 @@ export function SshStatusSegment({
   const settings = useAppStore((s) => s.settings)
   const runtimeEnvironments = useAppStore((s) => s.runtimeEnvironments)
   const runtimeStatusByEnvironmentId = useAppStore((s) => s.runtimeStatusByEnvironmentId)
+  const runtimeDetectedAgentIds = useAppStore((s) => s.runtimeDetectedAgentIds)
   const readRuntimeHostStatusSnapshots = useAppStore((s) => s.readRuntimeHostStatusSnapshots)
   const hydrateRuntimeEnvironmentStatuses = useAppStore((s) => s.hydrateRuntimeEnvironmentStatuses)
   const setActiveView = useAppStore((s) => s.setActiveView)
@@ -259,6 +260,7 @@ export function SshStatusSegment({
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl, t)}
             diagnostics={host.remoteControl}
+            detectedAgents={runtimeDetectedAgentIds[host.id] ?? undefined}
             blocked={host.blocked}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}
@@ -280,6 +282,7 @@ export function SshStatusSegment({
             state={host.state}
             detail={runtimeHostConnectionDetail(host.remoteControl, t)}
             diagnostics={host.remoteControl}
+            detectedAgents={runtimeDetectedAgentIds[host.id] ?? undefined}
             blocked={host.blocked}
             onConnect={() => connectRuntimeHost(host.id)}
             onDisconnect={() => disconnectRuntimeHost(host.id)}

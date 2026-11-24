@@ -49,6 +49,9 @@ import {
   getRequiredWorktreeSelector
 } from '../workspace-selection/workspace-selector'
 import { getTerminalHandle } from './terminal-selector'
+import { applyGroupWorktreeFlag } from '../hosts/orchestration-group-flag'
+import { applyRemoteGroupPlacement } from '../hosts/orchestration-group-fallback'
+import { resolveGroupWorktreeOnTarget } from '../hosts/orchestration-group-placement'
 import { revealPairedTerminalOnLocalDesktop } from './paired-terminal-desktop-reveal'
 import { terminalCloseHandler } from './terminal-close'
 import { terminalSendHandler } from './terminal-send'
@@ -162,12 +165,9 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
     printResult(result, json, formatTerminalSetPaneTitle)
   },
   'terminal create': async ({ flags, client, cwd, json }) => {
-    if (client.isRemote && !flags.has('worktree')) {
-      throw new RuntimeClientError(
-        'invalid_argument',
-        'Remote terminal create requires --worktree because the client cwd cannot identify a server worktree.'
-      )
-    }
+    applyGroupWorktreeFlag(flags)
+    await applyRemoteGroupPlacement(flags, client, cwd)
+    await resolveGroupWorktreeOnTarget(client, flags)
     const command = getOptionalStringFlag(flags, 'command')
     const useRendererBackedInteractiveTerminal =
       !client.isRemote && shouldUseRendererBackedInteractiveTerminal(command)

@@ -6,11 +6,12 @@ export const AGENT_LAUNCH_COMMAND_SPECS: CommandSpec[] = [
     path: ['agent', 'launch'],
     summary: 'Start an agent in an existing workspace, as a chat or a terminal',
     usage:
-      'orca agent launch --agent <id> [--host <desktop-connected-host>] [--worktree <selector>] [--prompt <text>] [--model <id>] [--effort <level>] [--surface chat|terminal] [--focus] [--retry-launch <operationId>] [--json]',
+      'orca agent launch --agent <id> [--host <desktop-connected-host>] [--worktree <selector>] [--group "<name>"] [--prompt <text>] [--model <id>] [--effort <level>] [--surface chat|terminal] [--focus] [--retry-launch <operationId>] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'agent',
       'worktree',
+      'group',
       'prompt',
       'model',
       'effort',

@@ -25,6 +25,17 @@ function group(
 }
 
 describe('buildProjectGroupClusters', () => {
+  it('merges same-named root groups from different hosts into one canonical header', () => {
+    const { canonicalGroups, canonicalById, memberIdsByCanonicalId } = buildProjectGroupClusters([
+      group('dock-a', 'dockhand group', null, 'runtime:a', 1),
+      group('dock-b', 'Dockhand Group ', null, 'runtime:b', 9)
+    ])
+    expect(canonicalGroups).toHaveLength(1)
+    expect(canonicalGroups[0]?.id).toBe('dock-a')
+    expect(canonicalById.get('dock-a')?.id).toBe(canonicalById.get('dock-b')?.id)
+    expect(memberIdsByCanonicalId.get('dock-a')).toEqual(['dock-a', 'dock-b'])
+  })
+
   it('twins nested groups by name path even when parent ids differ', () => {
     const { canonicalById } = buildProjectGroupClusters([
       group('infra-a', 'infra', null, 'runtime:a', 1),

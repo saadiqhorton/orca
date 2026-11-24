@@ -12,6 +12,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import '@/runtime/hosts/connections/runtime-host-connection-state'
 import {
+  orchestrationReadinessFor,
+  orchestrationTierTwoAgents
+} from '../../../../shared/orchestration/orchestration-readiness'
+import { OrchestrationReadinessLabel } from './OrchestrationReadinessLabel'
+import {
   isConnectedRuntimeHostState,
   type RuntimeHostConnectionState
 } from '../../../../shared/remote-runtime/host-status/runtime-host-connection-state'
@@ -149,6 +154,7 @@ export function RuntimeHostStatusRow({
   state,
   detail,
   diagnostics,
+  detectedAgents,
   blocked,
   onConnect,
   onDisconnect,
@@ -158,6 +164,8 @@ export function RuntimeHostStatusRow({
   state: RuntimeHostConnectionState
   detail?: string
   diagnostics?: RemoteRuntimeSharedConnectionDiagnostics | null
+  /** Agent ids detected on the host; absent until its status reports them. */
+  detectedAgents?: readonly string[]
   /** Set when the host refused this client; its copy replaces the transport state. */
   blocked?: (RuntimeHostBlockedCopy & { recovery: RuntimeHostBlockedRecovery | null }) | null
   onConnect?: () => Promise<void>
@@ -228,6 +236,7 @@ export function RuntimeHostStatusRow({
   const failureSummary = blocked?.summary ?? runtimeFailureSummary(state, t)
   const failureExplanation = blocked ? blocked.explanation : runtimeFailureExplanation(state, t)
   const dotColor = blocked ? 'bg-destructive' : runtimeDotColor(state)
+  const readiness = orchestrationReadinessFor(detectedAgents)
   const statusTone = blocked ? 'text-destructive' : runtimeStatusTone(state)
   const showSpinner = !blocked && (state === 'checking' || state === 'reconnecting')
 
@@ -240,6 +249,15 @@ export function RuntimeHostStatusRow({
           <span>
             {t('auto.components.status.bar.SshStatusSegment.remote_server', 'Remote Server')}
           </span>
+          {readiness ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <OrchestrationReadinessLabel
+                readiness={readiness}
+                tierTwoAgents={orchestrationTierTwoAgents(detectedAgents ?? [])}
+              />
+            </>
+          ) : null}
           <span aria-hidden="true">·</span>
           <span className={`inline-flex min-w-0 items-center gap-1 ${statusTone}`}>
             {showSpinner ? <Loader2 className="size-2.5 shrink-0 animate-spin" /> : null}

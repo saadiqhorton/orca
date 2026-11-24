@@ -8,6 +8,9 @@ import {
   readCliAgentLaunch
 } from './agent-launch-request'
 import { cliLaunchPresentation } from './cli-launch-presentation'
+import { applyGroupWorktreeFlag } from '../hosts/orchestration-group-flag'
+import { applyRemoteGroupPlacement } from '../hosts/orchestration-group-fallback'
+import { resolveGroupWorktreeOnTarget } from '../hosts/orchestration-group-placement'
 import { getRequiredStringFlag } from '../arguments/flags'
 import { printResult } from '../output/command-result-output'
 import { RuntimeClientError } from '../runtime/types'
@@ -21,12 +24,9 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
     const launch = readCliAgentLaunch(flags, parseCliAgent(getRequiredStringFlag(flags, 'agent')), {
       createsWorktree: false
     })
-    if (client.isRemote && !flags.has('worktree')) {
-      throw new RuntimeClientError(
-        'invalid_argument',
-        'Remote agent launch requires --worktree because the client cwd cannot identify a server worktree.'
-      )
-    }
+    applyGroupWorktreeFlag(flags)
+    await applyRemoteGroupPlacement(flags, client, cwd)
+    await resolveGroupWorktreeOnTarget(client, flags)
     const selector = flags.get('worktree')
     const current = selector === undefined || selector === 'active' || selector === 'current'
     const worktree = current
