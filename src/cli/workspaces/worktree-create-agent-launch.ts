@@ -21,6 +21,7 @@ import {
   type CliAgentLaunch,
   SURFACE_UNSUPPORTED_MESSAGE
 } from '../agents/agent-launch-request'
+import { cliLaunchPresentation } from '../agents/cli-launch-presentation'
 import { formatWorktreeShow } from './workspace-format'
 import { printResult } from '../output/command-result-output'
 import { RuntimeClientError } from '../runtime/connection/types'
@@ -98,7 +99,10 @@ export async function createWorktreeWithAgent(args: {
       launch,
       {
         target: { kind: 'create-worktree', create },
-        presentation: create.activate === true ? 'focused' : 'background'
+        presentation: cliLaunchPresentation({
+          focus: create.activate === true,
+          visibleRemote: client.isRemote
+        })
       },
       capabilities,
       rawArgs

@@ -9,12 +9,16 @@ description: >-
   (such as Codex from Claude) or its own Orca workspace: "Have Codex (or
   Claude) review this and report back" means an Orca worker of that agent.
   Also use when you are a dispatched worker (a prompt with Task and Dispatch
-  IDs: ask, worker_done). Unless the user asks for Orca workers or a named
-  agent, searches, reads and research in your workspace stay with your own
-  subagents, even in parallel. Use `orca-cli` to hand work off
-  with nothing expected back ("hand off", "handover", "give this to another
-  agent", "another worktree"), and for terminal control, shell commands,
-  worktree management, and reading or waiting on terminals.
+  IDs: ask, worker_done). Use for another machine/host/server, a named host
+  (e.g. ubuntu-server-local), "on <host>", "open a terminal on", "run X on",
+  "what machines/hosts can you use", or anything ssh-like: start with
+  `orca host inventory --json`, then `orca … --host <name>`; never ssh.
+  Unless the user asks for Orca workers or a named agent, searches, reads and
+  research in your workspace stay with your own subagents, even in parallel.
+  Use `orca-cli` to hand work off with nothing expected back ("hand off",
+  "handover", "give this to another agent", "another worktree"), and for
+  terminal control, shell commands, worktree management, and reading or
+  waiting on terminals.
 ---
 
 # Orca orchestration
@@ -45,6 +49,50 @@ start you mean to run here, and on the commands that create or list that
 Run's Tasks and workers (`run-create`, `task-create`, `task-list`,
 `worker-list`) so they reach the same Orca; a start on a paired server takes
 `--on <server>` instead.
+
+The simplest cross-host path (no `--worktree`) talks to a desktop-connected
+machine through the hub. List first, then carry `--host` on every follow-up
+that touches a visible tab. Never SSH, never open a port, never copy keys:
+
+```text
+ORCA host inventory --json
+ORCA agent launch --host <name> --agent <agent> --prompt "<task>" --json
+```
+
+or a hidden worker:
+
+```text
+ORCA orchestration worker-start --spec "<task>" --host <name> --agent <agent>
+```
+
+`--host <name>` is a row from `host inventory` whose status is `connected`.
+`--group "<name>"` places the tab in that project group on the target host.
+Unique `folder:<id>` and `term_…` handles resolve across connected hosts
+without `--host`; if they are ambiguous, the error names the owning hosts and
+the exact corrected command. Without `--worktree`, `agent launch`,
+`terminal create`, and `orchestration worker-start --host <name>` create or
+reuse `~/orca-orchestration` on that host (never the user's home). If the
+status is `needs_sign_in` or `unreachable`, say so and stop. `--on` is only a
+paired Orca server saved on this machine; load
+`references/placement-and-remote.md` before using it. If an agent CLI is
+missing, the error lists the agents installed on that host.
+
+Do **not** put secrets or tokens in `--prompt` / `--spec`. Pass them via a
+file or environment variable on the target host.
+
+Never answer trust, hooks, or security prompts (Codex "Hooks need review",
+Claude trust/fullscreen) with keystrokes. If a launch returns
+`agent_blocked_on_prompt` (exit 5) or `desktop_hub_call_timeout`, stop and ask
+the user to open the tab in the desktop Orca window and choose an option. Then
+re-send the prompt with `terminal send --host <name> --terminal <handle>`.
+`--answer-dialog` is only for when the user explicitly asked you to type
+into that dialog.
+
+Message a visible tab with `send --host <name> --to <handle>`. Message a
+worker with `send --to dispatch:<id>` or a bare `ctx_…` id (you may still
+pass `--host`; Orca routes the Dispatch to the Run that owns it).
+`worker-show`, `worker-read`, `worker-stop`, and the other `--dispatch`
+verbs stay on that Run too — `--host` is ignored.
 
 `<agent>` is an Orca agent id: one the user named, else the agent you are
 running as when the worker shares your execution host. Otherwise, such as a
@@ -112,7 +160,8 @@ Never:
 - When every worker has settled, report to the user per Task: outcome,
   evidence, open blockers.
 - Lost track? `ORCA orchestration inbox --terminal run:<run_id> --limit 50`
-  shows mail `check` already handled.
+  shows mail `check` already handled. A worker mailbox is
+  `ORCA orchestration inbox --dispatch <dispatch_id>` (or `check --dispatch`).
 
 Finished workers close on their own unless `worker-list` gives one a `next`; follow
 it. Kept-open workers, including new-workspace ones, stay open for the user.
@@ -157,12 +206,12 @@ assignment does not prove its agent stopped.
 
 `ORCA skills get orchestration --reference references/<file>.md`
 
-| Situation                                                                 | Reference                            |
-| ------------------------------------------------------------------------- | ------------------------------------ |
-| Task DAGs, several Runs                                                   | `references/coordinator-loop.md`     |
-| Another project or machine, child worktrees, SSH, WSL, a connected server | `references/placement-and-remote.md` |
-| Group messages                                                            | `references/messaging-and-gates.md`  |
-| A failed or unknown worker; retry, stop, reset                            | `references/recovery-and-cleanup.md` |
-| How a worker ends: settled, ended, destroyed                              | `references/worker-teardown.md`      |
-| Several independent workers at once                                       | `references/parallel-start.md`       |
-| Custom argv or terminal layout                                            | `references/low-level-topology.md`   |
+| Situation                                                                                        | Reference                            |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Task DAGs, several Runs                                                                          | `references/coordinator-loop.md`     |
+| Another project or machine, child worktrees, SSH, WSL, a desktop-connected host, a paired server | `references/placement-and-remote.md` |
+| Group messages                                                                                   | `references/messaging-and-gates.md`  |
+| A failed or unknown worker; retry, stop, reset                                                   | `references/recovery-and-cleanup.md` |
+| How a worker ends: settled, ended, destroyed                                                     | `references/worker-teardown.md`      |
+| Several independent workers at once                                                              | `references/parallel-start.md`       |
+| Custom argv or terminal layout                                                                   | `references/low-level-topology.md`   |

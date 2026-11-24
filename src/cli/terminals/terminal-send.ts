@@ -9,6 +9,7 @@ import { readRetryRequestFlag } from '../orchestration/recovery/retry-request-fl
 import { RuntimeClientError } from '../runtime/connection/types'
 import { attachUnverifiedTerminalPromptRecovery } from '../runtime/connection/terminal-prompt-mutation-recovery'
 import { getTerminalHandle } from './terminal-selector'
+import { refuseStartupDialogKeystrokes } from './terminal-send-startup-dialog'
 
 type TerminalSendResult = { send: RuntimeTerminalSend; warnings?: string[] }
 
@@ -56,8 +57,10 @@ export const terminalSendHandler: CommandHandler = async ({ flags, client, cwd, 
       'This Orca host does not support --wait-submit. No input was sent; update Orca on the execution host, or omit only --wait-submit for a legacy prompt whose delivery cannot be observed or retried safely.'
     )
   }
+  const handle = await getTerminalHandle(flags, cwd, client)
+  await refuseStartupDialogKeystrokes(client, handle, flags)
   const params = {
-    terminal: await getTerminalHandle(flags, cwd, client),
+    terminal: handle,
     text,
     enter,
     interrupt,

@@ -48,10 +48,21 @@ orca worktree rm --worktree id:<id> --force --json
 
 For selectors, setup flags, parent/child worktrees, and the broader command map, see [Orca CLI reference](/docs/cli/reference).
 
+## Desktop-connected hosts
+
+```
+orca host inventory --json
+orca agent launch --host <name> --agent claude --prompt "<task>" --json
+orca terminal send --host <name> --terminal <handle> --text "continue" --enter --json
+```
+
+`--host <name>` is a connected row from `orca host inventory`. `--on` / `--environment` still select a paired Orca server. Do not SSH between those machines. Exit 5 means a trust/hooks dialog is on screen; answer it in the desktop Orca window.
+
 ## Terminal commands
 
 ```
 orca terminal list --json
+orca terminal list --host <name> --json
 orca terminal read --json
 orca terminal send --text "npm test" --enter --json
 orca terminal wait --for tui-idle --timeout-ms 30000 --json

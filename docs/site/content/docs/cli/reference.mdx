@@ -77,6 +77,43 @@ orca host rm --host ssh:<target-id> --json
 
 It removes the target the same way Settings does, so the passive `~/.ssh/config` import does not add the alias back on the next launch. It takes only the `ssh:<target-id>` form, not the bare name, because it deletes data. It refuses `--host local`, paired servers (use `orca environment rm`), and an id this Orca host does not have.
 
+### Desktop-connected hosts
+
+The desktop app is also the hub for every machine it is connected to. List that fleet and act on it without SSH:
+
+```bash
+orca host inventory --json
+orca host inventory --group "Orca orchestration" --json
+orca agent launch --host <name> --agent claude --prompt "<task>" --json
+orca terminal create --host <name> --json
+orca terminal list --host <name> --json
+orca terminal send --host <name> --terminal <handle> --text "continue" --enter --json
+orca worktree create --host <name> --name <short-name> --json
+orca orchestration send --host <name> --to <handle> --subject "<topic>" --body "<message>"
+```
+
+`orca host inventory` is the command agents should run first: every host, connection status, Orca projects and folder workspaces, installed agent CLIs, and live tabs. `--host <name>` is a connected row from that list (or from `orca host list`). `--group "<name>"` places a new tab in that project group on the target host. Unique `folder:<id>` and `term_…` handles resolve across connected hosts without `--host`; collisions name the owners and the exact `--host` command. `--on` and `--environment` still select a paired Orca server saved on this machine; they are not desktop-connected hosts.
+
+Without `--worktree`, `agent launch`, `terminal create`, and `orchestration worker-start --host` use `~/orca-orchestration` on that host (the visible **Orca orchestration** project). Name a workspace or repo only when the task should run in that checkout. Those tabs always land in a group the desktop shows.
+
+Do not use SSH between those machines. `needs_sign_in` and `unreachable` hosts are listed with that status and are not dialed. Remote bot @mentions of a desktop-connected host are a follow-up; until then, pass `--host <name>` on the CLI.
+
+### Exit codes
+
+Scripts and orchestrators can branch on the exit status of `orca orchestration`, `terminal`, `agent` and `host` commands. Codes 0 to 6 are stable there; other commands exit 1 on any error; `orca plugin` keeps its own mapping (`plugin_invalid` is 2, `approval_required` and `approval_stale` are 3).
+
+| Exit | Meaning                              | Error codes                                         |
+| ---- | ------------------------------------ | --------------------------------------------------- |
+| 0    | Success                              |                                                     |
+| 1    | Generic failure                      | Any code not listed below                           |
+| 2    | Host mismatch                        | `host_mismatch`                                     |
+| 3    | Unknown host or session              | `unknown_host`, `session_not_found`                 |
+| 4    | Host unreachable or not signed in    | `host_unreachable`, `host_offline`, `needs_sign_in` |
+| 5    | Blocked on an agent prompt           | `agent_blocked_on_prompt`                           |
+| 6    | Version skew between CLI and runtime | `incompatible_runtime`                              |
+
+Exit 5 means the tab is waiting on a trust, hooks, or security prompt. Open the tab in the desktop Orca window and answer it there; never answer with keystrokes.
+
 ## Runtime commands
 
 ```bash
@@ -205,11 +242,13 @@ Mailboxes are `dispatch:<id>` or `orca_session_id:<id>`; a `run:<id>` addresses 
 
 ```bash
 orca terminal list --worktree active --json
+orca terminal list --host <name> --json
 orca terminal show --terminal <handle> --json
 orca terminal read --terminal <handle> --json
 orca terminal read --terminal <handle> --screen --json
 orca terminal read --terminal <handle> --cursor <cursor> --limit 1000 --json
 orca terminal send --terminal <handle> --text "npm test" --enter --json
+orca terminal send --host <name> --terminal <handle> --text "continue" --enter --json
 orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 300000 --json
 orca terminal create --worktree active --title "tests" --command "npm test" --json
 orca terminal split --terminal <handle> --direction horizontal --command "npm run dev" --json
@@ -217,6 +256,7 @@ orca terminal rename --terminal <handle> --title "runner" --json
 orca terminal set-pane-title --terminal <handle> --title "reviewer" --json
 orca terminal switch --terminal <handle> --json
 orca terminal close --terminal <handle> --json
+orca terminal close --host <name> --terminal <handle> --json
 orca terminal close --worktree active --all --json
 ```
 
