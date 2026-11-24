@@ -453,6 +453,7 @@
 2 src/main/runtime/mobile-cloud-relay/pairing/relay-revoke-outbox.ts
 5 src/main/runtime/mobile-cloud-relay/region-selection/relay-region-preference.ts
 1 src/main/runtime/orchestration/db/runtime-orchestration-database-access.ts
+3 src/main/runtime/orchestration/desktop-hub/desktop-hub-placement-store.ts # one-shot fingerprint cache so worker-show/stop survive a daemon restart; not a per-RPC path
 2 src/main/runtime/push/push-unregister-outbox.ts
 1 src/main/runtime/rpc/methods/bots-tools.ts
 1 src/main/runtime/rpc/methods/mobile-delivery/bundled-mobile-web-bundle.ts

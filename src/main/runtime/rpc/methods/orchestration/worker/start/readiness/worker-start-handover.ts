@@ -24,7 +24,12 @@ export function localWorkerStartHandover(args: {
   worktreeId: string
   workerChat: boolean
   external: boolean
-  authority?: { paneKey: string; processIncarnation: string; hostScope: string }
+  authority?: {
+    paneKey: string | null
+    processIncarnation: string | null
+    hostScope?: string
+    launchTokenHash?: string
+  }
   effects: WorkerEffect[]
   agent: string | undefined
   mode: WorkerStartModeReceipt
