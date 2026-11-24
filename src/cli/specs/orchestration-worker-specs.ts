@@ -6,7 +6,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
     path: ['orchestration', 'worker-start'],
     summary: 'Start one supervised worker on the Run home or a connected Orca server',
     usage:
-      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment> | --host <desktop-connected-host>] [--worktree <current|selector|new-child|new-top-level>] [--group "<name>"] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--retry-request <id>] [--json]',
+      'orca orchestration worker-start (--task <task_id> | --spec <text> | --spec-file <path|->) [--keep-open] [--on <saved-environment> | --host <desktop-connected-host>] [--worktree <current|selector|new-child|new-top-level>] [--group "<name>"] (--agent <agent> | --terminal <handle>) [--task-title <text>] [--deps <json_array>] [--parent <task_id>] [--model <id>] [--effort <level>] [--name <name>] [--repo <selector>] [--base-branch <ref>] [--display-name <text>] [--comment <text>] [--setup <run|skip|inherit>] [--retry-of <dispatch_id>] [--timeout-ms <n>] [--run <run_id>] [--from <handle>] [--as-coordinator] [--retry-request <id>] [--json]',
     allowedFlags: [
       ...GLOBAL_FLAGS,
       'task',
@@ -34,6 +34,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       'timeout-ms',
       'run',
       'from',
+      'as-coordinator',
       'retry-request'
     ],
     identityFlagRoles: { from: 'caller', terminal: 'target' },
@@ -58,6 +59,7 @@ export const ORCHESTRATION_WORKER_COMMAND_SPECS: CommandSpec[] = [
       '--retry-of needs --task naming the failed Task (--spec creates a new one) and does not inherit placement; repeat the intended --on/worktree and --agent/terminal choices. A Task whose only Dispatch is stop_unknown can be retried with --retry-of <dispatch>.',
       '--spec-file reads the spec from a file (relative to the current directory) or stdin (-) on this machine, so quotes and backticks need no shell escaping.',
       '--keep-open keeps the worker open after it finishes, as worker-keep-open does right after start.',
+      '--as-coordinator starts a worker as coordinator without ORCA_TERMINAL_HANDLE or --from. Use it from an external agent or a shell that is not an Orca terminal.',
       'The call exits 0 for ready, and in the concise view for a start whose turn was not yet observed (--full exits 1 for anything but ready). Failed or outcome_unknown exits 1 and JSON includes stage/failedStage, setup, effects, residualResources, and recovery commands when needed.'
     ]
   },

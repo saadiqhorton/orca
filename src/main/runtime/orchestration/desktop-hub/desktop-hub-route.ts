@@ -3,6 +3,7 @@ import {
   DesktopHubError,
   desktopHubHostError,
   desktopHubRowMatches,
+  isLocalDesktopHubRow,
   unknownDesktopHubHost,
   type DesktopHubCatalog
 } from '../../../../shared/orchestration/desktop-hub-contract'
@@ -60,7 +61,7 @@ export async function routeDesktopHubCommand<T extends { host?: string; on?: str
   return { ...params, on, host: undefined }
 }
 
-function selectorFromDesktopCatalog(catalog: DesktopHubCatalog, host: string): string {
+function selectorFromDesktopCatalog(catalog: DesktopHubCatalog, host: string): string | undefined {
   const row = catalog.hosts.find((candidate) => desktopHubRowMatches(candidate, host))
   if (!row) {
     throw unknownDesktopHubHost(
@@ -72,11 +73,8 @@ function selectorFromDesktopCatalog(catalog: DesktopHubCatalog, host: string): s
   if (blocked) {
     throw blocked
   }
-  if (row.hostKey === 'desktop') {
-    throw new DesktopHubError(
-      'invalid_argument',
-      `Host "${row.name}" is this desktop. Start the worker in this session without --host. Orca will not use SSH.`
-    )
+  if (isLocalDesktopHubRow(row)) {
+    return undefined
   }
   return row.hostKey
 }

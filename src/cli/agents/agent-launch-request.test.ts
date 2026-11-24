@@ -22,6 +22,20 @@ const launched = {
 } satisfies AgentLaunchResult
 
 describe('assertAgentLaunchPromptDelivered', () => {
+  it('exits non-zero for a Codex TUI model-not-supported first turn', () => {
+    const failed = {
+      ...launched,
+      prompt: {
+        delivery: 'submit' as const,
+        outcome: 'agent_blocked_on_prompt' as const,
+        blockedReason: 'agent_turn_failed:model_not_supported',
+        next: 'The agent failed on its first turn (model_not_supported).'
+      }
+    }
+    expect(formatAgentLaunch(failed)).toContain('agent_turn_failed:model_not_supported')
+    expect(() => assertAgentLaunchPromptDelivered(failed)).toThrow(RuntimeClientError)
+  })
+
   it('exits non-zero for a first-turn model_not_found', () => {
     const failed = {
       ...launched,

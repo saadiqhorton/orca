@@ -259,6 +259,7 @@ export function inventoryUsesLocalDesktopRuntime(runtime: WeakKey): boolean {
 
 function snapshotHost(row: DesktopHubHostRow) {
   return {
+    kind: row.kind,
     name: row.name,
     machineName: row.machineName,
     id: row.id,

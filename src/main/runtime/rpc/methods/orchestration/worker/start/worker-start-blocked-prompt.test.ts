@@ -43,6 +43,29 @@ describe('throwIfWorkerFirstTurnFailed', () => {
     }
   })
 
+  it('fails a worker whose first screen is a Codex ChatGPT-account model rejection', async () => {
+    await expect(
+      throwIfWorkerFirstTurnFailed(
+        {
+          readTerminal: async () => ({
+            text: "The 'bogus-model-xyz' model is not supported when using Codex with a ChatGPT account."
+          })
+        },
+        'term_worker',
+        Date.now,
+        { dispatchId: 'ctx_worker', host: 'ubuntu-server-local' }
+      )
+    ).rejects.toMatchObject({
+      code: 'agent_blocked_on_prompt',
+      data: {
+        blockedReason: 'agent_turn_failed:model_not_supported',
+        dispatchId: 'ctx_worker',
+        handle: 'term_worker',
+        host: 'ubuntu-server-local'
+      }
+    })
+  })
+
   it('lets a healthy first screen through', async () => {
     await expect(
       throwIfWorkerFirstTurnFailed(
@@ -75,7 +98,8 @@ describe('throwIfWorkerFirstTurnFailed', () => {
   it('fails worker-start after banner, prompt submitted, Working, a 5s delay, then 400', async () => {
     vi.useFakeTimers()
     const started = Date.now()
-    const banner = '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task'
+    const banner =
+      '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task'
     const working = `${banner}\nTASK submitted\nWorking`
     const fatal = `${working}\nERROR: 400 model_not_found gpt-6-luna`
     const pending = throwIfWorkerFirstTurnFailed(

@@ -27,6 +27,7 @@ import { applyGroupWorktreeFlag } from '../../hosts/orchestration-group-flag'
 import { formatSameGroupWorktreeSelector } from '../../../shared/orchestration/orchestration-group-selector'
 import { readCallerProjectGroupName } from '../../hosts/caller-project-group'
 import { checkCodexModelAgainstVersion } from '../../../shared/orchestration/codex-model-version-gate'
+import { emitCliWarning, mergeCliWarning } from '../../output/cli-warning'
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async (ctx) => {
@@ -48,13 +49,14 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
     const requestedAgent = getOptionalStringFlag(flags, 'agent')
+    let modelWarning: string | undefined
     if ((!requestedAgent || requestedAgent === 'codex') && model) {
       const gate = checkCodexModelAgainstVersion(model, null)
       if (gate.status === 'refused') {
         throw new RuntimeClientError('invalid_argument', gate.message)
       }
       if (gate.status === 'unknown') {
-        process.stderr.write(`warning: ${gate.message}\n`)
+        modelWarning = emitCliWarning(gate.message, json)
       }
     }
     if (model || effort) {
@@ -130,11 +132,13 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       (result.result.state === 'ready' || isUnobservedTurnStart(result.result))
         ? await keepWorkerOpen(client, result.result.dispatchId)
         : undefined
+    const warning = mergeCliWarning(result.result.warning, modelWarning)
     const renderedResult = {
       ...result,
       result: {
         ...withResolvedNextCommands(result.result),
-        ...(keepOpenState === 'retained' ? { keptOpen: true as const } : {})
+        ...(keepOpenState === 'retained' ? { keptOpen: true as const } : {}),
+        ...(warning ? { warning } : {})
       }
     }
     if (flags.has('full')) {

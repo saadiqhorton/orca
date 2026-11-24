@@ -132,7 +132,7 @@ export const WORKTREE_HANDLERS: Record<string, CommandHandler> = {
     const startupAgent = getOptionalStartupAgent(flags)
     // Read before any request, so a bad prompt, model or effort creates nothing.
     const agentLaunch = startupAgent
-      ? readCliAgentLaunch(flags, startupAgent, { createsWorktree: true })
+      ? readCliAgentLaunch(flags, startupAgent, { createsWorktree: true, json })
       : undefined
     const setupDecision = getOptionalSetupDecision(flags)
     const noParent = flags.get('no-parent') === true

@@ -11,6 +11,10 @@ import {
   type OrchestrationEntryCaller
 } from '../../../../orchestration/addressing/orchestration-caller-identity'
 import type { OrchestrationPartyIdentity as OrchestrationCallerIdentity } from '../../../../../../shared/orchestration/mailbox/orchestration-party-identity'
+import {
+  cliCoordinatorParty,
+  isCliCoordinatorHandle
+} from '../../../../../../shared/orchestration/cli-coordinator-identity'
 import { resolveDeclaredCallerParty } from '../../../../orchestration/addressing/orchestration-party'
 import {
   findCallerWorkerDispatches,
@@ -61,6 +65,9 @@ export function orchestrationCallerIdentity(
 ): OrchestrationCallerIdentity {
   if (caller.session) {
     return caller.session
+  }
+  if (isCliCoordinatorHandle(caller.handle)) {
+    return cliCoordinatorParty()
   }
   const party = resolveDeclaredCallerParty(caller.handle, runtime.getOrchestrationDb())
   return { ...party, paneKey: caller.paneKey ?? null }

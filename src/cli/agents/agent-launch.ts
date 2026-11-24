@@ -23,7 +23,8 @@ import {
 export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
   'agent launch': async ({ flags, client, cwd, json, rawArgs }) => {
     const launch = readCliAgentLaunch(flags, parseCliAgent(getRequiredStringFlag(flags, 'agent')), {
-      createsWorktree: false
+      createsWorktree: false,
+      json
     })
     applyGroupWorktreeFlag(flags)
     let sessionPlacement = flags.has(ORCHESTRATION_SESSION_PLACEMENT_FLAG)
@@ -72,6 +73,16 @@ export const AGENT_LAUNCH_HANDLERS: Record<string, CommandHandler> = {
       rawArgs
     )
     assertAgentLaunchPromptDelivered(result.result)
-    printResult(result, json, formatAgentLaunch)
+    printResult(
+      {
+        ...result,
+        result: {
+          ...result.result,
+          ...(launch.warning && !result.result.warning ? { warning: launch.warning } : {})
+        }
+      },
+      json,
+      formatAgentLaunch
+    )
   }
 }

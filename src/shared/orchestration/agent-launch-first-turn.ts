@@ -5,7 +5,15 @@ export const AGENT_TURN_FAILED_PREFIX = 'agent_turn_failed'
 const FATAL_PATTERNS: readonly { reason: string; pattern: RegExp }[] = [
   { reason: 'model_not_found', pattern: /\bmodel_not_found\b/i },
   { reason: 'unknown_model', pattern: /\bunknown model\b/i },
-  { reason: 'invalid_model', pattern: /\binvalid[_ ]model\b/i }
+  { reason: 'invalid_model', pattern: /\binvalid[_ ]model\b/i },
+  { reason: 'invalid_model', pattern: /\bnot a valid model\b/i },
+  // Codex ChatGPT-account TUI: "The 'bogus-model-xyz' model is not supported when using Codex..."
+  { reason: 'model_not_supported', pattern: /\bmodel\b[\s\S]{0,120}?\bis not supported\b/i },
+  {
+    reason: 'model_not_supported',
+    pattern: /\bis not supported when using (?:codex|claude)\b/i
+  },
+  { reason: 'model_not_found', pattern: /\bmodel\b[\s\S]{0,80}?\bis not available\b/i }
 ]
 
 /** Real turn work — not a status timer that can precede a 400. */

@@ -12,6 +12,8 @@ import { ORCHESTRATION_HANDLE_ROUTING_RUNTIME_CAPABILITY } from '../../shared/or
 const inventory = [
   {
     name: 'ubuntu-server-local',
+    kind: 'execution',
+    hostKey: 'env-ubuntu',
     status: 'connected' as const,
     inventory: {
       folderWorkspaces: [{ id: 'fld_remote' }],
@@ -20,6 +22,8 @@ const inventory = [
   },
   {
     name: 'TEMPLEOFDOOM',
+    kind: 'execution',
+    hostKey: 'env-temple',
     status: 'connected' as const,
     inventory: {
       folderWorkspaces: [{ id: 'fld_other' }],
@@ -28,10 +32,22 @@ const inventory = [
   },
   {
     name: 'ARCHIT4ME',
+    kind: 'execution',
+    hostKey: 'env-arch',
     status: 'connected' as const,
     inventory: {
       folderWorkspaces: [],
       sessions: [{ handle: 'term_shared' }]
+    }
+  },
+  {
+    name: 'FLEXTOP',
+    kind: 'desktop',
+    hostKey: 'desktop',
+    status: 'connected' as const,
+    inventory: {
+      folderWorkspaces: [{ id: 'fld_local' }],
+      sessions: []
     }
   }
 ]
@@ -96,6 +112,19 @@ describe('resolveRemoteSelectorsAcrossHosts', () => {
     expect(wrapped.isRemote).toBe(true)
     expect(flags.has('host')).toBe(false)
     await wrapped.call('agent.launch', { agent: 'claude' })
+  })
+
+  it('leaves a local desktop folder worktree on this machine without wrapping --host FLEXTOP', async () => {
+    const flags = new Map<string, string | boolean>([['worktree', 'folder:fld_local']])
+    const inner = clientWithInventory()
+    const result = await resolveRemoteSelectorsAcrossHosts(
+      inner as never,
+      ['orchestration', 'worker-start'],
+      flags
+    )
+    expect(result).toBe(inner)
+    expect(result.isRemote).toBe(false)
+    expect(flags.has('host')).toBe(false)
   })
 
   it('sets --host on worker-start instead of wrapping the client', async () => {

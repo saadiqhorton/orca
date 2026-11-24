@@ -79,6 +79,30 @@ describe('desktop hub route', () => {
     await expect(routeDesktopHubCommand(runtime, {})).resolves.toEqual({})
   })
 
+  it('treats this desktop NETBIOS name as the local target', async () => {
+    const flextop = buildDesktopHubCatalog({
+      machineName: 'FLEXTOP',
+      executions: [
+        {
+          label: 'ubuntu-server-local',
+          machineName: 'dezignerdrugz00',
+          environmentId: 'env-ubuntu',
+          health: 'available',
+          server: { name: 'ubuntu', peerFingerprint: 'fp-ubuntu' }
+        }
+      ]
+    })
+    setDesktopHubCatalogProvider(async () => flextop)
+    await expect(routeDesktopHubCommand({}, { host: 'FLEXTOP' })).resolves.toEqual({
+      host: undefined,
+      on: undefined
+    })
+    await expect(routeDesktopHubCommand({}, { host: 'ubuntu-server-local' })).resolves.toEqual({
+      host: undefined,
+      on: 'env-ubuntu'
+    })
+  })
+
   it('refuses an unknown --host instead of running locally', async () => {
     setDesktopHubCatalogProvider(async () => catalog)
     await expect(routeDesktopHubCommand({}, { host: 'not-a-machine' })).rejects.toMatchObject({

@@ -6,6 +6,7 @@ import {
   DesktopHubLocateSchema,
   desktopHubRowMatches,
   hostMismatchError,
+  isLocalDesktopHubRow,
   sessionNotFoundError,
   type DesktopHubLocate
 } from '../../shared/orchestration/desktop-hub-contract'
@@ -19,6 +20,8 @@ type HostInventorySession = { handle: string }
 type HostInventoryFolder = { id: string }
 type HostInventoryRow = {
   name: string
+  kind?: string
+  hostKey?: string
   status?: string
   inventory?: {
     folderWorkspaces?: HostInventoryFolder[]
@@ -280,6 +283,10 @@ export async function resolveRemoteSelectorsAcrossHosts(
     throwAmbiguous(commandPath, flags, matched.hits)
   }
   const host = matched.host
+  const row = hosts.find((candidate) => candidate.name === host)
+  if (row && isLocalDesktopHubRow(row)) {
+    return client
+  }
   const probe = new Map(flags)
   probe.set('host', host)
   if (shouldWrapDesktopHubHost(commandPath, probe)) {

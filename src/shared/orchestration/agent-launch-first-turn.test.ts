@@ -24,6 +24,30 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
     )
   })
 
+  it('treats Codex ChatGPT-account TUI model rejection as fatal, including Windows CRLF', () => {
+    expect(
+      classifyAgentLaunchFirstTurnFailure(
+        "The 'bogus-model-xyz' model is not supported when using Codex with a ChatGPT account."
+      )
+    ).toBe('model_not_supported')
+    expect(
+      classifyAgentLaunchFirstTurnFailure(
+        ">_ OpenAI Codex (v0.154.0)\r\n  model: bogus-model-xyz\r\nThe 'bogus-model-xyz' model is not supported when using Codex with a ChatGPT account.\r\n"
+      )
+    ).toBe('model_not_supported')
+  })
+
+  it('treats Claude model-unavailable TUI copy as fatal', () => {
+    expect(
+      classifyAgentLaunchFirstTurnFailure("Invalid model: 'bogus-model-xyz' is not a valid model")
+    ).toBe('invalid_model')
+    expect(
+      classifyAgentLaunchFirstTurnFailure(
+        "The model 'bogus-model-xyz' is not available on this account"
+      )
+    ).toBe('model_not_found')
+  })
+
   it('ignores ordinary agent output', () => {
     expect(classifyAgentLaunchFirstTurnFailure('thinking about the repo')).toBeNull()
     expect(classifyAgentLaunchFirstTurnFailure('')).toBeNull()
@@ -39,14 +63,10 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
   })
 
   it('does not treat Working as first-turn activity', () => {
-    expect(
-      isAgentFirstTurnActivity(
-        '>_ OpenAI Codex (v0.154.0)\nTASK submitted\nWorking'
-      )
-    ).toBe(false)
-    expect(
-      isAgentFirstTurnActivity('• Working (0s • 0 tokens)')
-    ).toBe(false)
+    expect(isAgentFirstTurnActivity('>_ OpenAI Codex (v0.154.0)\nTASK submitted\nWorking')).toBe(
+      false
+    )
+    expect(isAgentFirstTurnActivity('• Working (0s • 0 tokens)')).toBe(false)
   })
 
   it('reads Codex Working timer seconds and treats an advancing timer as progress', () => {
@@ -56,10 +76,7 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
     expect(isCodexWorkingTimerProgress('• Working (2s • 12 tokens)', 1)).toBe(false)
     expect(isCodexWorkingTimerProgress('• Working (3s • 12 tokens)', 2)).toBe(true)
     expect(
-      isCodexWorkingTimerProgress(
-        'ERROR: 400 model_not_found gpt-5.4\n• Working (5s)',
-        4
-      )
+      isCodexWorkingTimerProgress('ERROR: 400 model_not_found gpt-5.4\n• Working (5s)', 4)
     ).toBe(false)
   })
 
@@ -68,21 +85,15 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
     expect(isAgentFirstTurnIdle('thinking about the repo')).toBe(false)
     expect(isAgentFirstTurnIdle('• Working (3s • esc to interrupt)')).toBe(false)
     expect(isAgentFirstTurnIdle('❯ ')).toBe(true)
-    expect(
-      isAgentFirstTurnIdle('>_ OpenAI Codex (v0.154.0)\nhello from the worktree\n>_ ')
-    ).toBe(true)
+    expect(isAgentFirstTurnIdle('>_ OpenAI Codex (v0.154.0)\nhello from the worktree\n>_ ')).toBe(
+      true
+    )
   })
 
   it('treats Claude Code elapsed-seconds status lines as progress', () => {
-    expect(
-      readCodexWorkingElapsedSeconds('✻ Working… (0s · esc to interrupt)')
-    ).toBe(0)
-    expect(
-      readCodexWorkingElapsedSeconds('✻ Thinking… (3s · esc to interrupt)')
-    ).toBe(3)
-    expect(isCodexWorkingTimerProgress('✻ Exploring… (3s · esc to interrupt)', 2)).toBe(
-      true
-    )
+    expect(readCodexWorkingElapsedSeconds('✻ Working… (0s · esc to interrupt)')).toBe(0)
+    expect(readCodexWorkingElapsedSeconds('✻ Thinking… (3s · esc to interrupt)')).toBe(3)
+    expect(isCodexWorkingTimerProgress('✻ Exploring… (3s · esc to interrupt)', 2)).toBe(true)
     expect(isAgentFirstTurnActivity('✻ Working… (3s · esc to interrupt)')).toBe(false)
   })
 })

@@ -43,7 +43,7 @@ export const ORCHESTRATION_WORKER_CONTROL_METHODS = [
         )
       }
       const federated = db.getFederatedDispatch(params.dispatch)
-      if (federated) {
+      if (federated && worker?.state !== 'failed') {
         return showFederatedWorker({
           runtime,
           db,

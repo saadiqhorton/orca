@@ -33,6 +33,7 @@ import type { RuntimeClient } from '../runtime/client'
 import type { RuntimeRpcSuccess } from '../../shared/runtime-rpc-envelope'
 import { withCliAgentLaunchRecovery } from './agent-launch-recovery'
 import { checkCodexModelAgainstVersion } from '../../shared/orchestration/codex-model-version-gate'
+import { emitCliWarning } from '../output/cli-warning'
 
 type Flags = Map<string, string | boolean>
 
@@ -48,6 +49,7 @@ export type CliAgentLaunch = {
   sessionOptions?: Record<string, string>
   operationId?: string
   surface?: AgentLaunchSurface
+  warning?: string
 }
 
 function readSurfaceFlag(flags: Flags): AgentLaunchSurface | undefined {
@@ -72,7 +74,7 @@ export function parseCliAgent(value: string): TuiAgent {
 export function readCliAgentLaunch(
   flags: Flags,
   agent: TuiAgent,
-  target: { createsWorktree: boolean }
+  target: { createsWorktree: boolean; json?: boolean }
 ): CliAgentLaunch {
   const checked = checkAgentLaunchModelPreferences({
     agent,
@@ -85,13 +87,14 @@ export function readCliAgentLaunch(
   if ('refusal' in checked) {
     throw new RuntimeClientError(checked.refusal.code, checked.refusal.message)
   }
+  let warning: string | undefined
   if (agent === 'codex' && checked.preferences?.model) {
     const gate = checkCodexModelAgainstVersion(checked.preferences.model, null)
     if (gate.status === 'refused') {
       throw new RuntimeClientError('invalid_argument', gate.message)
     }
     if (gate.status === 'unknown') {
-      process.stderr.write(`warning: ${gate.message}\n`)
+      warning = emitCliWarning(gate.message, target.json === true)
     }
   }
   const prompt = flags.get('prompt')
@@ -110,7 +113,8 @@ export function readCliAgentLaunch(
     ...(typeof prompt === 'string' && prompt.trim()
       ? { prompt: { text: prompt, delivery: 'submit' as const } }
       : {}),
-    ...(checked.preferences ? { sessionOptions: { ...checked.preferences } } : {})
+    ...(checked.preferences ? { sessionOptions: { ...checked.preferences } } : {}),
+    ...(warning ? { warning } : {})
   }
 }
 

@@ -93,6 +93,15 @@ export function desktopHubHostKey(selector: string): string {
   return selector.slice(DESKTOP_HUB_SELECTOR_PREFIX.length)
 }
 
+/** The hub's own desktop row — `--host` with this machine's name is local, not a remote wrap. */
+export function isLocalDesktopHubRow(row: {
+  kind?: string
+  hostKey?: string
+  id?: string
+}): boolean {
+  return row.kind === 'desktop' || row.hostKey === 'desktop'
+}
+
 export function desktopHubRowMatches(
   row: {
     name: string

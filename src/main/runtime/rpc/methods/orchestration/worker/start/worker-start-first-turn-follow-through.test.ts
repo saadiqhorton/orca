@@ -44,10 +44,7 @@ describe('worker-start first-turn follow-through', () => {
           const seconds = Math.max(1, Math.floor(elapsed / 1000))
           const working = `>_ OpenAI Codex\nTASK submitted\n• Working (${seconds}s • esc to interrupt)`
           return {
-            text:
-              elapsed >= 5_000
-                ? `${working}\nERROR: 400 model_not_found gpt-5.4`
-                : working
+            text: elapsed >= 5_000 ? `${working}\nERROR: 400 model_not_found gpt-5.4` : working
           }
         },
         notifyMessageArrived: () => undefined
@@ -106,6 +103,27 @@ describe('worker-start first-turn follow-through', () => {
       stage: 'agent_turn_failed:model_not_found'
     })
     expect(db.getDispatchContextById(dispatchId)?.status).toBe('failed')
+    db.close()
+  })
+
+  it('keeps the failed dispatch so worker-show can report agent_turn_failed', () => {
+    const db = new OrchestrationDb(':memory:')
+    const dispatchId = startingDispatch(db)
+    failWorkerFirstTurnAfterReady({
+      db,
+      dispatchId,
+      reason: 'model_not_supported',
+      notify: () => undefined
+    })
+    expect(db.getWorkerDispatch(dispatchId)).toMatchObject({
+      state: 'failed',
+      stage: 'agent_turn_failed:model_not_supported',
+      last_error: 'agent_turn_failed:model_not_supported'
+    })
+    expect(db.getDispatchContextById(dispatchId)).toMatchObject({
+      id: dispatchId,
+      status: 'failed'
+    })
     db.close()
   })
 })

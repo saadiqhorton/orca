@@ -3,6 +3,7 @@ import {
   desktopHubHostError,
   desktopHubRowMatches,
   desktopHubStatus,
+  isLocalDesktopHubRow,
   unknownDesktopHubHost
 } from './desktop-hub-contract'
 
@@ -40,6 +41,14 @@ describe('desktop hub host status', () => {
     }
     expect(desktopHubRowMatches(row, 'f12a5fc4-a853-4aa2-8b76-b0b6977b45c5')).toBe(true)
     expect(desktopHubRowMatches(row, 'f12a5fc4')).toBe(false)
+  })
+
+  it('treats the desktop catalog row, including a Windows NETBIOS name, as local', () => {
+    expect(isLocalDesktopHubRow({ kind: 'desktop', hostKey: 'desktop', id: 'desktop' })).toBe(true)
+    expect(isLocalDesktopHubRow({ kind: 'desktop' })).toBe(true)
+    expect(
+      isLocalDesktopHubRow({ kind: 'execution', hostKey: 'env-ubuntu', id: 'env-ubuntu' })
+    ).toBe(false)
   })
 
   it('matches --host when the managed SSH target is labelled with its IP', () => {

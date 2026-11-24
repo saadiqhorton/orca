@@ -2,6 +2,7 @@ import {
   DESKTOP_HUB_UNAVAILABLE_MESSAGE,
   desktopHubHostError,
   desktopHubRowMatches,
+  isLocalDesktopHubRow,
   type DesktopHubHostStatus
 } from '../../shared/orchestration/desktop-hub-contract'
 import { unknownDesktopHubHostMessage } from '../../shared/orchestration/orca-host-awareness'
@@ -18,6 +19,7 @@ export type HubListRow = {
   id?: string
   aliases?: string[]
   status?: string
+  hostKey?: string
 }
 
 export type DesktopHubHostResolution =
@@ -92,6 +94,10 @@ export async function bindDesktopHubHost(
   const resolved = await resolveDesktopHubHost(client, host)
   if (resolved.status !== 'matched') {
     throwDesktopHubHostResolution(host, resolved)
+  }
+  if (isLocalDesktopHubRow(resolved.row)) {
+    flags.delete('host')
+    return client
   }
   const blocked = desktopHubHostError(
     resolved.row.status === 'needs_sign_in' ||
