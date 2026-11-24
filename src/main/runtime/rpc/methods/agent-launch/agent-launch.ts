@@ -24,10 +24,15 @@ import {
   AgentLaunchExecutionError,
   agentLaunchRefusalError,
   agentLaunchTabClosedAnswer,
+  failSettledAgentLaunchOnFirstTurn,
   settleLaunchWhoseTabWasClosed,
   settleQuietly,
   withEarlyTab
 } from './agent-launch-execution-outcome'
+import {
+  beginAgentLaunchFirstTurnWatch,
+  finishAgentLaunchFirstTurnWatch
+} from './agent-launch-first-turn-watch'
 import {
   AgentLaunch,
   AgentLaunchReplay,
@@ -67,6 +72,7 @@ async function runAgentLaunch(
   replaySafe?: ReplaySafeLaunch
 ): Promise<AgentLaunchResult> {
   const callerNavigationId = agentLaunchCallerNavigationId(context)
+  let firstTurnWatch: ReturnType<typeof beginAgentLaunchFirstTurnWatch> | null = null
   const result = await executeAgentLaunch({
     runtime: context.runtime,
     intent,
@@ -91,9 +97,19 @@ async function runAgentLaunch(
       view.early?.surfacePublished(surface)
       replaySafe?.recordSurface(withPlacement(surface, view))
       await selectLaunchedTab(context, surface, view.presentation, callerNavigationId)
+      firstTurnWatch ??= beginAgentLaunchFirstTurnWatch(
+        context.runtime,
+        withPlacement(surface, view)
+      )
     }
   })
-  return withPlacement(result, view)
+  return finishAgentLaunchFirstTurnWatch(
+    context.runtime,
+    withPlacement(result, view),
+    firstTurnWatch,
+    Date.now,
+    replaySafe?.failFirstTurn
+  )
 }
 
 /** Legacy unnamed launches retain the 60-second create dedupe cache (repo/mutation id, no caller partition).
@@ -206,7 +222,8 @@ async function executeAdmittedAgentLaunch(
       attachOperationId: admission.attachOperationId,
       callerKey: admission.callerKey,
       terminalSpawn,
-      recordSurface: (provisional) => void settleQuietly(admission.record(provisional))
+      recordSurface: (provisional) => void settleQuietly(admission.record(provisional)),
+      failFirstTurn: (reason) => failSettledAgentLaunchOnFirstTurn(admission.fail, reason)
     })
   } catch (error) {
     if (view.early?.closedByUser()) {

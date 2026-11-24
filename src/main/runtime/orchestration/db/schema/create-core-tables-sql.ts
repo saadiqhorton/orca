@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS worker_dispatches (
   residual_resources     TEXT NOT NULL DEFAULT '[]',
   start_options          TEXT NOT NULL DEFAULT '{}',
   last_error             TEXT,
+  blocked_reason         TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
 );

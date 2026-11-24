@@ -13,6 +13,9 @@ import {
 import { SUBMIT_WITHHELD_STAGE } from '../../../../../../orchestration/workers/turn-stops/unconfirmed-start-evidence'
 import { WORKER_AGENT_STARTING_STAGE } from '../../../../../../orchestration/db/worker-dispatch/worker-awaiting-agent-stage'
 import { reportedWorkerOutcome } from '../worker-start-receipt'
+import { throwIfWorkerFirstTurnFailed } from '../worker-start-blocked-prompt'
+import { armWorkerFirstTurnFollowThrough } from '../worker-start-first-turn-follow-through'
+import { FIRST_TURN_WATCH_MS } from '../../../../agent-launch/agent-launch-first-turn-watch'
 import { chatAssigneeSessionId } from '../../../../../../orchestration/workers/lifecycle/chat-assignee'
 import type { OrchestrationWorkerLaunchReceipt } from '../launch/worker-launch-preferences'
 import {
@@ -54,6 +57,7 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
   terminalRevealWarning: string | undefined
   /** Keeps the caller's failure receipt naming the stage that actually failed. */
   onStage: (stage: 'dispatch_input' | 'turn_observation') => void
+  host?: string
 }): Promise<unknown> {
   const { runtime, db, run, task, structuredSession, terminalHandle, effects } = args
 
@@ -83,6 +87,14 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
     id: terminalHandle,
     state: 'accepted'
   })
+  const firstTurnWatchStartedAt = Date.now()
+  const continueFirstTurnWatch =
+    !structuredSession &&
+    (await throwIfWorkerFirstTurnFailed(runtime, terminalHandle, Date.now, {
+      dispatchId: args.dispatchId,
+      host: args.host
+    }))
+  const firstTurnWatchMs = Date.now() - firstTurnWatchStartedAt
 
   args.onStage('turn_observation')
   // Accepted writes need positive turn-start evidence when supported; structured sends prove acceptance or remain held.
@@ -96,7 +108,11 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
       // Why: a delivery that waited out a held Windows paste must still fit the client's grace.
       timeoutMs: Math.min(
         AGENT_PROMPT_EFFECT_TIMEOUT_MS,
-        Math.max(0, ORCHESTRATION_WORKER_START_CLIENT_GRACE_MS - (Date.now() - deliveryStartedAt))
+        Math.max(
+          0,
+          ORCHESTRATION_WORKER_START_CLIENT_GRACE_MS -
+            (Date.now() - deliveryStartedAt - firstTurnWatchMs)
+        )
       )
     }))
   const deliveredPrompt = turnStart.prompt ?? promptDelivery
@@ -195,6 +211,15 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
   const worker = alreadySettled
     ? currentWorker
     : db.markWorkerDispatchReady(args.dispatchId, effects)
+  if (continueFirstTurnWatch && worker?.state === 'ready') {
+    armWorkerFirstTurnFollowThrough({
+      runtime,
+      db,
+      dispatchId: args.dispatchId,
+      handle: terminalHandle,
+      deadline: firstTurnWatchStartedAt + FIRST_TURN_WATCH_MS
+    })
+  }
   const reportedOutcome = reportedWorkerOutcome(worker)
   return {
     runId: run.id,

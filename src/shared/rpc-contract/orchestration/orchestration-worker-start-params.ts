@@ -17,6 +17,7 @@ export const WorkerStartParams = z
     deps: OptionalString,
     parent: OptionalString,
     on: OptionalString,
+    host: OptionalString,
     run: OptionalString,
     from: requiredString('Missing --from'),
     worktree: OptionalString,

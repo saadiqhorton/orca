@@ -54,6 +54,11 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     const parent = getOptionalStringFlag(flags, 'parent')
     const item = getOptionalStringFlag(flags, 'item')
     const forQuestion = getOptionalStringFlag(flags, 'for')
+    const on = getOptionalStringFlag(flags, 'on')
+    const host = getOptionalStringFlag(flags, 'host')
+    if (host && on) {
+      throw new RuntimeClientError('invalid_argument', 'Use either --host or --on, not both.')
+    }
     const params = {
       task,
       ...(spec ? { spec } : {}),
@@ -63,7 +68,8 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       // The host checks the caller is a bot's own chat and the item is open, then records it.
       ...(item ? { origin: `bot-item:${item}` } : {}),
       ...(forQuestion ? { forQuestion } : {}),
-      on: getOptionalStringFlag(flags, 'on'),
+      on,
+      ...(host ? { host } : {}),
       worktree: getOptionalStringFlag(flags, 'worktree'),
       name: getOptionalStringFlag(flags, 'name'),
       repo: getOptionalStringFlag(flags, 'repo'),

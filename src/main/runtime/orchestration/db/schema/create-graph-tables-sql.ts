@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS remote_dispatch_attachments (
   depth                   INTEGER NOT NULL DEFAULT 1,
   -- Its own counter: a federated worker host has no dispatch_contexts row to borrow one from.
   consumer_generation     INTEGER NOT NULL DEFAULT 0,
+  blocked_reason          TEXT,
   last_error              TEXT,
   created_at              TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at              TEXT NOT NULL DEFAULT (datetime('now'))

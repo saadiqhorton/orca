@@ -114,6 +114,7 @@ const PROJECTION_COLUMNS = new Set([
   'effects',
   'residual_resources',
   'last_error',
+  'blocked_reason',
   'updated_at',
   'runtime_epoch'
 ])

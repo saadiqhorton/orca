@@ -3,6 +3,13 @@
 
 import { randomUUID } from 'node:crypto'
 import type { TuiAgent } from '../../../../../shared/agent-launch/catalog/tui-agent'
+import type { AgentLaunchPromptDisposal } from '../../../../../shared/agent-launch/contracts/agent-launch-intent'
+import {
+  blockedOnPromptDisposal,
+  isStartupDialogBlockedReason,
+  startupDialogPromptLabel,
+  timedOutLaunchDisposal
+} from '../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
 import type { RuntimeTerminalWait } from '../../../../../shared/terminal/runtime/runtime-terminal-contracts'
 import { isAgentPromptStalledError } from '../../../terminal/input/agent-prompt-submission-verification'
 import {
@@ -64,12 +71,50 @@ async function waitThroughBlockingPrompts(
           timeoutMs,
           ...(signal ? { signal } : {})
         })
+    if (isStartupDialogBlockedReason(wait?.blockedReason)) {
+      return wait
+    }
     if (!wait?.blockedReason || wait.satisfied || deadline - clock.now() <= BLOCKED_RECHECK_MS) {
       return wait
     }
     await clock.sleep(BLOCKED_RECHECK_MS)
     assertAgentPromptRequestActive(signal)
   }
+}
+
+/** A freshly started agent's readiness, as a launch prompt waits for it, blocking prompts included. */
+export function waitForStartedAgentReady(
+  runtime: LaunchedAgentReadinessRuntime,
+  handle: string,
+  agent: TuiAgent,
+  signal?: AbortSignal,
+  terminalCreation?: TerminalReadinessCreation
+): Promise<RuntimeTerminalWait | undefined> {
+  return waitThroughBlockingPrompts(
+    runtime,
+    handle,
+    agent,
+    true,
+    REAL_CLOCK,
+    signal,
+    terminalCreation
+  )
+}
+
+export function promptDisposalFromWait(
+  wait: RuntimeTerminalWait | undefined
+): AgentLaunchPromptDisposal | null {
+  if (!wait || wait.satisfied) {
+    return null
+  }
+  if (isStartupDialogBlockedReason(wait.blockedReason)) {
+    return blockedOnPromptDisposal(wait.blockedReason, {
+      promptText: startupDialogPromptLabel(wait.blockedReason)
+    })
+  }
+  return timedOutLaunchDisposal(
+    `Agent launch did not become ready (${wait.status}${wait.blockedReason ? `; ${wait.blockedReason}` : ''}). The tab may still be opening. Check it with terminal show; if a trust or hooks dialog is on screen, open the tab in Orca and answer it yourself.`
+  )
 }
 
 /** Report whether text reached the pane without failing an already-running launch.

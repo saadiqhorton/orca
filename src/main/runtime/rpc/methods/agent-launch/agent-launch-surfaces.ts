@@ -18,7 +18,11 @@ import { STARTUP_CWD_FALLBACK_SENTENCE } from '../../../../../shared/shell/launc
 import { structuredCallerFor } from '../structured-sessions/creation/structured-agent-session-gate'
 import { createStructuredAgentSessionForWorktree } from '../structured-sessions/creation/structured-agent-session-create'
 import { supportedStructuredSeedOptions } from '../../../agent-session/installation/structured-agent-runtime-metadata'
-import { deliverTerminalAgentLaunchPrompt } from './agent-launch-terminal-prompt'
+import {
+  deliverTerminalAgentLaunchPrompt,
+  promptDisposalFromWait,
+  waitForStartedAgentReady
+} from './agent-launch-terminal-prompt'
 import { AgentLaunchSessionAlreadyExistsError } from '../../../../../shared/agent-launch/contracts/agent-launch-session-already-exists'
 import { AGENT_SESSION_CREATE_MESSAGE_RUNTIME_CAPABILITY } from '../../../../../shared/agent-session/lifecycle/operations/agent-session-create-capabilities'
 import { createOrcaSessionId } from '../../../../../shared/agent-session/identity/orca-session-address'
@@ -222,6 +226,16 @@ export function agentLaunchSurfaceFactory(
         text: prompt.text,
         ...(signal ? { signal } : {})
       })
+    },
+    observeStartupPrompt: async ({ handle, agent, terminalCreation, signal }) => {
+      const wait = await waitForStartedAgentReady(
+        context.runtime,
+        handle,
+        agent,
+        signal,
+        terminalCreation
+      )
+      return promptDisposalFromWait(wait)
     }
   }
 }

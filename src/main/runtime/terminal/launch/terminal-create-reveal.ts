@@ -30,8 +30,8 @@ export function revealCreatedTerminal(args: {
   tabId: string
   leafId: string
 }):
-  | Pick<RuntimeTerminalCreate, 'surface' | 'warning'>
-  | Promise<Pick<RuntimeTerminalCreate, 'surface' | 'warning'>> {
+  | Pick<RuntimeTerminalCreate, 'surface' | 'warning' | 'revealPending'>
+  | Promise<Pick<RuntimeTerminalCreate, 'surface' | 'warning' | 'revealPending'>> {
   const {
     notifier,
     workspace,
@@ -90,6 +90,7 @@ export function revealCreatedTerminal(args: {
   rememberLaunchRecipe()
   return {
     surface: 'background',
-    warning: presentation !== 'background' ? createTerminalRevealWarning(handle) : undefined
+    warning: presentation !== 'background' ? createTerminalRevealWarning(handle) : undefined,
+    ...(presentation !== 'background' ? { revealPending: true as const } : {})
   }
 }

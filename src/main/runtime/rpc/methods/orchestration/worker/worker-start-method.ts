@@ -5,6 +5,7 @@ import type { RpcContext } from '../../../core'
 import { defineOrchestrationMethod } from '../access/orchestration-method-access'
 import { startFederatedWorker } from '../../../../orchestration/legacy-remote-home/federated-worker-start'
 import { startLocalWorker } from './start/local-worker-start'
+import { routeDesktopHubCommand } from '../../../../orchestration/desktop-hub/desktop-hub-route'
 import type { WorkerFollowUp } from './follow-up/worker-follow-up-placement'
 import { withWorkerStartNext } from '../receipt-next'
 import { resolveOrchestrationCaller } from '../runs/run-scope'
@@ -71,6 +72,8 @@ export async function startWorker(
   startFollowUp?: WorkerFollowUp
 ): Promise<unknown> {
   const { runtime, orchestrationMutation, orchestrationCaller } = ctx
+  const hostIdentity = startParams.host
+  startParams = await routeDesktopHubCommand(runtime, startParams)
   if (startParams.origin !== undefined && startParams.on) {
     throw new OrchestrationError(
       'invalid_argument',
@@ -120,7 +123,8 @@ export async function startWorker(
   const receipt = await startLocalWorker({
     params: {
       ...linkedParams,
-      timeoutMs: resolveWorkerStartReadinessTimeoutMs(params.timeoutMs)
+      timeoutMs: resolveWorkerStartReadinessTimeoutMs(params.timeoutMs),
+      host: hostIdentity
     },
     runtime,
     db,

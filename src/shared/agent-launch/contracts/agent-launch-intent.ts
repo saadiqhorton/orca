@@ -102,6 +102,9 @@ export type AgentLaunchPromptDisposal =
   | { outcome: 'not-delivered' }
   /** Replay only: the host stopped mid-delivery, so never resend. Requires agent.launch.prompt-unconfirmed.v1; older clients receive agent_session_operation_unknown. */
   | { outcome: 'unconfirmed' }
+  /** The agent is waiting on a person (trust/hooks) or its first turn failed. Never treat as success. */
+  | { outcome: 'agent_blocked_on_prompt'; blockedReason: string; next: string; promptText?: string }
+  | { outcome: 'timed_out'; detail: string }
 
 export type AgentLaunchPromptReceipt = {
   delivery: AgentLaunchPromptDelivery
@@ -212,7 +215,9 @@ function isAgentLaunchPromptReceipt(value: unknown): value is AgentLaunchPromptR
     ? 'messageId' in value && typeof value.messageId === 'string'
     : value.outcome === 'handed-to-terminal' ||
         value.outcome === 'not-delivered' ||
-        value.outcome === 'unconfirmed'
+        value.outcome === 'unconfirmed' ||
+        value.outcome === 'agent_blocked_on_prompt' ||
+        value.outcome === 'timed_out'
 }
 
 function isAgentLaunchOutcome(value: unknown): value is AgentLaunchOutcome {
