@@ -38,6 +38,7 @@ import { resolveQoderTerminalCommand } from './qoder-terminal-command-resolution
 import { resolveStartupShell } from '../../../../shared/agent-launch/startup/tui-agent-startup-shell'
 import { resolveWslSessionContext } from '../../../daemon/pty-subprocess/wsl-session-context'
 import { isTuiAgentEnabled } from '../../../../shared/agent-launch/catalog/tui-agent-selection'
+import { orcaOwnedHostInstructionArgs } from '../../orchestration/desktop-hub/orca-host-name-cache'
 import { resolveWslHostAgentLaunchInputs } from './wsl-host-agent-terminal-launch'
 
 /** No launch command could be built for a requested `startupAgent`. */
@@ -172,6 +173,7 @@ async function buildRuntimeAgentTerminalStartupOptions(
 ): Promise<TerminalCreateOptions> {
   // Repo display metadata may belong to another host; use the already-resolved PTY route for launch.
   const isRemote = Boolean(workspace.connectionId)
+  const orcaOwnedAgentArgs = orcaOwnedHostInstructionArgs(agent, { isRemote })
   const forceLine = opts.startupPromptCarry === 'force-line'
   // Create has no live PTY for later prompt delivery; refuse uncarryable text. force-line preserves createAgentSession's clean launch.
   if (opts.startupPrompt && !forceLine && !agentPromptRidesLaunchCommand(agent)) {
@@ -186,6 +188,7 @@ async function buildRuntimeAgentTerminalStartupOptions(
         isRemote,
         ...(opts.agentArgs !== undefined ? { agentArgs: opts.agentArgs } : {}),
         ...(opts.extraAgentArgs !== undefined ? { extraAgentArgs: opts.extraAgentArgs } : {}),
+        ...(orcaOwnedAgentArgs !== undefined ? { orcaOwnedAgentArgs } : {}),
         shell: agentLaunchQuotingShell(runtime),
         sessionOptions: sessionOptions ?? host.toSessionOptions(opts.launchPreferences),
         ...(opts.suppressStartupUpdatePrompt ? { suppressStartupUpdatePrompt: true } : {})

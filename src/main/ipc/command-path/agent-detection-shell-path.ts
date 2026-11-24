@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import { delimiter, join } from 'node:path'
 import {
   hydrateShellPath,
   mergePathSegments
@@ -19,4 +21,19 @@ export async function hydrateShellPathForAgentDetection(
   if (hydration.ok) {
     mergePathSegments(hydration.segments)
   }
+  appendUserLocalBinToPath()
+}
+
+/** orcad's non-login PATH often omits pip/npm user bins; append so detection still finds them. */
+export function appendUserLocalBinToPath(): void {
+  if (process.platform === 'win32') {
+    return
+  }
+  const dir = join(homedir(), '.local/bin')
+  const current = process.env.PATH ?? ''
+  const parts = current.split(delimiter).filter(Boolean)
+  if (parts.includes(dir)) {
+    return
+  }
+  process.env.PATH = current ? `${current}${delimiter}${dir}` : dir
 }

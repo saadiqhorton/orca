@@ -1,4 +1,4 @@
-import { agentArgTerminatorIndex } from '../../agent-session/options/agent-session-option-agent-args'
+import { agentArgTerminatorIndex } from '../../agent-session/options/launch/agent-session-option-agent-args'
 import type { TuiAgent } from '../catalog/tui-agent'
 import {
   quoteStartupArg,

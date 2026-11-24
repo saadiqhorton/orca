@@ -7,6 +7,7 @@ import {
 } from '../choices/tui-agent-launch-defaults'
 import { resolveStartupShell, type AgentStartupShell } from './tui-agent-startup-shell'
 import { terminalSessionOptionInputs } from './tui-agent-launch-command'
+import { mergeOrcaOwnedAgentArgs } from './orca-owned-agent-args'
 import { resolveLocalWindowsAgentStartupShell } from '../../shell/launch/windows-terminal-shell'
 
 /** The settings slice a launch reads; hosts pass their whole `GlobalSettings` row. */
@@ -47,6 +48,8 @@ export function resolveAgentStartupPlanInputs(args: {
   agentArgs?: string | null
   /** An automation's saved extras, merged over the resolved args; invalid extras throw. */
   extraAgentArgs?: string
+  /** Orca-owned argv (Claude host-instruction flags). Bypasses the user extra-args allowlist. */
+  orcaOwnedAgentArgs?: readonly string[]
   /** Pass the actual PTY shell; omission is valid only when the Settings shell is what the PTY receives. */
   shell: AgentStartupShell | undefined
   sessionOptions?: Readonly<Record<string, SessionOptionValue>> | undefined
@@ -63,6 +66,7 @@ export function resolveAgentStartupPlanInputs(args: {
       isRemote,
       terminalWindowsShell: settings.terminalWindowsShell
     })
+  const quotingShell = resolveStartupShell(platform, shell)
   const options = terminalSessionOptionInputs({
     agent,
     settings,
@@ -71,18 +75,23 @@ export function resolveAgentStartupPlanInputs(args: {
     yieldToAgentArgs: args.sessionOptionsYieldToAgentArgs,
     command: settings.agentCmdOverrides?.[agent],
     extraAgentArgs: args.extraAgentArgs,
-    shell: resolveStartupShell(platform, shell)
+    shell: quotingShell
   })
   return {
     agent,
     cmdOverrides: settings.agentCmdOverrides ?? {},
-    agentArgs: options.agentArgs ?? null,
     agentEnv: resolveTuiAgentLaunchEnv(agent, settings, platform),
     platform,
     shell,
     isRemote,
     sessionOptionsOverrideAgentArgs: false,
     ...options,
+    agentArgs: mergeOrcaOwnedAgentArgs({
+      agent,
+      defaultArgs: options.agentArgs,
+      owned: args.orcaOwnedAgentArgs,
+      shell: quotingShell
+    }),
     ...(args.suppressStartupUpdatePrompt ? { suppressStartupUpdatePrompt: true } : {})
   }
 }

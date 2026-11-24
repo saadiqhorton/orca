@@ -43,6 +43,7 @@ import {
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
 import { publishEarlyTab, type AgentLaunchView } from './agent-launch-tab-publication'
 import { runAgentLaunch, type HostLaunchContext } from './agent-launch-run'
+import { assertRequestedCodexModelSupported } from './agent-launch-codex-model-gate'
 
 /** Legacy unnamed launches retain the 60-second create dedupe cache (repo/mutation id, no caller partition).
  * Named operations bypass it: durable admission alone decides execution, including existing-workspace launches. */
@@ -216,6 +217,8 @@ export const AGENT_LAUNCH_METHODS = [
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
+      // CLI always sends launchReplay; gate before admission so gpt-6-luna on 0.154 is refused, not recorded.
+      await assertRequestedCodexModelSupported(requested)
       const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, context)
       try {
         return withSessionPlacement(
@@ -261,6 +264,7 @@ export async function launchAgentOnHost(
   if (!supportsAgentLaunch(host)) {
     throw new Error('agent_launch_unsupported')
   }
+  await assertRequestedCodexModelSupported(requested)
   const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, host)
   if (!operationId) {
     return withSessionPlacement(await runLegacyAgentLaunch(params, host), sessionPlacement)
