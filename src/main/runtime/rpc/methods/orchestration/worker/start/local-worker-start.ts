@@ -173,16 +173,16 @@ export async function startLocalWorker(args: {
   const failStart = (error: unknown, stage = failedStage): Promise<unknown> =>
     failWorkerStartWithReceipt({
       runtime,
-      structuredSession: placed?.structuredSession ?? null,
       db,
       runId: run.id,
       taskId: task.id,
       dispatchId: started.dispatch.id,
-      failedStage: stage,
       error,
+      mode,
+      structuredSession: placed?.structuredSession ?? null,
+      failedStage: stage,
       setup: placed?.setupReceipt ?? EXISTING_WORKTREE_SETUP,
-      launch: placed?.launch ?? launch.receipt,
-      mode
+      launch: placed?.launch ?? launch.receipt
     })
   const recordOutcome = (outcome: unknown): void => {
     closeFailedSetupOnceRetryReady(runtime, db, params.retryOf, outcome)

@@ -11,6 +11,7 @@ import { withWorkerStartNext } from '../receipt-next'
 import { resolveOrchestrationCaller } from '../runs/run-scope'
 import {
   assertHelperStartScope,
+  refuseWorkerStartItemOnRemote,
   resolveWorkerStartRun,
   qualifyLiveWorkerFollowUp
 } from './start/admission/worker-start-authority'
@@ -74,13 +75,7 @@ export async function startWorker(
   const { runtime, orchestrationMutation, orchestrationCaller } = ctx
   const hostIdentity = startParams.host
   startParams = await routeDesktopHubCommand(runtime, startParams)
-  if (startParams.origin !== undefined && startParams.on) {
-    throw new OrchestrationError(
-      'invalid_argument',
-      'worker-start --item starts workers on this computer, where the item is. No effects were applied.',
-      { effectsApplied: false }
-    )
-  }
+  refuseWorkerStartItemOnRemote(startParams.origin, startParams.on)
   const checked =
     startParams.origin !== undefined
       ? await checkedWorkerOrigin(startParams.origin, ctx)

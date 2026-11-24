@@ -21,6 +21,19 @@ import { requireOrchestrationAdmission } from '../../../../../../orchestration/a
 
 export type WorkerStartRunBinding = { run: RunRow; created: boolean }
 
+export function refuseWorkerStartItemOnRemote(
+  origin: string | undefined,
+  on: string | undefined
+): void {
+  if (origin !== undefined && on) {
+    throw new OrchestrationError(
+      'invalid_argument',
+      'worker-start --item starts workers on this computer, where the item is. No effects were applied.',
+      { effectsApplied: false }
+    )
+  }
+}
+
 /** Coordinators start workers in their Run, creating one when none is bound; active workers start helpers as themselves so reports return to their Dispatch without moving its mailbox. A new Run is created and bound only when `bindRun` is first called, so a start refused before it leaves no Run behind. */
 export function resolveWorkerStartRun(
   runtime: OrcaRuntimeService,

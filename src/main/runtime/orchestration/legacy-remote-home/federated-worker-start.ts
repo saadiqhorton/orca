@@ -29,8 +29,7 @@ import { isWorkerStartTimeoutWithinTimerLimit } from '../../../../shared/orchest
 import {
   federatedFailedReceipt,
   federatedUnknownReceipt,
-  isKnownRemoteStartFailure,
-  persistFederatedHomeBlockedPrompt
+  settleFederatedHomeStartFailure
 } from './federated-worker-start-receipts'
 import { releaseRetriedWorkerTerminal } from '../../rpc/methods/orchestration/worker/release/retried-worker-terminal-release'
 import { withWorkerStartNext } from '../../rpc/methods/orchestration/receipt-next'
@@ -291,29 +290,18 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
       })
     }
   } catch (error) {
-    const blocked = persistFederatedHomeBlockedPrompt({
+    return settleFederatedHomeStartFailure({
       db,
       dispatchId: started.dispatch.id,
       error,
       host: server.name,
-      notify: (handle, type) => runtime.notifyMessageArrived(handle, type)
+      notify: (handle, type) => runtime.notifyMessageArrived(handle, type),
+      runId,
+      taskId: taskForRemote.id,
+      server,
+      requestedLaunch,
+      recordStarted
     })
-    if (blocked) {
-      throw blocked
-    }
-    const reason = error instanceof Error ? error.message : String(error)
-    if (error instanceof OrchestrationError && isKnownRemoteStartFailure(error.code)) {
-      const worker = db.failWorkerStart(started.dispatch.id, 'remote_attach', reason)
-      reportFailedWorkerStart(db, worker, (handle, type) =>
-        runtime.notifyMessageArrived(handle, type)
-      )
-      return federatedFailedReceipt(worker, { runId, taskId: taskForRemote.id }, server, {
-        launch: requestedLaunch
-      })
-    }
-    const worker = db.markWorkerStartUnknown(started.dispatch.id, 'remote_attach', reason)
-    recordStarted(false)
-    return federatedUnknownReceipt(worker, taskForRemote.id, server.name, requestedLaunch)
   }
   recordStarted(true)
   return readyResult
