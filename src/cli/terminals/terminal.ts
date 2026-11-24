@@ -51,6 +51,7 @@ import {
 import { getTerminalHandle } from './terminal-selector'
 import { ORCHESTRATION_SESSION_PLACEMENT_FLAG } from '../hosts/desktop-hub-command-route'
 import { applyGroupWorktreeFlag } from '../hosts/orchestration-group-flag'
+import { resolveGroupWorktreeOnTarget } from '../hosts/orchestration-group-placement'
 import { formatSameGroupWorktreeSelector } from '../../shared/orchestration/orchestration-group-selector'
 import { readCallerProjectGroupName } from '../hosts/caller-project-group'
 import { revealPairedTerminalOnLocalDesktop } from './paired-terminal-desktop-reveal'
@@ -167,6 +168,7 @@ export const TERMINAL_HANDLERS: Record<string, CommandHandler> = {
   },
   'terminal create': async ({ flags, client, cwd, json }) => {
     applyGroupWorktreeFlag(flags)
+    await resolveGroupWorktreeOnTarget(client, flags)
     let sessionPlacement = flags.has(ORCHESTRATION_SESSION_PLACEMENT_FLAG)
     if (client.isRemote && !flags.has('worktree') && !sessionPlacement) {
       const callerGroup = await readCallerProjectGroupName(client, cwd).catch(() => undefined)

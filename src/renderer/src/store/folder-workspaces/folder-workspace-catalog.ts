@@ -34,6 +34,7 @@ import {
   mergeByIdentity,
   unchangedMergeSource
 } from '../../lib/catalog-reconciliation/catalog-identity'
+import { ORCHESTRATION_SCRATCH_ROOT_DIR } from '../../../../shared/orchestration/orchestration-scratch-workspace'
 
 export type FetchedFolderWorkspaceCatalog = {
   folderWorkspaces: FolderWorkspace[]
@@ -118,7 +119,8 @@ function mergeFetchedFolderWorkspacesForHost({
     const existingHostId = resolveHostId(workspace)
     return (
       !catalogOwnsHost(hostId, existingHostId) ||
-      fetchedIdentities.has(getFolderWorkspaceHostIdentity(workspace, resolveHostId))
+      fetchedIdentities.has(getFolderWorkspaceHostIdentity(workspace, resolveHostId)) ||
+      workspace.folderPath.split(/[/\\]/).includes(ORCHESTRATION_SCRATCH_ROOT_DIR)
     )
   })
   return unchangedMergeSource(

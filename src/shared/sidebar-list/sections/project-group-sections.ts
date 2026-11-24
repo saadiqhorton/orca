@@ -3,6 +3,7 @@ import type { RenderableFolderWorkspace } from '../folders/folder-workspace-lane
 import type { ProjectGroup } from '../../project/groups/project-group-types'
 import type { ProjectOrderBy } from '../../ui-chrome/ui-chrome-types'
 import { getDistinctProjectGroups } from '../../project/groups/project-groups'
+import { buildProjectGroupClusters } from '../../project-group-clusters'
 import { getProjectGroupHeaderKey } from './group-keys'
 import { appendOrderedGroups } from './group-sections'
 import type { SectionAppendContext } from './group-sections'
@@ -22,6 +23,9 @@ export function appendProjectGroupSections(
   }
 ): void {
   const { result, collapsedGroups } = ctx
+  const { memberIdsByCanonicalId } = buildProjectGroupClusters(args.projectGroups)
+  const memberIdsOf = (canonicalId: string): readonly string[] =>
+    memberIdsByCanonicalId.get(canonicalId) ?? [canonicalId]
   // Folder membership is already resolved above grouping; only count here (#15362).
   const folderCountByGroupId = new Map<string, number>()
   for (const pair of args.folderWorkspaces) {
@@ -52,13 +56,15 @@ export function appendProjectGroupSections(
           return false
         }
         // The group's folders, with whatever is nested under them, precede its projects.
-        appendWorktreeRows(result, ctx.repoOf, ctx.occurrencePlan, {
-          collapsedGroups,
-          groupDepth: depth + 1,
-          sectionKey: getFolderLaneSectionKey(projectGroup.id),
-          hostContextLabelByWorktreeIdentity: ctx.mixedWorktreeHostContextLabels,
-          folderPairByIdentity: ctx.folderPairByIdentity
-        })
+        for (const memberId of memberIdsOf(projectGroup.id)) {
+          appendWorktreeRows(result, ctx.repoOf, ctx.occurrencePlan, {
+            collapsedGroups,
+            groupDepth: depth + 1,
+            sectionKey: getFolderLaneSectionKey(memberId),
+            hostContextLabelByWorktreeIdentity: ctx.mixedWorktreeHostContextLabels,
+            folderPairByIdentity: ctx.folderPairByIdentity
+          })
+        }
         return true
       },
       projects: (entries, depth) => appendOrderedGroups(ctx, entries, depth)
@@ -69,6 +75,8 @@ export function appendProjectGroupSections(
 /** The same group parents used by section emission, including missing-parent roots. */
 export function getProjectGroupOccurrencePaths(projectGroups: readonly ProjectGroup[]) {
   const groupsById = new Map(projectGroups.map((group) => [group.id, group]))
+  const { canonicalById } = buildProjectGroupClusters(projectGroups)
+  const canonicalIdOf = (groupId: string): string => canonicalById.get(groupId)?.id ?? groupId
   const paths = new Map<string, OccurrenceSectionPath>()
   for (const group of getDistinctProjectGroups(projectGroups)) {
     const pending: ProjectGroup[] = []
@@ -82,7 +90,12 @@ export function getProjectGroupOccurrencePaths(projectGroups: readonly ProjectGr
     let parent = current ? paths.get(current.id) : undefined
     for (let index = pending.length - 1; index >= 0; index -= 1) {
       const entry = pending[index]
-      const path: OccurrenceSectionPath = { key: getProjectGroupHeaderKey(entry.id), parent }
+      const canonicalId = canonicalIdOf(entry.id)
+      const shared = canonicalId !== entry.id ? paths.get(canonicalId) : undefined
+      const path: OccurrenceSectionPath = shared ?? {
+        key: getProjectGroupHeaderKey(canonicalId),
+        parent
+      }
       paths.set(entry.id, path)
       parent = path
     }

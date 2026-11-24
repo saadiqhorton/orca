@@ -251,6 +251,8 @@ export const ResumeProviderSessionParam = z.object({
 
 export const TerminalCreateParams = z.object({
   worktree: OptionalString,
+  /** Host picks its own workspace (scratch or same-named group). Older hosts drop it. */
+  placement: z.literal('orchestration-session').optional(),
   // Not closed with the worker that created it; older hosts drop it and close none.
   keepOpen: z.literal(true).optional(),
   clientMutationId: z.string().min(1).max(128).optional(),

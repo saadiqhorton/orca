@@ -4,10 +4,7 @@ import type { ProjectGroup } from '../../project/groups/project-group-types'
 import type { ProjectSectionEntry, ProjectSectionRepo } from './project-section-grouping'
 import type { Repo } from '../../repository/repo-types'
 import type { ProjectOrderBy } from '../../ui-chrome/ui-chrome-types'
-import {
-  getDistinctProjectGroups,
-  getEffectiveProjectGroupManualRank
-} from '../../project/groups/project-groups'
+import { getEffectiveProjectGroupManualRank } from '../../project/groups/project-groups'
 import {
   compareRecentRank,
   createRecentRankLookup,
@@ -16,6 +13,7 @@ import {
 } from './project-section-order'
 import { compareRootProjectEntries } from './root-project-order'
 import { compareCodePoints, compareSidebarText } from '../sorting/text-order'
+import { buildProjectGroupClusters } from '../../project-group-clusters'
 
 type GroupedProjectEntry = ProjectSectionEntry<
   ActivityItem,
@@ -40,10 +38,16 @@ export function walkProjectGroupTree<V extends GroupedProjectEntry>(
   visit: ProjectGroupTreeVisitor<V>
 ): void {
   const { entries, projectGroups, folderCountByGroupId, projectOrderBy, repoOrder } = args
+  const { canonicalGroups, canonicalById, memberIdsByCanonicalId } =
+    buildProjectGroupClusters(projectGroups)
+  const canonicalIdOf = (groupId: string): string => canonicalById.get(groupId)?.id ?? groupId
+  const memberIdsOf = (canonicalId: string): readonly string[] =>
+    memberIdsByCanonicalId.get(canonicalId) ?? [canonicalId]
 
   const groupByProjectGroupId = new Map<string | null, [string, V][]>()
   for (const entry of entries) {
-    const projectGroupId = entry[1].repo?.projectGroupId ?? null
+    const rawGroupId = entry[1].repo?.projectGroupId ?? null
+    const projectGroupId = rawGroupId ? canonicalIdOf(rawGroupId) : null
     const list = groupByProjectGroupId.get(projectGroupId) ?? []
     list.push(entry)
     groupByProjectGroupId.set(projectGroupId, list)
@@ -69,10 +73,11 @@ export function walkProjectGroupTree<V extends GroupedProjectEntry>(
 
   const projectGroupsById = new Map(projectGroups.map((group) => [group.id, group]))
   const childGroupsByParentId = new Map<string | null, ProjectGroup[]>()
-  // Why distinct: membership is id-keyed, so a same-id copy's header would sit empty (#30045).
-  for (const group of getDistinctProjectGroups(projectGroups)) {
-    const parentId =
+  // Same-named twins on different machines draw as one group (see project-group-clusters).
+  for (const group of canonicalGroups) {
+    const rawParentId =
       group.parentGroupId && projectGroupsById.has(group.parentGroupId) ? group.parentGroupId : null
+    const parentId = rawParentId ? canonicalIdOf(rawParentId) : null
     const children = childGroupsByParentId.get(parentId) ?? []
     children.push(group)
     childGroupsByParentId.set(parentId, children)
@@ -87,13 +92,19 @@ export function walkProjectGroupTree<V extends GroupedProjectEntry>(
     )
   }
 
-  const getProjectGroupSubtreeCount = (groupId: string): number => {
-    const directCount = groupByProjectGroupId.get(groupId)?.length ?? 0
-    const folderWorkspaceCount = folderCountByGroupId.get(groupId) ?? 0
+  const getProjectGroupSubtreeCount = (groupId: string, seen = new Set<string>()): number => {
+    if (seen.has(groupId)) {
+      return 0
+    }
+    seen.add(groupId)
+    let directCount = groupByProjectGroupId.get(groupId)?.length ?? 0
+    for (const memberId of memberIdsOf(groupId)) {
+      directCount += folderCountByGroupId.get(memberId) ?? 0
+    }
     const children = childGroupsByParentId.get(groupId) ?? []
     return children.reduce(
-      (count, child) => count + getProjectGroupSubtreeCount(child.id),
-      directCount + folderWorkspaceCount
+      (count, child) => count + getProjectGroupSubtreeCount(child.id, seen),
+      directCount
     )
   }
 

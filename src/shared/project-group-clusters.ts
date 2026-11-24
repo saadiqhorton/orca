@@ -1,8 +1,8 @@
-import type { ProjectGroup } from './project-group-types'
-import { getDistinctProjectGroups } from './project-groups'
-import { normalizeTypedName } from './typed-name-normalization'
+import type { ProjectGroup } from './project/groups/project-group-types'
+import { getDistinctProjectGroups } from './project/groups/project-groups'
+import { normalizeTypedName } from './text/typed-name-normalization'
 import { compareCodePoints } from './sidebar-list/sorting/text-order'
-import { getRepoExecutionHostId } from './execution-host'
+import { getRepoExecutionHostId } from './execution-host/execution-host'
 
 /**
  * Cross-host project groups.

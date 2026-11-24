@@ -26,11 +26,14 @@ import { explainOlderRuntimeRunRequired } from '../recovery/older-runtime-run-bi
 import { withResolvedNextCommands } from '../recovery/orchestration-mutation-recovery'
 import { readTextOrFileFlag } from '../../arguments/command-body-input'
 import { refuseAgentServerRoute } from '../identity/agent-server-route'
+import { applyGroupWorktreeFlag } from '../../hosts/orchestration-group-flag'
+import { applyCallerSameGroupIfUnset } from '../../hosts/orchestration-group-fallback'
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async (ctx) => {
     const { flags, client, cwd, json } = ctx
     await refuseAgentServerRoute('worker-start', ctx)
+    applyGroupWorktreeFlag(flags)
     const terminal = getPresentStringFlag(flags, 'terminal')
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
@@ -58,6 +61,9 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
     const host = getOptionalStringFlag(flags, 'host')
     if (host && on) {
       throw new RuntimeClientError('invalid_argument', 'Use either --host or --on, not both.')
+    }
+    if (host || on) {
+      await applyCallerSameGroupIfUnset(flags, client, cwd)
     }
     const params = {
       task,

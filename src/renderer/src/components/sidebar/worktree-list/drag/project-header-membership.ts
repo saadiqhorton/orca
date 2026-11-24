@@ -2,7 +2,7 @@ import { measureSidebarHeaderDragRect } from './sidebar-header-drag-geometry'
 import type { ProjectGroupCanonicalIdOf } from './project-header-drop'
 import type { ProjectHeaderDragSession } from './project-header-drag-contract'
 import { isProjectHeaderDragPreviewNode } from './project-header-drag-preview-dom'
-import type { Repo } from '../../../../../../shared/repo-types'
+import type { Repo } from '../../../../../../shared/repository/repo-types'
 import type { RenderRow } from '../listing/render-row'
 import { isSameRepoRow } from '@/store/repos/repo-host-identity'
 

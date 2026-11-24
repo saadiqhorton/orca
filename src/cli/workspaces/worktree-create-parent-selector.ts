@@ -7,6 +7,7 @@ import { RuntimeClientError } from '../runtime/connection/types'
 import type { RuntimeClient } from '../runtime/client'
 import { getOptionalParentSelector } from '../workspace-selection/caller-folder-workspace'
 import { resolveParentEnvironment, type ParentEnvironment } from './worktree-parent-environment'
+import { applyWorktreeCreateGroupPlacement } from '../hosts/orchestration-group-placement'
 
 export type CreateParentSelector = {
   parentWorktree?: string
@@ -43,6 +44,7 @@ export async function resolveCreateParentSelector(
   cwd: string,
   client: RuntimeClient
 ): Promise<CreateParentSelector> {
+  await applyWorktreeCreateGroupPlacement(flags, client)
   const parentEnvironment = await resolveParentEnvironment(flags, client)
   const rawParentWorktree = getOptionalStringFlag(flags, 'parent-worktree')
   if (!rawParentWorktree) {

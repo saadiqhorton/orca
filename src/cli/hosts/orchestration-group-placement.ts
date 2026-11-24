@@ -1,6 +1,6 @@
 import { getOptionalStringFlag } from '../arguments/flags'
 import type { RuntimeClient } from '../runtime/client'
-import { RuntimeClientError } from '../runtime/types'
+import { RuntimeClientError } from '../runtime/connection/types'
 import { applyGroupWorktreeFlag } from './orchestration-group-flag'
 import type { FolderWorkspace } from '../../shared/folder-workspaces/folder-workspace-types'
 import {
@@ -12,8 +12,8 @@ import {
   resolveUniqueGroupMember,
   type InventoryProjectGroup
 } from '../../shared/orchestration/orchestration-group-selector'
-import type { ProjectGroup } from '../../shared/project-group-types'
-import type { Repo } from '../../shared/repo-types'
+import type { ProjectGroup } from '../../shared/project/groups/project-group-types'
+import type { Repo } from '../../shared/repository/repo-types'
 
 /** Resolve `group:` / `same-group:` on the connected (target) host. Named misses refuse; same-group misses become scratch. */
 export async function resolveGroupWorktreeOnTarget(
@@ -114,6 +114,13 @@ export async function applyWorktreeCreateGroupPlacement(
   client: RuntimeClient
 ): Promise<void> {
   applyGroupWorktreeFlag(flags)
+  const worktree = getOptionalStringFlag(flags, 'worktree')
+  if (
+    !worktree ||
+    !(parseGroupWorktreeSelector(worktree) || parseSameGroupWorktreeSelector(worktree))
+  ) {
+    return
+  }
   await resolveGroupWorktreeOnTarget(client, flags)
   const groupPlacement = getOptionalStringFlag(flags, 'worktree')
   if (groupPlacement && !flags.has('parent-worktree') && flags.get('no-parent') !== true) {

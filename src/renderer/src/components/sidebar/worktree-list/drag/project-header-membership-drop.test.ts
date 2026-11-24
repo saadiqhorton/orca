@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Repo } from '../../../../../../shared/repo-types'
+import type { Repo } from '../../../../../../shared/repository/repo-types'
 import { getProjectHeaderDragBucketKey } from './project-header-drop'
 import type { RenderRow } from '../listing/render-row'
 import {
@@ -19,7 +19,7 @@ import {
 import { commitProjectHeaderDragDrop } from './project-header-drag-commit'
 import type { ProjectHeaderDragSession } from './project-header-drag-contract'
 import { buildProjectGroupClusters } from '../../../../../../shared/project-group-clusters'
-import type { ProjectGroup } from '../../../../../../shared/project-group-types'
+import type { ProjectGroup } from '../../../../../../shared/project/groups/project-group-types'
 
 const ROW_HEIGHT = 28
 

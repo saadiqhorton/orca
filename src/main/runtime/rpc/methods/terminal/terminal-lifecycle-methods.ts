@@ -20,6 +20,7 @@ import {
 } from '../../../../../shared/rpc-contract/terminal/terminal-unary-params'
 import { TerminalSplit } from '../../../../../shared/rpc-contract/terminal/terminal-split-params'
 import { TerminalResizeForClient } from '../../../../../shared/rpc-contract/terminal/terminal-stream-params'
+import { resolveTerminalCreateWorktree } from '../orchestration/surface/orchestration-session-placement'
 
 export const TERMINAL_LIFECYCLE_METHODS = [
   defineMethod({
@@ -81,9 +82,10 @@ export const TERMINAL_LIFECYCLE_METHODS = [
           )
         }
       }
+      const worktree = await resolveTerminalCreateWorktree(runtime, params)
       const terminal = await runtime.dedupeTerminalCreate(
         pairedDeviceId ?? clientId ?? 'local',
-        params.worktree,
+        worktree,
         params.clientMutationId,
         params.reconcileExisting === true,
         (canonicalWorktreeSelector, preAllocatedHandle) =>

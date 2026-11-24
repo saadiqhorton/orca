@@ -1,8 +1,8 @@
-import type { ProjectGroup } from '../../../../shared/project-group-types'
-import type { ExecutionHostId } from '../../../../shared/execution-host'
-import { getRepoExecutionHostId } from '../../../../shared/execution-host'
-import { normalizeTypedName } from '../../../../shared/typed-name-normalization'
-import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
+import type { ProjectGroup } from '../../../../shared/project/groups/project-group-types'
+import type { ExecutionHostId } from '../../../../shared/execution-host/execution-host'
+import { getRepoExecutionHostId } from '../../../../shared/execution-host/execution-host'
+import { normalizeTypedName } from '../../../../shared/text/typed-name-normalization'
+import type { RuntimeClientTarget } from '../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import { buildProjectGroupClusters } from '../../../../shared/project-group-clusters'
 import {
   getRuntimeTargetHostId,

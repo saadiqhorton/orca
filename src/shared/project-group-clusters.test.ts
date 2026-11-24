@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildProjectGroupClusters } from './project-group-clusters'
-import type { ProjectGroup } from './project-group-types'
+import type { ProjectGroup } from './project/groups/project-group-types'
 
 function group(
   id: string,
