@@ -58,7 +58,9 @@ Until those clips exist: **N/A** for landing this draft internally; attach befor
 - [ ] Manual two-host smoke (macOS desktop + Linux execution host; Windows path/shell still needs a Windows host)
 - [x] Tests hardcode expected values and fail if the change is reverted (no copy/i18n/CSS tests)
 
-Commands: `pnpm test <paths> --maxWorkers=2`, `pnpm tc` (includes the bun composite TS6307 check), `pnpm lint`, `pnpm build`, `pnpm check:changed origin/main`.
+Commands: `pnpm test <paths> --maxWorkers=2`, `pnpm tc` (includes the bun composite TS6307 check), `pnpm lint`, `pnpm build`, `pnpm check:changed --base=upstream/main`.
+
+Recorded on this branch: `pnpm tc` passed; `pnpm check:changed --base=upstream/main` 46/46 passed. `pnpm lint`, full `pnpm test`, and `pnpm build` are run before push.
 
 ## Performance
 
@@ -68,7 +70,7 @@ None extra on the hot path, because hub inventory and `--host` wrapping run only
 
 **Level:** Medium
 
-A wrong hub volunteer, a leaked control-plane method via `desktopHub.call`, or a `--host` / `--on` mix-up could send a command to the wrong machine or fail a previously local start. Back-out is a plain revert of this branch; schema v52 is additive (`blocked_reason` nullable). Older paired phones/servers without the new RPCs keep `--on` / `--environment` federation.
+A wrong hub volunteer, a leaked control-plane method via `desktopHub.call`, or a `--host` / `--on` mix-up could send a command to the wrong machine or fail a previously local start. Forwarded methods are allowlisted (orchestration/agent/terminal/workspace/status only); pairing, accounts, and settings cannot hop. Back-out is a plain revert of this branch; schema v52 is additive (`blocked_reason` nullable). Older paired phones/servers without the new RPCs keep `--on` / `--environment` federation.
 
 ## Review
 

@@ -83,4 +83,21 @@ describe('resolveDesktopHubHost', () => {
       code: 'desktop_hub_unavailable'
     })
   })
+
+  it('keeps the local client when --host is this desktop', async () => {
+    const client = hubList([
+      {
+        kind: 'desktop',
+        name: 'windows-desktop',
+        hostKey: 'desktop',
+        id: 'desktop',
+        status: 'connected'
+      }
+    ])
+    const flags = new Map<string, string | boolean>([['host', 'windows-desktop']])
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: partial RuntimeClient stub for a unit test.
+    const bound = await bindDesktopHubHost(client as never, flags)
+    expect(bound).toBe(client)
+    expect(flags.has('host')).toBe(false)
+  })
 })
