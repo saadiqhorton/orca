@@ -79,7 +79,7 @@ export function isAgentLaunchPromptDisposal(value: unknown): value is AgentLaunc
   if (typeof value !== 'object' || value === null || !('outcome' in value)) {
     return false
   }
-  const outcome = (value as { outcome?: unknown }).outcome
+  const outcome = value.outcome
   return (
     outcome === 'journaled' ||
     outcome === 'handed-to-terminal' ||

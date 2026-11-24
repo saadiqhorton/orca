@@ -10,6 +10,7 @@ describe('settleLaunchPromptDisposal', () => {
         promptText: 'Hooks need review'
       })
     )
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the test only exercises observeStartupPrompt on settleLaunchPromptDisposal.
     const execution = {
       intent: { agent: 'codex', prompt: { text: 'review the deploy', delivery: 'submit' } },
       surfaces: { observeStartupPrompt }

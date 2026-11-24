@@ -121,10 +121,7 @@ describe('watchAgentLaunchFirstTurn', () => {
           const seconds = Math.max(1, Math.floor(elapsed / 1000))
           const working = `>_ OpenAI Codex\nTASK submitted\n• Working (${seconds}s • esc to interrupt)`
           return {
-            text:
-              elapsed >= 5_000
-                ? `${working}\nERROR: 400 model_not_found gpt-5.4`
-                : working
+            text: elapsed >= 5_000 ? `${working}\nERROR: 400 model_not_found gpt-5.4` : working
           }
         },
         getExistingOrchestrationDb: () => db,

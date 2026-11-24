@@ -1,6 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { getAppEnvironment, hasAppEnvironment } from '../../../../shared/app-lifecycle/app-environment'
+import {
+  getAppEnvironment,
+  hasAppEnvironment
+} from '../../../../shared/app-lifecycle/app-environment'
 import {
   DesktopHubPlacementSchema,
   type DesktopHubPlacement

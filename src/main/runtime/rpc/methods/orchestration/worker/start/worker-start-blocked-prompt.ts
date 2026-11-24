@@ -83,10 +83,10 @@ export function withWorkerStartBlockedPromptIdentity(
   if (!isWorkerStartBlockedPromptError(error)) {
     return error
   }
-  const data =
-    error.data && typeof error.data === 'object'
-      ? { ...(error.data as Record<string, unknown>) }
-      : {}
+  const data: Record<string, unknown> = {}
+  if (error.data && typeof error.data === 'object') {
+    Object.assign(data, error.data)
+  }
   return new OrchestrationError(error.code, error.message, {
     ...data,
     ...(identity.dispatchId ? { dispatchId: identity.dispatchId } : {}),

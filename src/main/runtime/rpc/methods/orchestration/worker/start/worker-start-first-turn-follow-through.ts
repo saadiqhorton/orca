@@ -47,13 +47,17 @@ export function remoteHostTerminalReader(
 ): TerminalReader {
   return {
     readTerminal: async (handle) => {
-      const result = (await runtime.callOrchestrationWorkerServer(
+      const result: unknown = await runtime.callOrchestrationWorkerServer(
         environmentId,
         'terminal.read',
         { terminal: handle, screen: true },
         5_000
-      )) as { terminal?: { tail?: unknown; screen?: unknown; text?: string } }
-      return result.terminal ?? {}
+      )
+      if (!result || typeof result !== 'object' || !('terminal' in result)) {
+        return {}
+      }
+      const terminal = result.terminal
+      return terminal && typeof terminal === 'object' ? terminal : {}
     }
   }
 }

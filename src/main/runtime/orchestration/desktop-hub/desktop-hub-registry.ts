@@ -141,6 +141,7 @@ export class DesktopHubRegistry {
     ) {
       throw new DesktopHubError('host_unreachable', DESKTOP_HUB_UNAVAILABLE_MESSAGE)
     }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: hosts was checked as an array on the RPC inventory body.
     return { hub: 'remote', hosts: result.hosts as DesktopHubHostRow[] }
   }
 
@@ -226,6 +227,7 @@ export class DesktopHubRegistry {
         `Host "${placed.name}" is unreachable from the desktop app. It is not connected, and Orca will not try SSH.`
       )
     }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the desktop hub answer is an RPC envelope; `ok` was checked above.
     return result as RuntimeRpcResponse<unknown>
   }
 

@@ -72,7 +72,6 @@ export function markWorkerDispatchReady(
   }
 }
 
-
 export function markWorkerBlockedOnPrompt(
   this: OrchestrationDb,
   dispatchId: string,

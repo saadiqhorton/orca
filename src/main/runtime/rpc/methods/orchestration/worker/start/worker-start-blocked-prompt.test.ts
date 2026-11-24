@@ -34,7 +34,10 @@ describe('throwIfWorkerFirstTurnFailed', () => {
       )
     } catch (error) {
       expect(error).toBeInstanceOf(OrchestrationError)
-      expect((error as OrchestrationError).data).toMatchObject({
+      if (!(error instanceof OrchestrationError)) {
+        throw error
+      }
+      expect(error.data).toMatchObject({
         blockedReason: 'agent_turn_failed:model_not_found',
         handle: 'term_worker',
         dispatchId: 'ctx_worker',
@@ -75,7 +78,8 @@ describe('throwIfWorkerFirstTurnFailed', () => {
   it('fails worker-start after banner, prompt submitted, Working, a 5s delay, then 400', async () => {
     vi.useFakeTimers()
     const started = Date.now()
-    const banner = '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task'
+    const banner =
+      '>_ OpenAI Codex (v0.154.0)\n  model: gpt-6-luna\n  To get started, describe a task'
     const working = `${banner}\nTASK submitted\nWorking`
     const fatal = `${working}\nERROR: 400 model_not_found gpt-6-luna`
     const pending = throwIfWorkerFirstTurnFailed(

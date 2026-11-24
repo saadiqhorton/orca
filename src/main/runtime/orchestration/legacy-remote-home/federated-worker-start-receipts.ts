@@ -14,7 +14,7 @@ export function persistFederatedHomeBlockedPrompt(args: {
   error: unknown
   host?: string
   notify: (handle: string, type: string) => void
-}): unknown | null {
+}): unknown {
   const reason = workerStartBlockedPromptReason(args.error)
   if (reason === null) {
     return null
