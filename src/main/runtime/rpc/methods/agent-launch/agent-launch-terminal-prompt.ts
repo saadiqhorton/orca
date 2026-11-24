@@ -113,7 +113,7 @@ export function promptDisposalFromWait(
     })
   }
   const status = String(wait.status)
-  const blocked = wait.blockedReason ? `; ${wait.blockedReason}` : ''
+  const blocked = wait.blockedReason ? `; ${String(wait.blockedReason)}` : ''
   return timedOutLaunchDisposal(
     `Agent launch did not become ready (${status}${blocked}). The tab may still be opening. Check it with terminal show; if a trust or hooks dialog is on screen, open the tab in Orca and answer it yourself.`
   )

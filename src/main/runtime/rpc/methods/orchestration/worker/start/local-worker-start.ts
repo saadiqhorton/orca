@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Why: local start keeps placement, readiness, and first-turn failure on one path so a 400 cannot report ready. */
 import { createLocalWorkerStartDispatch } from './local-worker-start-dispatch'
 import { refuseClaimedWorkerTerminal } from '../../../../../orchestration/db/worker-dispatch/worker-terminal-claim'
 import { probeWorkerOpenCodeModelLaunchSupport } from './launch/worker-opencode-model-preflight'
@@ -40,20 +39,19 @@ import {
   closeFailedSetupOnceRetryReady,
   releaseRetriedWorkerTerminal
 } from '../release/retried-worker-terminal-release'
-import { requireWorkerAuthority, type WorkerEffect } from './placement/worker-placement-topology'
+import type { WorkerEffect } from './placement/worker-placement-topology'
 import { prepareLocalWorkerStart } from './launch/worker-start-validation'
-import { deliverAndSettleWorkerStartReadiness } from './readiness/worker-start-readiness-settlement'
 import {
   settleCaughtWorkerStartError,
   workerStartBlockedPromptReason
 } from './worker-start-blocked-prompt'
 import { handOverWhenReady } from './readiness/placed-worker-readiness'
+import { localWorkerStartHandover } from './readiness/worker-start-handover'
 import type { WorkerStartMutation } from './worker-start-mutation'
 import {
   prepareWorkerStartCard,
   recordWorkerStartOutcome
 } from '../../../../../orchestration/workers/launch/worker-start-card'
-import { rebindReusedStructuredWorker } from '../../structured-workers/orchestration-structured-worker-session'
 import { placedWorkerParty, type WorkerFollowUp } from '../follow-up/worker-follow-up-placement'
 
 export async function startLocalWorker(args: {
@@ -246,55 +244,29 @@ export async function startLocalWorker(args: {
       reusesTerminal: Boolean(params.terminal),
       creation: placed.terminalCreation
     }
-    // Fixed now: the hand-over may run later, from the background wait.
-    const placement = placed
     const handle = terminalHandle
-    const worktreeId = resolvedWorktree.id
-    // A hand-over from the background wait gets a fresh delivery budget; one in time keeps the shared one.
-    const bindTerminal = (): void => {
-      const terminalAuthority = authority ?? requireWorkerAuthority(runtime, handle)
-      db.prepareStartingWorkerAuthority({
-        dispatchId: started.dispatch.id,
-        handle,
-        ...terminalAuthority,
-        worktreeId,
-        effects,
-        setupState: setupReceipt.state,
-        terminalOwnership: external ? 'external' : 'created'
-      })
-    }
-    const handOver = async (deliveryDeadline = readinessDeadline): Promise<unknown> => {
-      bindTerminal()
-      if (workerChat) {
-        rebindReusedStructuredWorker(handle, db)
-      }
-      return deliverAndSettleWorkerStartReadiness({
-        runtime,
-        db,
-        run,
-        task: placement.extraSpec
-          ? { ...task, spec: `${task.spec}\n\n${placement.extraSpec}` }
-          : task,
-        dispatchId: started.dispatch.id,
-        dispatchDepth: started.dispatch.depth,
-        structuredSession,
-        terminalHandle: handle,
-        coordinatorHandle: params.from,
-        devMode: params.devMode,
-        requestId: orchestrationMutation?.requestId ?? started.dispatch.id,
-        agent: agent ?? null,
-        launchedAgent: external || workerChat ? null : (agent ?? null),
-        setupReceipt,
-        launchReceipt: placement.launch,
-        mode,
-        timeoutMs,
-        readinessDeadline: deliveryDeadline,
-        effects,
-        terminalRevealWarning: placement.warning,
-        onStage,
-        host: params.host
-      })
-    }
+    const { bindTerminal, handOver } = localWorkerStartHandover({
+      runtime,
+      db,
+      run,
+      task,
+      params,
+      startedDispatchId: started.dispatch.id,
+      startedDispatchDepth: started.dispatch.depth,
+      placed,
+      handle,
+      worktreeId: resolvedWorktree.id,
+      workerChat: Boolean(workerChat),
+      external,
+      authority,
+      effects,
+      agent,
+      mode,
+      timeoutMs,
+      readinessDeadline,
+      orchestrationMutation,
+      onStage
+    })
     result = await handOverWhenReady({
       runtime,
       structuredSession,
