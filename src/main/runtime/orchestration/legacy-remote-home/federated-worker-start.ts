@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Why: home start and first-turn 400 settlement share one catch so the Dispatch stays failed, not missing. */
 import type { FederatedWorkerStartRequest } from './federated-worker-start-request'
 import { isTuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent-config'
 import type { RuntimeStatus } from '../../../../shared/remote-runtime/session-graph/runtime-session-contracts'
@@ -33,8 +32,10 @@ import {
   settleFederatedHomeStartFailure
 } from './federated-worker-start-receipts'
 import { releaseRetriedWorkerTerminal } from '../../rpc/methods/orchestration/worker/release/retried-worker-terminal-release'
-import { withWorkerStartNext } from '../../rpc/methods/orchestration/receipt-next'
-import { settleReadyFederatedHome } from './federated-worker-ready-record'
+import {
+  federatedReadyHomeReceipt,
+  settleReadyFederatedHome
+} from './federated-worker-ready-record'
 import { federatedAttachParent, resolveFederatedChildParent } from './federated-worker-child-parent'
 import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
 import { dispatchWorkerStarted, prepareWorkerStartCard } from '../workers/launch/worker-start-card'
@@ -240,32 +241,21 @@ export async function startFederatedWorker(args: FederatedWorkerStartRequest): P
         environmentId: server.environmentId,
         runId
       })
-      const reportsTurnStops = status.capabilities?.includes(
-        ORCHESTRATION_WORKER_TURN_STOP_REPORTS_RUNTIME_CAPABILITY
-      )
-      readyResult = withWorkerStartNext(
-        {
-          runId,
-          taskId: taskForRemote.id,
-          dispatchId: started.dispatch.id,
-          state: 'ready',
-          stage: readyWorker.stage,
-          server: { environmentId: server.environmentId, name: server.name },
-          setup: remote.setup,
-          launch,
-          timeoutMs: budgets.readinessTimeoutMs,
-          effects: remote.effects ?? [],
-          residualResources: remote.residualResources ?? [],
-          ...(childParent && 'warning' in childParent ? { warning: childParent.warning } : {})
-        },
-        reportsTurnStops
-          ? undefined
-          : {
-              name: server.name,
-              dispatchId: started.dispatch.id,
-              cli: params.from ? runtime.getTerminalOrchestrationCliCommand(params.from) : 'orca'
-            }
-      )
+      readyResult = federatedReadyHomeReceipt({
+        runId,
+        taskId: taskForRemote.id,
+        dispatchId: started.dispatch.id,
+        stage: readyWorker.stage,
+        server,
+        remote,
+        launch,
+        timeoutMs: budgets.readinessTimeoutMs,
+        warning: childParent && 'warning' in childParent ? childParent.warning : undefined,
+        reportsTurnStops: Boolean(
+          status.capabilities?.includes(ORCHESTRATION_WORKER_TURN_STOP_REPORTS_RUNTIME_CAPABILITY)
+        ),
+        cli: params.from ? runtime.getTerminalOrchestrationCliCommand(params.from) : 'orca'
+      })
     } else if (remote.state === 'outcome_unknown') {
       const worker = db.markWorkerStartUnknown(
         started.dispatch.id,
