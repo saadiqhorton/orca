@@ -285,8 +285,6 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
           tabId,
           leafId
         })
-        const { surface, warning, revealPending } =
-          reveal instanceof Promise ? await reveal : reveal
         return {
           ...terminalLaunchPublicFacts(result, launch.adoptedStablePane, pty),
           handle,
@@ -297,10 +295,8 @@ export abstract class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTermi
           worktreeId: workspace.id,
           title: pty?.title ?? launch.effectiveTitle ?? null,
           ...this.getPtyExecutionHostMetadata(result.id),
-          surface,
-          ...(result.startupCwdFallback ? { startupCwdFallback: result.startupCwdFallback } : {}),
-          ...(warning ? { warning } : {}),
-          ...(revealPending ? { revealPending } : {})
+          ...(reveal instanceof Promise ? await reveal : reveal),
+          ...(result.startupCwdFallback ? { startupCwdFallback: result.startupCwdFallback } : {})
         }
       } finally {
         teamAllocation.release()
