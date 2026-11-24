@@ -198,6 +198,7 @@ export function exposeWorker(worker: WorkerDispatchRow) {
     residualResources: JSON.parse(worker.residual_resources) as unknown[],
     startOptions: JSON.parse(worker.start_options) as unknown,
     lastError: worker.last_error,
+    blockedReason: worker.blocked_reason,
     createdAt: worker.created_at,
     updatedAt: worker.updated_at
   }

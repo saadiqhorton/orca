@@ -15,6 +15,8 @@ import {
   awaitStructuredWorkerSetupGate,
   type StructuredWorkerSetupGate
 } from './worker-start-structured-setup-gate'
+import { isStartupDialogBlockedReason } from '../../../../../../../../shared/agent-launch/startup/agent-launch-blocked-prompt'
+import { throwIfWorkerStartBlockedOnPrompt } from '../worker-start-blocked-prompt'
 
 type PlacedWorkerReadiness = {
   runtime: OrcaRuntimeService
@@ -137,6 +139,10 @@ async function awaitPlacedWorkerReadiness(
   }
   persistWorkerSetupWaitOutcome({ ...setupStage, wait })
   if (!wait.satisfied) {
+    if (isStartupDialogBlockedReason(wait.blockedReason) && setupStage.setup.state !== 'failed') {
+      setupStage.db.markWorkerBlockedOnPrompt(setupStage.dispatchId, wait.blockedReason)
+      throwIfWorkerStartBlockedOnPrompt(wait.blockedReason, terminalHandle)
+    }
     if (setupStage.setup.state === 'failed') {
       args.onSetupFailed()
     }

@@ -177,6 +177,7 @@ export async function callAgentLaunch(
 
 export function formatAgentLaunch(result: AgentLaunchResult & { operationId?: string }): string {
   const { outcome, receipt } = result
+  const prompt = result.prompt
   return [
     `agent: ${outcome.kind === 'structured' ? 'chat session' : 'terminal'}`,
     `handle: ${outcome.handle}`,
@@ -184,7 +185,35 @@ export function formatAgentLaunch(result: AgentLaunchResult & { operationId?: st
     `worktreeId: ${result.worktreeId}`,
     ...(result.operationId ? [`operationId: ${result.operationId}`] : []),
     `why: ${receipt.detail}`,
-    ...(result.prompt ? [`prompt: ${result.prompt.outcome}`] : []),
+    ...(prompt
+      ? [
+          `prompt: ${prompt.outcome}${
+            prompt.outcome === 'agent_blocked_on_prompt' ? ` ${prompt.blockedReason}` : ''
+          }`
+        ]
+      : []),
     ...(result.warning ? [`warning: ${result.warning}`] : [])
   ].join('\n')
+}
+
+export function assertAgentLaunchPromptDelivered(
+  result: AgentLaunchResult & { operationId?: string }
+): void {
+  const prompt = result.prompt
+  if (prompt?.outcome === 'agent_blocked_on_prompt') {
+    throw new RuntimeClientError('agent_blocked_on_prompt', prompt.next, {
+      handle: result.outcome.handle,
+      worktreeId: result.worktreeId,
+      blockedReason: prompt.blockedReason,
+      ...(prompt.promptText ? { promptText: prompt.promptText } : {}),
+      next: prompt.next
+    })
+  }
+  if (prompt?.outcome === 'timed_out') {
+    throw new RuntimeClientError('timed_out', prompt.detail, {
+      handle: result.outcome.handle,
+      worktreeId: result.worktreeId,
+      next: 'The tab may still be opening. Check with terminal show / terminal list --host <name>. If a trust or hooks dialog is on screen, open it in Orca and answer it yourself — never via keystrokes.'
+    })
+  }
 }

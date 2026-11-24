@@ -72,6 +72,55 @@ export function markWorkerDispatchReady(
   }
 }
 
+
+export function markWorkerBlockedOnPrompt(
+  this: OrchestrationDb,
+  dispatchId: string,
+  blockedReason: string
+): WorkerDispatchRow {
+  this.db.exec('BEGIN IMMEDIATE')
+  try {
+    const dispatch = this.getDispatchContextById(dispatchId)
+    const worker = this.getWorkerDispatch(dispatchId)
+    if (!dispatch || dispatch.status !== 'pending' || worker?.state !== 'starting') {
+      throw new OrchestrationError('dispatch_inactive', `Dispatch ${dispatchId} is not starting.`)
+    }
+    transitionLifecycleWithDb(this.db, {
+      entity: 'dispatch',
+      id: dispatchId,
+      from: 'pending',
+      to: 'dispatched'
+    })
+    transitionLifecycleWithDb(this.db, {
+      entity: 'worker',
+      id: dispatchId,
+      from: 'starting',
+      to: 'ready',
+      projection: { blocked_reason: blockedReason, updated_at: new Date().toISOString() }
+    })
+    this.db.exec('COMMIT')
+    return this.getWorkerDispatch(dispatchId) as WorkerDispatchRow
+  } catch (error) {
+    this.db.exec('ROLLBACK')
+    throw error
+  }
+}
+
+export function clearWorkerBlockedOnPrompt(this: OrchestrationDb, dispatchId: string): boolean {
+  const worker = this.getWorkerDispatch(dispatchId)
+  if (worker?.state !== 'ready' || worker.blocked_reason === null) {
+    return false
+  }
+  transitionLifecycleWithDb(this.db, {
+    entity: 'worker',
+    id: dispatchId,
+    from: 'ready',
+    to: 'ready',
+    projection: { blocked_reason: null, updated_at: new Date().toISOString() }
+  })
+  return true
+}
+
 export function failWorkerStart(
   this: OrchestrationDb,
   dispatchId: string,
@@ -82,7 +131,7 @@ export function failWorkerStart(
   try {
     const dispatch = this.getDispatchContextById(dispatchId)
     const worker = this.getWorkerDispatch(dispatchId)
-    if (!dispatch || !worker || worker.state !== 'starting') {
+    if (!dispatch || !worker || !['starting', 'ready'].includes(worker.state)) {
       throw new OrchestrationError('dispatch_inactive', `Dispatch ${dispatchId} is not starting.`)
     }
     const now = new Date().toISOString()
@@ -103,9 +152,14 @@ export function failWorkerStart(
     transitionLifecycleWithDb(this.db, {
       entity: 'worker',
       id: dispatchId,
-      from: 'starting',
+      from: worker.state,
       to: 'failed',
-      projection: { stage, last_error: reason, updated_at: now }
+      projection: {
+        stage,
+        last_error: reason,
+        updated_at: now,
+        blocked_reason: stage.startsWith('agent_turn_failed:') ? stage : null
+      }
     })
     const hasActiveDispatch = Boolean(
       this.db
@@ -197,6 +251,8 @@ export function getWorkerDispatch(
 export type WorkerDispatchOutcomeMethods = {
   retainWorkerLaunchObservation: typeof retainWorkerLaunchObservation
   markWorkerDispatchReady: typeof markWorkerDispatchReady
+  markWorkerBlockedOnPrompt: typeof markWorkerBlockedOnPrompt
+  clearWorkerBlockedOnPrompt: typeof clearWorkerBlockedOnPrompt
   failWorkerStart: typeof failWorkerStart
   markWorkerStartUnknown: typeof markWorkerStartUnknown
   getWorkerDispatch: typeof getWorkerDispatch
@@ -206,6 +262,8 @@ export function attachWorkerDispatchOutcome(ctor: { prototype: object }): void {
   Object.assign(ctor.prototype, {
     retainWorkerLaunchObservation,
     markWorkerDispatchReady,
+    markWorkerBlockedOnPrompt,
+    clearWorkerBlockedOnPrompt,
     failWorkerStart,
     markWorkerStartUnknown,
     getWorkerDispatch

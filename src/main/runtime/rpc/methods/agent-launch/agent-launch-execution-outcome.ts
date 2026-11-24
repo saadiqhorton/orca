@@ -6,6 +6,8 @@ import type { RpcContext } from '../../core'
 import { readsAgentLaunchTabClosed, type AgentLaunchRefusal } from './agent-launch-replay'
 import type { EarlyAgentLaunchTab } from './agent-launch-tab-publication'
 import { agentLaunchFailureCode } from './agent-launch-failure-code'
+import { OrchestrationError } from '../../../orchestration/orchestration-error'
+import { agentTurnFailedBlockedReason } from '../../../../../shared/orchestration/agent-launch-first-turn'
 
 export class AgentLaunchExecutionError extends Error {
   constructor(
@@ -24,6 +26,22 @@ export class AgentLaunchExecutionError extends Error {
 /** A replayed refusal, in the words it was refused with when its record kept them. */
 export function agentLaunchRefusalError(refusal: AgentLaunchRefusal): Error {
   return Object.assign(new Error(refusal.said ?? refusal.code), { code: refusal.code })
+}
+
+export function failSettledAgentLaunchOnFirstTurn(
+  fail: (code: string, cause?: unknown) => Promise<void>,
+  reason: string
+): void {
+  void settleQuietly(
+    fail(
+      'agent_blocked_on_prompt',
+      new OrchestrationError(
+        'agent_blocked_on_prompt',
+        `The agent failed on its first turn (${reason}). This launch is not success; the tab may still be open.`,
+        { blockedReason: agentTurnFailedBlockedReason(reason) }
+      )
+    )
+  )
 }
 
 export function settleQuietly(settlement: Promise<void>): Promise<void> {

@@ -1,4 +1,38 @@
 import type { OrchestrationWorkerLaunchReceipt } from '../../rpc/methods/orchestration/worker/start/launch/worker-launch-preferences'
+import type { OrchestrationDb } from '../db/orchestration-db'
+import { reportFailedWorkerStart } from '../workers/turn-stops/failed-worker-start-report'
+import { isAgentTurnFailedBlockedReason } from '../../../../shared/orchestration/agent-launch-first-turn'
+import {
+  workerStartBlockedPromptReason,
+  withWorkerStartBlockedPromptIdentity
+} from '../../rpc/methods/orchestration/worker/start/worker-start-blocked-prompt'
+
+export function persistFederatedHomeBlockedPrompt(args: {
+  db: OrchestrationDb
+  dispatchId: string
+  error: unknown
+  host?: string
+  notify: (handle: string, type: string) => void
+}): unknown | null {
+  const reason = workerStartBlockedPromptReason(args.error)
+  if (reason === null) {
+    return null
+  }
+  if (isAgentTurnFailedBlockedReason(reason)) {
+    const worker = args.db.failWorkerStart(
+      args.dispatchId,
+      reason,
+      args.error instanceof Error ? args.error.message : String(args.error)
+    )
+    reportFailedWorkerStart(args.db, worker, args.notify)
+  } else {
+    args.db.markWorkerBlockedOnPrompt(args.dispatchId, reason)
+  }
+  return withWorkerStartBlockedPromptIdentity(args.error, {
+    dispatchId: args.dispatchId,
+    host: args.host
+  })
+}
 
 export function isKnownRemoteStartFailure(code: string): boolean {
   return [

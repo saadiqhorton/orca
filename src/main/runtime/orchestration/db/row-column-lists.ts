@@ -95,6 +95,7 @@ export const WORKER_DISPATCH_COLUMNS = [
   'residual_resources',
   'start_options',
   'last_error',
+  'blocked_reason',
   'created_at',
   'updated_at'
 ] as const satisfies readonly (keyof WorkerDispatchRow)[]
@@ -164,6 +165,7 @@ export const REMOTE_DISPATCH_ATTACHMENT_COLUMNS = [
   'depth',
   'consumer_generation',
   'last_error',
+  'blocked_reason',
   'created_at',
   'updated_at'
 ] as const satisfies readonly (keyof RemoteDispatchAttachmentRow)[]

@@ -42,6 +42,10 @@ import {
 import { requireWorkerAuthority, type WorkerEffect } from './placement/worker-placement-topology'
 import { prepareLocalWorkerStart } from './launch/worker-start-validation'
 import { deliverAndSettleWorkerStartReadiness } from './readiness/worker-start-readiness-settlement'
+import {
+  settleCaughtWorkerStartError,
+  workerStartBlockedPromptReason
+} from './worker-start-blocked-prompt'
 import { handOverWhenReady } from './readiness/placed-worker-readiness'
 import type { WorkerStartMutation } from './worker-start-mutation'
 import {
@@ -286,7 +290,8 @@ export async function startLocalWorker(args: {
         readinessDeadline: deliveryDeadline,
         effects,
         terminalRevealWarning: placement.warning,
-        onStage
+        onStage,
+        host: params.host
       })
     }
     result = await handOverWhenReady({
@@ -306,7 +311,9 @@ export async function startLocalWorker(args: {
       fail: failStart
     })
   } catch (error) {
-    result = await failStart(error)
+    result = await settleCaughtWorkerStartError(error, () =>
+      failStart(error, workerStartBlockedPromptReason(error) ?? failedStage)
+    )
   }
   recordOutcome(result)
   return result
