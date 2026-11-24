@@ -25,6 +25,7 @@ import {
 } from '../core-desktop/desktop-core-composition'
 import type { Store } from '../persistence/loading-store/store'
 import type { RuntimeDesktopWindowStatus } from '../../shared/remote-runtime/session-graph/runtime-session-contracts'
+import { startManagedHostInstructions } from '../runtime/orchestration/desktop-hub/managed-host-instructions-startup'
 
 function getDesktopWindowStatus(): RuntimeDesktopWindowStatus {
   const activation = state.desktopActivationGate
@@ -149,4 +150,5 @@ export async function initializeReadyRuntimeServices(): Promise<void> {
     native: desktopCoreNative(store),
     registerCleanup: (cleanup) => app.once('will-quit', cleanup)
   })
+  startManagedHostInstructions(store, app.getPath('userData'))
 }

@@ -74,6 +74,12 @@ export const uiClipboardAndWindowControlsApi = {
     ipcRenderer.on('ui:workspaceSleep', listener)
     return () => ipcRenderer.removeListener('ui:workspaceSleep', listener)
   },
+  onTerminalRevealPending: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, notice: Parameters<typeof callback>[0]) =>
+      callback(notice)
+    ipcRenderer.on('ui:terminalRevealPending', listener)
+    return () => ipcRenderer.removeListener('ui:terminalRevealPending', listener)
+  },
   onProjectMovePause: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, request: Parameters<typeof callback>[0]) =>
       callback(request)

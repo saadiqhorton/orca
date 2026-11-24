@@ -4,6 +4,7 @@ import { STRUCTURED_AGENT_SESSION_RENDERER_CLIENT_CAPABILITIES } from '../../age
 import { TERMINAL_IMAGE_VIEWER_CAPABILITY } from '../../terminal/images/terminal-image-viewer-capability'
 import { TERMINAL_HOST_PANE_RESPAWN_CLIENT_CAPABILITY } from '../../terminal/pty/lifecycle/host-pane-respawn-capability'
 import { BROWSER_CLIENT_HOST_REQUEST_CAPABILITY } from '../../browser/client-hosting/browser-client-host-request-protocol'
+import { DESKTOP_HUB_CLIENT_CAPABILITY } from '../../orchestration/desktop-hub-contract'
 import {
   STRUCTURED_CHAT_START_TELEMETRY_CLIENT_CAPABILITY,
   STRUCTURED_CHAT_PROMPT_TELEMETRY_CLIENT_CAPABILITY
@@ -39,6 +40,8 @@ export const ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES = [
   BROWSER_CLIENT_PAGE_METADATA_RUNTIME_CAPABILITY,
   // The renderer starts hosting when a server's page needs a desktop and none holds a lease.
   BROWSER_CLIENT_HOST_REQUEST_CAPABILITY,
+  // The desktop main process answers cross-host orchestration for sessions on paired execution hosts.
+  DESKTOP_HUB_CLIENT_CAPABILITY,
   // Why: only the renderer runs the retirement-proof ledger; CLI and mobile must keep full lists.
   SESSION_TABS_RETIREMENT_PROOF_DELTA_RUNTIME_CAPABILITY,
   // Main restores every tab-delta frame before the window or any other reader sees it.

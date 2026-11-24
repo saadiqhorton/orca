@@ -1,8 +1,11 @@
 import { z } from 'zod'
+import { DesktopHubIdentitySchema } from '../../orchestration/desktop-hub-contract'
 
 export const ClientEventsSubscribeParams = z.object({
   // Only the desktop renderer opts in; main-process relays on the same socket cannot answer host requests.
-  browserHostRequests: z.boolean().optional()
+  browserHostRequests: z.boolean().optional(),
+  // Only the desktop main process opts in. A relay that omits this cannot answer hub requests.
+  orchestrationHub: DesktopHubIdentitySchema.optional()
 })
 
 export const ClientEventsUnsubscribeParams = z.object({

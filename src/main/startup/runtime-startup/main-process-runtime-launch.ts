@@ -11,7 +11,7 @@ import { resolveServePinnedBindHost } from '../serve-launch/serve-pinned-bind-ho
 import { isOrcadSidecarLaunch } from '../../window/activation/foreground-activation-policy'
 import type { MainWindowOpenOptions } from '../../window/main-window/main-window-contracts'
 import { registerMobileHandlers } from '../../ipc/mobile'
-import { createRuntimeEnvironmentMobileRelayHosts } from '../../ipc/runtime-environments/mobile-relay/runtime-environment-mobile-relay-hosts'
+import { installDesktopConnectedSurfaces } from '../../ipc/runtime-environments/desktop-hub/desktop-hub-client'
 import { registerHeadlessPtyRuntime } from '../../ipc/pty/register-headless-runtime'
 import { publishHeadlessRuntimeGraph } from '../../runtime/session-graph/headless-runtime-graph'
 import { OffscreenBrowserBackend } from '../../browser/backends/offscreen-browser-backend'
@@ -114,7 +114,7 @@ function installRuntimeRpc(
   })
   state.core.runtimeRpc = runtimeRpc
   runtime.setAgentSenderPeerKey(() => runtimeRpc.getE2EEPublicKey())
-  runtimeRpc.setMobileDesktopRelayHosts(createRuntimeEnvironmentMobileRelayHosts())
+  installDesktopConnectedSurfaces(runtime, runtimeRpc)
   registerMobileHandlers(runtimeRpc, {
     getRelayStatus: getDesktopRelayStatus,
     consumePendingUnpairedDeviceAuthFailure: (webContentsId) => {

@@ -17,6 +17,7 @@ import type {
   OrchestrationWorkerServer
 } from './environment-transport'
 import { OrchestrationError } from '../orchestration-error'
+import { wrapDesktopHubTransport } from '../desktop-hub/desktop-hub-transport'
 import { UnsentRequestError } from './unsent-request-error'
 import {
   clearFederationAckCheckpoints,
@@ -57,10 +58,14 @@ export class RuntimeOrchestrationFederation {
   /** Worker server -> runtime incarnation that last proved the orchestration contract. */
   private readonly contractVerifiedRuntimeIds = new Map<string, string>()
 
+  private readonly transport: OrchestrationEnvironmentTransport | null
+
   constructor(
     private readonly runtime: FederationRuntime,
-    private readonly transport: OrchestrationEnvironmentTransport | null
-  ) {}
+    transport: OrchestrationEnvironmentTransport | null
+  ) {
+    this.transport = wrapDesktopHubTransport(transport, runtime)
+  }
 
   resetForDatabaseChange(): void {
     this.relayGeneration += 1

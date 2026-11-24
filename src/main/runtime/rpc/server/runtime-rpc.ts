@@ -1,5 +1,7 @@
 // Why: the single security boundary for the bundled CLI — auth-token enforcement, metadata publication, transport orchestration.
+import { randomUUID } from 'node:crypto'
 import { RuntimeRpcMobilePairing } from './runtime-rpc-mobile-pairing'
+import type { RpcRequest, RpcResponse } from '../core'
 import { publishHostDescriptor } from '../../hosts/platform-probe/host-descriptor'
 import type { OrcaRuntimeRpcServerOptions } from './runtime-rpc-pairing-types'
 import {
@@ -21,6 +23,27 @@ export class OrcaRuntimeRpcServer extends RuntimeRpcMobilePairing {
   /** Why: test-only seam — runs one ownership check instead of waiting out the poll interval. */
   checkRuntimeMetadataOwnership(): Promise<void> {
     return this.metadataOwnershipWatch?.check() ?? Promise.resolve()
+  }
+
+  /** The desktop hub calls a method on this process without opening a new socket. */
+  dispatchLocal(
+    input: Pick<
+      RpcRequest,
+      'method' | 'params' | 'orchestrationContractVersion' | 'orchestrationRequestId'
+    >
+  ): Promise<RpcResponse> {
+    return this.dispatcher.dispatch({
+      id: randomUUID(),
+      authToken: this.authToken,
+      method: input.method,
+      params: input.params,
+      ...(input.orchestrationContractVersion !== undefined
+        ? { orchestrationContractVersion: input.orchestrationContractVersion }
+        : {}),
+      ...(input.orchestrationRequestId
+        ? { orchestrationRequestId: input.orchestrationRequestId }
+        : {})
+    })
   }
 
   /** What a host's idle exit reads to know whether any client is still using this server. */

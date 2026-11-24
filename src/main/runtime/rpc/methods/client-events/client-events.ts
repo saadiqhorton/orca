@@ -9,7 +9,9 @@ import {
   ClientEventsUnsubscribeParams
 } from '../../../../../shared/rpc-contract/client-ui/client-events-params'
 import { BROWSER_CLIENT_HOST_REQUEST_CAPABILITY } from '../../../../../shared/browser/client-hosting/browser-client-host-request-protocol'
+import { DESKTOP_HUB_CLIENT_CAPABILITY } from '../../../../../shared/orchestration/desktop-hub-contract'
 import { getBrowserHostRequestRegistry } from '../../../browser-host/leases/browser-host-request-registry'
+import { getDesktopHubRegistry } from '../../../orchestration/desktop-hub/desktop-hub-registry'
 import { GOOGLE_SETUP_CARDS_CLIENT_CAPABILITY } from '../../../../../shared/google/google-connect-types'
 import { registerGoogleCardRenderer } from '../../../../google/google-card-reach'
 import {
@@ -47,6 +49,19 @@ export const CLIENT_EVENT_METHODS = [
           clientCapabilities?.includes(BROWSER_CLIENT_HOST_REQUEST_CAPABILITY)
             ? getBrowserHostRequestRegistry(runtime).register({ pairedDeviceId, emit })
             : undefined
+        const hubVolunteer =
+          params.orchestrationHub &&
+          clientKind === 'runtime' &&
+          pairedDeviceId &&
+          clientCapabilities?.includes(DESKTOP_HUB_CLIENT_CAPABILITY)
+            ? getDesktopHubRegistry(runtime).register({
+                pairedDeviceId,
+                appInstallationId: params.orchestrationHub.appInstallationId,
+                userId: params.orchestrationHub.userId,
+                emit
+              })
+            : undefined
+        const unregisterDesktopHub = hubVolunteer?.accepted ? hubVolunteer.stop : undefined
         const unregisterCardRenderer =
           clientKind === 'runtime' &&
           clientCapabilities?.includes(GOOGLE_SETUP_CARDS_CLIENT_CAPABILITY)
@@ -78,6 +93,7 @@ export const CLIENT_EVENT_METHODS = [
           () => {
             unsubscribe()
             unregisterHostVolunteer?.()
+            unregisterDesktopHub?.()
             unregisterCardRenderer?.()
             unsubscribeTelemetry?.()
             emit({ type: 'end' })

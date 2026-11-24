@@ -1,4 +1,5 @@
 import { createOrchestrationEnvironmentTransport } from '../../ipc/runtime-environments/requests/orchestration-environment-transport'
+import { enableDesktopHubPlacementStore } from '../../runtime/orchestration/desktop-hub/desktop-hub-placement-store'
 import type { RuntimeConstructionDependencies } from '../../runtime/construction/runtime-construction-dependencies'
 import type { OrcaRuntimeRpcServer } from '../../runtime/rpc/server/runtime-rpc'
 
@@ -15,6 +16,7 @@ export function createOrcadPairedEnvironmentOptions(): {
   /** RPC owns the device registry and starts after the runtime. */
   bindRpc: (rpc: Pick<OrcaRuntimeRpcServer, 'getDeviceRegistry' | 'pairedDeviceTypist'>) => void
 } {
+  enableDesktopHubPlacementStore()
   let rpc: Pick<OrcaRuntimeRpcServer, 'getDeviceRegistry' | 'pairedDeviceTypist'> | null = null
   return {
     runtimeOptions: {
