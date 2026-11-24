@@ -27,6 +27,8 @@ import { resolveOrchestrationCliExecutable } from './orchestration/recovery/orch
 import { refuseConflictingSessionCallerFlags } from './orchestration/identity/session-caller-flags'
 import { adoptSessionToolCaller, tradeSessionToolToken } from './runtime/session-tool-caller'
 import { ignoresRemoteSelection } from './dispatch/remote-selection-scope'
+import { orchestrationRunsOnCallersOrca } from './hosts/desktop-hub-command-route'
+import { prepareDesktopHubCliClient } from './hosts/desktop-hub-cli-bind'
 import {
   isLocalEnvironmentSelector,
   refuseLocalManagementSelector
@@ -127,16 +129,17 @@ export async function main(
     await refuseLocalManagementSelector(parsed.commandPath, parsed.flags)
     const RuntimeClientClass = await loadRuntimeClientClass()
     // `--on` runs on the caller's own Orca, which reaches that server; an inherited selection never reroutes it.
-    const onCallersOrca = runsOnCallersOrca(parsed.commandPath, parsed.flags)
+    const onCallersOrca = orchestrationRunsOnCallersOrca(parsed.commandPath, parsed.flags)
     if (
       onCallersOrca &&
       (parsed.flags.has('pairing-code') ||
         (parsed.flags.has('environment') &&
           !isLocalEnvironmentSelector(parsed.flags.get('environment'))))
     ) {
+      const named = parsed.flags.has('on') ? '--on' : '--host'
       throw new RuntimeClientError(
         'invalid_argument',
-        '--on already names the server; drop --environment. Your own Orca reaches it.'
+        `${named} already names the server; drop --environment. Your own Orca reaches it.`
       )
     }
     const ignoreRemoteSelection = onCallersOrca || ignoresRemoteSelection(parsed.commandPath)
@@ -188,19 +191,33 @@ export async function main(
       hostEnvironmentId !== null ? null : typeof pairingCode === 'string' ? pairingCode : suppressed
     const remoteEnvironment = hostEnvironmentId ?? storeEnvironmentSelector ?? suppressed
     let client: RuntimeClient | undefined
+    const buildClient = (): RuntimeClient => {
+      client ??= new RuntimeClientClass(
+        undefined,
+        undefined,
+        remotePairingCode,
+        remoteEnvironment,
+        resolveOrchestrationCliExecutable(),
+        argv
+      )
+      return client
+    }
+    const hub = await prepareDesktopHubCliClient(
+      parsed.commandPath,
+      parsed.flags,
+      buildClient(),
+      json
+    )
+    client = hub.client
+    parsed.commandPath = hub.commandPath
+    if (hub.printed) {
+      return
+    }
     await dispatch(parsed.commandPath, {
       flags: parsed.flags,
       // Why: local-only handlers must not resolve runtime metadata just to dispatch.
       get client() {
-        client ??= new RuntimeClientClass(
-          undefined,
-          undefined,
-          remotePairingCode,
-          remoteEnvironment,
-          resolveOrchestrationCliExecutable(),
-          argv
-        )
-        return client
+        return buildClient()
       },
       cwd,
       json,
@@ -225,19 +242,6 @@ export async function main(
     })
     process.exitCode = cliErrorExitCode(error, parsed.commandPath)
   }
-}
-
-const ON_CALLERS_ORCA_COMMANDS: ReadonlySet<string> = new Set(['send', 'reply', 'worker-start'])
-
-function runsOnCallersOrca(
-  commandPath: readonly string[],
-  flags: ReadonlyMap<string, string | boolean>
-): boolean {
-  return (
-    commandPath[0] === 'orchestration' &&
-    ON_CALLERS_ORCA_COMMANDS.has(commandPath[1] ?? '') &&
-    flags.has('on')
-  )
 }
 
 async function runClaudeTeams(argv: string[], cwd: string): Promise<void> {

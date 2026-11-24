@@ -25,6 +25,8 @@ import { DESKTOP_BROWSER_BRIDGE_RPC_METHODS } from './browser/desktop-browser-br
 import { BROWSER_CLIENT_FILE_CHANNEL_METHODS } from './browser/browser-client-file-channel'
 import { BROWSER_NETWORK_TUNNEL_METHODS } from './browser/browser-network-tunnel'
 import { ORCHESTRATION_METHODS } from './orchestration/orchestration'
+import { DESKTOP_HUB_METHODS } from './desktop-hub/desktop-hub-methods'
+import { ORCHESTRATION_SURFACE_METHODS } from './orchestration/surface/orchestration-surface-methods'
 import { NOTIFICATION_METHODS } from './notifications/notifications'
 import { PAIRED_SERVER_ASKS_METHODS } from './paired-server-asks/paired-server-asks-methods'
 import { STATS_METHODS } from './host-management/stats'
@@ -204,6 +206,8 @@ const SERVICE_RPC_METHODS = [
   ...BROWSER_NETWORK_TUNNEL_METHODS,
   ...NETWORK_PORT_FORWARD_METHODS,
   ...ORCHESTRATION_METHODS,
+  ...DESKTOP_HUB_METHODS,
+  ...ORCHESTRATION_SURFACE_METHODS,
   ...NOTIFICATION_METHODS,
   ...STATS_METHODS,
   ...USAGE_ANALYTICS_METHODS,

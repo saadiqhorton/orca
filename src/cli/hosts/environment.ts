@@ -1,6 +1,13 @@
 import type { CommandHandler } from '../dispatch/dispatch'
 import { formatEnvironment, formatEnvironmentList } from './environment-format'
-import { formatHostList, formatHostName, type HostNameResult } from './host-format'
+import {
+  formatHostList,
+  formatHostName,
+  type HostListEntry,
+  type HostNameResult
+} from './host-format'
+import { handleHostInventory } from './environment-inventory'
+import type { DesktopHubHostRow } from '../../shared/orchestration/desktop-hub-contract'
 import { printResult } from '../output/command-result-output'
 import { parseHostFlag } from './execution-host-flag'
 import {
@@ -90,20 +97,23 @@ export const ENVIRONMENT_HANDLERS: Record<string, CommandHandler> = {
       id: environment.id,
       selector: `--environment ${environment.name}`
     }))
-    const hosts = [
-      {
-        kind: 'local' as const,
-        name: LOCAL_HOST_LIST_NAME,
-        id: 'local',
-        selector: '--host local',
-        ...localStatus,
-        platform: localStatus.platform ?? process.platform
-      },
-      ...sshTargets,
-      ...environments
-    ]
-    printResult(localSuccess({ hosts }), json, formatHostList)
+    const local = {
+      kind: 'local' as const,
+      name: LOCAL_HOST_LIST_NAME,
+      id: 'local',
+      selector: '--host local',
+      ...localStatus,
+      platform: localStatus.platform ?? process.platform
+    }
+    const hub = await readDesktopHubHosts(client, local.machineName)
+    const hosts = [local, ...sshTargets, ...environments, ...hub.hosts]
+    printResult(
+      localSuccess({ hosts, ...(hub.note ? { note: hub.note } : {}) }),
+      json,
+      formatHostList
+    )
   },
+  'host inventory': handleHostInventory,
   'host rm': async ({ client, flags, json }) => {
     rejectLocalPairingStoreRetargeting(
       flags,
@@ -172,6 +182,54 @@ function describeRuntimeHost(status: RuntimeStatus): HostNameResult {
   return {
     ...(status.machineName ? { machineName: status.machineName } : {}),
     ...(status.hostPlatform ? { platform: status.hostPlatform } : {})
+  }
+}
+
+async function readDesktopHubHosts(
+  client: RuntimeClient,
+  localMachineName: string | undefined
+): Promise<{ hosts: HostListEntry[]; note?: string }> {
+  try {
+    const listed = await client.call<{
+      hub: 'desktop' | 'remote' | 'unavailable'
+      hosts: DesktopHubHostRow[]
+      message?: string
+    }>('orchestration.desktopHub.list', {})
+    const hosts = listed.result.hosts.flatMap((row) => {
+      if (
+        localMachineName &&
+        (row.machineName === localMachineName || row.name === localMachineName)
+      ) {
+        return []
+      }
+      const entry: HostListEntry = {
+        kind: 'execution',
+        name: row.name,
+        id: row.id,
+        selector: row.selector,
+        ...(row.machineName ? { machineName: row.machineName } : {}),
+        connectionStatus: row.status,
+        connected: row.status === 'connected'
+      }
+      return [entry]
+    })
+    return {
+      hosts,
+      ...(listed.result.hub === 'unavailable' && listed.result.message
+        ? { note: listed.result.message }
+        : {})
+    }
+  } catch (error) {
+    if (error instanceof RuntimeClientError && error.code === 'method_not_found') {
+      return { hosts: [] }
+    }
+    if (error instanceof RuntimeClientError && error.code === 'session_refused') {
+      throw error
+    }
+    if (error instanceof RuntimeClientError) {
+      return { hosts: [], note: error.message }
+    }
+    return { hosts: [] }
   }
 }
 
