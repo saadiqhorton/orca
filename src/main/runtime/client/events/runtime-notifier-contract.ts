@@ -37,6 +37,7 @@ import type {
   RuntimeTerminalDriverState
 } from '../../../../shared/remote-runtime/session-graph/runtime-session-contracts'
 import type { RuntimeTerminalPresentation } from '../../../../shared/terminal/runtime/runtime-terminal-contracts'
+import type { RuntimeTerminalRevealPendingNotice } from '../../../../shared/terminal/runtime/runtime-terminal-create-contract'
 import type {
   AgentListPublication,
   AgentPaneActivityChange
@@ -179,6 +180,8 @@ export type RuntimeNotifier = {
   ): Promise<void>
   /** A sleep main runs, for the window to follow; optional as only the real bridge wires it. */
   workspaceSleepChanged?(notice: WorkspaceSleepNotice): void
+  /** A created tab Orca could not reveal; the window shows it as a notice. */
+  terminalRevealPending?(notice: RuntimeTerminalRevealPendingNotice): void
   // Only the host renderer owns slept-agent wake records; phones request navigation-free wake through this optional bridge.
   resumeSleepingAgents?(worktreeId: string): void
   /** The window applies a client's Agents-list change with its own actions and answers with the verdicts it leaves. */

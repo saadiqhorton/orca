@@ -1,6 +1,7 @@
 import type { AgentSessionAttachmentClipboardTarget } from '../../../shared/agent-session/agent-session-attachments'
 import type { ClipboardImageThumbnail } from '../../../shared/clipboard/clipboard-image'
 import type { ReadClipboardTextOptions } from '../../../shared/clipboard/clipboard-text'
+import type { RuntimeTerminalRevealPendingNotice } from '../../../shared/terminal/runtime/runtime-terminal-create-contract'
 import type {
   RichMarkdownContextMenuCommandPayload,
   RichMarkdownContextMenuTableTarget
@@ -67,6 +68,10 @@ export type UiWindowApi = {
     callback: (payload: RichMarkdownContextMenuCommandPayload) => void
   ) => () => void
   onFullscreenChanged: (callback: (isFullScreen: boolean) => void) => () => void
+  /** A created tab that main could not reveal; the window tells the person where it runs. */
+  onTerminalRevealPending: (
+    callback: (notice: RuntimeTerminalRevealPendingNotice) => void
+  ) => () => void
   minimize: () => void
   maximize: () => void
   isMaximized: () => Promise<boolean>

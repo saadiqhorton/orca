@@ -2,6 +2,13 @@ import type { TerminalLaunchResult } from '../../agent-session/lifecycle/agent-s
 import type { ExecutionHostId } from '../../execution-host/execution-host'
 import type { StartupCwdFallback } from '../../shell/launch/startup-cwd-fallback'
 
+/** The tab exists but Orca could not show it: a user-facing notice names where it runs. */
+export type RuntimeTerminalRevealPendingNotice = {
+  handle: string
+  tabTitle: string | null
+  host: string
+}
+
 export type RuntimeTerminalCreate = TerminalLaunchResult & {
   coldRestore?: { scrollback: string; cwd: string; cols?: number; rows?: number }
   handle: string
@@ -16,6 +23,7 @@ export type RuntimeTerminalCreate = TerminalLaunchResult & {
   hostPlatform?: NodeJS.Platform
   surface?: 'background' | 'visible'
   warning?: string
+  revealPending?: true
   agentSessionDisposition?: 'created' | 'adopted'
   isReattach?: true
   /** Spawn process identity for host-internal ownership proof. */

@@ -82,6 +82,8 @@ export function addOrcaWslInteropEnv(env: Record<string, string>): void {
   // wsl.exe imports only selected variables; publish pane identity and hook/wrapper coordinates.
   const passthroughEntries = [
     'ORCA_TERMINAL_HANDLE/u',
+    'ORCA_HOSTS/u',
+    'ORCA_INSTRUCTIONS_FILE/p',
     'ORCA_USER_DATA_PATH/p',
     // Guests cannot derive the content hash; translate the resolved host wrapper root.
     'ORCA_SHELL_READY_ROOT/p',

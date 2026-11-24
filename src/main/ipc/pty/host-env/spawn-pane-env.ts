@@ -4,6 +4,7 @@ import {
   JCODE_RUNTIME_DIR_ENV_KEY
 } from '../../../../shared/agent-launch/startup/jcode-runtime-dir'
 import { applyScrubSafeAgentEnvAliases } from '../../../../shared/agent-hook-listener/transport/agent-hook-scrub-safe-env'
+import { applyOrcaHostAwarenessEnv } from '../../../runtime/orchestration/desktop-hub/orca-host-name-cache'
 import { isTerminalLeafId, makePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 import { isValidTerminalTabId } from '../../../../shared/workspace-layout/terminal-surfaces/terminal-tab-id'
 
@@ -34,6 +35,7 @@ type PtySpawnPaneEnvArgs = {
   /** Null when the spawn's own tab+leaf ids don't name a valid pane. */
   pane: PtySpawnPane | null
   jcodeRuntimeDir: string | undefined
+  isRemote?: boolean
 }
 
 export function stampPtySpawnPaneEnv(
@@ -50,6 +52,7 @@ export function stampPtySpawnPaneEnv(
     delete env.ORCA_TAB_ID
     delete env.ORCA_WORKTREE_ID
     delete env.ORCA_AGENT_LAUNCH_TOKEN
+    applyOrcaHostAwarenessEnv(env, { isRemote: args.isRemote })
     applyScrubSafeAgentEnvAliases(env)
     return
   }
@@ -69,6 +72,7 @@ export function stampPtySpawnPaneEnv(
     env[JCODE_RUNTIME_DIR_ENV_KEY] = args.jcodeRuntimeDir
   }
   // Why: SSH relay spawns skip the local/daemon env builders that otherwise mirror these.
+  applyOrcaHostAwarenessEnv(env, { isRemote: args.isRemote })
   applyScrubSafeAgentEnvAliases(env)
 }
 

@@ -14,6 +14,7 @@ import type { WorktreeSortOrderUpdate } from '../../worktree/metadata/sort-order
 import type { WorkspaceMetadataSet } from '../../worktree/metadata/workspace-metadata-set'
 import type { SidebarInputsChangedEvent } from '../../sidebar-list/feed/sidebar-inputs-feed-contract'
 import type { BrowserClientHostRequestEvent } from '../../browser/client-hosting/browser-client-host-request-protocol'
+import type { DesktopHubRequestEvent } from '../../orchestration/desktop-hub-contract'
 import type { WorkspaceCleanupRunFinishedEvent } from '../../workspace-cleanup/workspace-cleanup-run'
 
 export type RuntimeClientEvent =
@@ -111,6 +112,7 @@ export type RuntimeClientEventStreamMessage =
   | RuntimeClientEvent
   // Addressed to this subscriber only, never broadcast.
   | BrowserClientHostRequestEvent
+  | DesktopHubRequestEvent
   | { type: 'end' }
 
 export type RuntimeActivateWorktreeEvent = Extract<RuntimeClientEvent, { type: 'activateWorktree' }>
