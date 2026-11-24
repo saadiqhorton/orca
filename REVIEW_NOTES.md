@@ -2,7 +2,9 @@
 
 Findings from implementer self-review and independent reviewer passes. Resolutions stay next to each item.
 
-Independent reviewers read SHA `4534d6bd012`. Later commits addressed their blocking items. A whole-diff pass at `5b937d42040` found two more blocking wiring holes, fixed in the following commit.
+Independent reviewers read SHA `4534d6bd012` (pre-rebase). Later commits addressed their blocking items. A whole-diff pass at `5b937d42040` found two more blocking wiring holes, fixed in the following commit.
+
+Rebased onto current `stablyai/orca` `main` (`6f44d18f022`, 26 commits including paired-server port forwards). Overlap was `rpc-method-registry.ts`, `app-lifetime-ipc-bridge.ts`, generated catalog/`en.json`, and `terminal-send.ts` (kept upstream's `terminal` local). `--on` / `--environment` / bot groups stay the upstream paths; hub is additive. `pnpm check:changed --base=upstream/main` after rebase: **46/46**.
 
 ## Scope check
 

@@ -1,6 +1,6 @@
 # Cross-host orchestration (desktop hub)
 
-Draft body for an upstream PR to [stablyai/orca](https://github.com/stablyai/orca). Do **not** open that PR from this branch until Saadiq reviews it internally. Target `upstream/cross-host-orchestration` on `saadiqhorton/orca`, rebased on latest `stablyai/orca` main.
+Draft body for an upstream PR to [stablyai/orca](https://github.com/stablyai/orca). Do **not** open that PR from this branch until Saadiq reviews it internally. Target `upstream/cross-host-orchestration` on `saadiqhorton/orca`, rebased on latest `stablyai/orca` main (`6f44d18f022`).
 
 This is a **stack candidate**. One PR is easier to demo; upstream would likely prefer splitting it (see Review notes).
 
