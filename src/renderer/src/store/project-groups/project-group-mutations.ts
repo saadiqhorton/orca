@@ -22,6 +22,7 @@ import type { ProjectRemovalFailure, RepoSlice } from '../repos/repo-state'
 import { mergeProjectCompatibilityForHostRepoChange } from '../repos/repo-catalog-identity'
 import { applyProjectGroupDeleteCascade } from './project-group-removal-state'
 import { adoptFromEndpoint } from '../host-catalog/endpoint-catalog-adoption'
+import { ensureProjectGroupTwinInCatalog } from './project-group-twins'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
 
@@ -49,24 +50,27 @@ export function createProjectGroupMutationActions(
   | 'moveProjectToGroup'
 > {
   return {
-    createProjectGroup: async (name, hostId) => {
+    createProjectGroup: async (name, hostId, options) => {
+      const parentGroupId = options?.parentGroupId ?? null
       try {
         // Why: a new group lands on the host of the project that seeds it, not the focused one.
         const target = ipcOrRuntimeTargetForHostId(hostId)
         if (!target) {
           return null
         }
+        const createParams = {
+          name,
+          createdFrom: 'manual' as const,
+          ...(parentGroupId ? { parentGroupId } : {})
+        }
         const group =
           target.kind === 'local'
-            ? await window.api.projectGroups.create({
-                name,
-                createdFrom: 'manual'
-              })
+            ? await window.api.projectGroups.create(createParams)
             : (
                 await callRuntimeRpc<{ group: ProjectGroup }>(
                   target,
                   'projectGroup.create',
-                  { name, createdFrom: 'manual' },
+                  createParams,
                   { timeoutMs: 15_000 }
                 )
               ).group
@@ -232,15 +236,28 @@ export function createProjectGroupMutationActions(
         if (!repo || !repoHostId || !target) {
           return false
         }
+        // Cross-machine: join (or create) the same-named twin group on the project's machine.
+        let effectiveGroupId = groupId
         if (groupId && !isProjectGroupJoinableFromCatalog(get().projectGroups, groupId, target)) {
-          notifyProjectGroupOnOtherHost()
-          return false
+          const twin = await ensureProjectGroupTwinInCatalog({
+            getProjectGroups: () => get().projectGroups,
+            groupId,
+            catalog: target,
+            hostId: repoHostId,
+            createGroup: (name, hostId, parentGroupId) =>
+              get().createProjectGroup(name, hostId, { parentGroupId })
+          })
+          if (twin.status !== 'twin' && twin.status !== 'same-catalog') {
+            notifyProjectGroupOnOtherHost()
+            return false
+          }
+          effectiveGroupId = twin.groupId
         }
         const moved =
           target.kind === 'local'
             ? await window.api.projectGroups.moveProject({
                 projectId: repo.id,
-                groupId,
+                groupId: effectiveGroupId,
                 order,
                 hostId: repoHostId
               })
@@ -249,7 +266,12 @@ export function createProjectGroupMutationActions(
                   target,
                   'projectGroup.moveProject',
                   // Why connectionId: the server's own twins differ only by their SSH target there.
-                  { repo: repo.id, groupId, order, connectionId: repo.connectionId ?? null },
+                  {
+                    repo: repo.id,
+                    groupId: effectiveGroupId,
+                    order,
+                    connectionId: repo.connectionId ?? null
+                  },
                   { timeoutMs: 15_000 }
                 )
               ).repo
@@ -273,7 +295,7 @@ export function createProjectGroupMutationActions(
           }
         })
         // Why: hosts store an unknown group id as "no group" and still return the row (#13699).
-        if (groupId && (moved.projectGroupId ?? null) !== groupId) {
+        if (effectiveGroupId && (moved.projectGroupId ?? null) !== effectiveGroupId) {
           notifyProjectGroupOnOtherHost()
           return false
         }

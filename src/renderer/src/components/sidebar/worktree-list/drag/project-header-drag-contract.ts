@@ -1,7 +1,12 @@
 import type { RootProjectHeaderDrag } from './root-project-header-drop'
 import type { PointerEvent } from 'react'
 
-import type { ProjectHeaderDragBucketKey, ProjectHeaderDragRect } from './project-header-drop'
+import type {
+  ProjectGroupCanonicalIdOf,
+  ProjectHeaderDragBucketKey,
+  ProjectHeaderDragRect
+} from './project-header-drop'
+import type { ProjectHeaderMembershipTarget } from './project-header-membership'
 import type { Repo } from '../../../../../../shared/repository/repo-types'
 
 export type RepoDragState = {
@@ -22,8 +27,14 @@ export type UseRepoHeaderDragArgs = RootProjectHeaderDrag & {
   repoById: ReadonlyMap<string, Repo>
   getLiveRepos: () => readonly Repo[]
   usesProjectGroupOrdering: boolean
+  /** Maps a twin group id to the merged group it is drawn under. */
+  canonicalGroupIdOf: ProjectGroupCanonicalIdOf
+  /** Dropping a project header on a group joins it; dropping outside every group leaves it. */
+  allowMembershipDrag: boolean
+  /** Reordering applies only in manual project order; membership works in every sort mode. */
+  allowReorder: boolean
   onCommitRepoOrder: (orderedIds: string[]) => void
-  onCommitProjectGroupOrder: (project: Repo, projectGroupId: string | null, order: number) => void
+  onCommitProjectGroupOrder: (project: Repo, projectGroupId: string | null, order?: number) => void
   getScrollContainer: () => HTMLElement | null
 }
 
@@ -44,8 +55,13 @@ export type ProjectHeaderDragSession = {
   handleEl: HTMLElement
   startX: number
   startY: number
+  latestPointerX: number
   latestPointerY: number
   promoted: boolean
+  membershipEnabled: boolean
+  reorderEnabled: boolean
+  /** Latest hovered membership target; undefined until the drag is promoted. */
+  membershipTarget?: ProjectHeaderMembershipTarget | null
 }
 
 export const PROJECT_HEADER_DRAG_THRESHOLD_PX = 4

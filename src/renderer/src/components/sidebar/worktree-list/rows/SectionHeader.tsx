@@ -1,7 +1,9 @@
+import { getRootProjectHeaderOccurrenceKey } from '../drag/root-project-header-drop'
 import {
-  getRootProjectHeaderKey,
-  getRootProjectHeaderOccurrenceKey
-} from '../drag/root-project-header-drop'
+  getProjectGroupMembershipDropAttributes,
+  PROJECT_GROUP_DROP_TARGET_CLASS_NAME
+} from '../drag/project-header-membership'
+import { getSectionHeaderDragEligibility } from './section-header-drag-eligibility'
 import React from 'react'
 import { ChevronDown } from 'lucide-react'
 import { ProjectHeaderHostLabel, ProjectHeaderHostTooltip } from './ProjectHeaderHostLabel'
@@ -97,32 +99,16 @@ export function renderWorktreeSectionHeaderRow(
     projectGroupDragIdForHeader !== undefined
       ? headerDrag.projectGroupHeaderBucketByGroupId.get(projectGroupDragIdForHeader)
       : undefined
-  const rootProjectHeaderKey = usesRootProjectDrag ? getRootProjectHeaderKey(row) : undefined
-  const rootProjectHeaderCount = rootProjectHeaderKey
-    ? (headerDrag.rootProjectHeaderCountByOccurrenceKey.get(
-        getRootProjectHeaderOccurrenceKey(rootProjectHeaderKey, row.hostId)
-      ) ??
-      headerDrag.rootProjectHeaderCountByOccurrenceKey.get(
-        getRootProjectHeaderOccurrenceKey(rootProjectHeaderKey)
-      ))
-    : undefined
-  const isDraggableRepoHeader = Boolean(
-    headerDrag.canReorderRepoHeaders &&
-    projectIdForHeader &&
-    repoHeaderBucketKey &&
-    (rootProjectHeaderCount !== undefined
-      ? rootProjectHeaderCount > 1
-      : (headerDrag.sidebarRepoHeaderIdsByBucket.get(repoHeaderBucketKey)?.length ?? 0) > 1)
-  )
-  const isDraggableProjectGroupHeader = Boolean(
-    headerDrag.canReorderProjectGroupHeaders &&
-    projectGroupDragIdForHeader &&
-    projectGroupHeaderBucketKey &&
-    (rootProjectHeaderCount !== undefined
-      ? rootProjectHeaderCount > 1
-      : (headerDrag.sidebarProjectGroupHeaderIdsByBucket.get(projectGroupHeaderBucketKey)?.length ??
-          0) > 1)
-  )
+  const { rootProjectHeaderKey, isDraggableRepoHeader, isDraggableProjectGroupHeader } =
+    getSectionHeaderDragEligibility({
+      headerDrag,
+      row,
+      usesRootProjectDrag,
+      projectIdForHeader,
+      repoHeaderBucketKey,
+      projectGroupDragIdForHeader,
+      projectGroupHeaderBucketKey
+    })
   const isDraggingThis =
     headerDrag.canReorderRepoHeaders &&
     headerDrag.repoDrag.state.draggingRepoId === projectIdForHeader
@@ -228,6 +214,16 @@ export function renderWorktreeSectionHeaderRow(
               : undefined
           }
           data-project-group-header-drag-handle={isDraggableProjectGroupHeader ? '' : undefined}
+          {...getProjectGroupMembershipDropAttributes(
+            projectGroupIdForHeader,
+            // Collapsed and empty groups are header-only. Writing rows.length as the end makes a
+            // missing last row +Infinity, so a last child swallows parent/root and you cannot drag out.
+            projectGroupIdForHeader && !row.repeated && !isHeaderCollapsed && row.count > 0
+              ? headerDrag.projectGroupMembershipSectionEndIndexByGroupId.get(
+                  projectGroupIdForHeader
+                )
+              : undefined
+          )}
           data-workspace-status-drop-target={headerWorkspaceStatus ? '' : undefined}
           data-workspace-status={headerWorkspaceStatus ?? undefined}
           data-workspace-pin-drop-target={isPinnedHeader ? '' : undefined}
@@ -238,6 +234,8 @@ export function renderWorktreeSectionHeaderRow(
               'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/50',
             (isDraggingThis || isDraggingThisProjectGroup) &&
               'bg-accent/80 ring-1 ring-ring/40 shadow-md rounded-md scale-[1.01]',
+            // Set straight on the DOM while a project header hovers this group (no re-render per move).
+            projectGroupIdForHeader && PROJECT_GROUP_DROP_TARGET_CLASS_NAME,
             headerWorkspaceStatus &&
               ctx.dragOverStatus === headerWorkspaceStatus &&
               'rounded-md bg-worktree-sidebar-accent ring-1 ring-worktree-sidebar-ring/40',

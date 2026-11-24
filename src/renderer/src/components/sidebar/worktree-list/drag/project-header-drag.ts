@@ -5,10 +5,12 @@ import {
 import { measureRootProjectHeaderDragRects } from './root-project-header-drop'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import { measureProjectHeaderDragRects } from './project-header-drop'
+import { setProjectGroupDropTargetHighlight } from './project-header-membership'
 import {
-  computeProjectHeaderDropPreview,
-  measureProjectHeaderDragRects
-} from './project-header-drop'
+  computeProjectHeaderSessionDrop,
+  useGrabbingBodyCursor
+} from './project-header-drag-session-drop'
 import { commitProjectHeaderDragDrop } from './project-header-drag-commit'
 import {
   INITIAL_REPO_DRAG_STATE,
@@ -32,6 +34,9 @@ export function useRepoHeaderDrag({
   repoById,
   getLiveRepos,
   usesProjectGroupOrdering,
+  canonicalGroupIdOf,
+  allowMembershipDrag,
+  allowReorder,
   onCommitRepoOrder,
   onCommitProjectGroupOrder,
   rootProjectHeaderKeys,
@@ -50,6 +55,8 @@ export function useRepoHeaderDrag({
   repoByIdRef.current = repoById
   const usesProjectGroupOrderingRef = useRef(usesProjectGroupOrdering)
   usesProjectGroupOrderingRef.current = usesProjectGroupOrdering
+  const membershipOptionsRef = useRef({ canonicalGroupIdOf, allowMembershipDrag, allowReorder })
+  membershipOptionsRef.current = { canonicalGroupIdOf, allowMembershipDrag, allowReorder }
   const onCommitRepoOrderRef = useRef(onCommitRepoOrder)
   onCommitRepoOrderRef.current = onCommitRepoOrder
   // Read once: callers pass a stable store reader.
@@ -92,13 +99,11 @@ export function useRepoHeaderDrag({
       if (!session || !container) {
         return null
       }
-      return computeProjectHeaderDropPreview({
+      return computeProjectHeaderSessionDrop({
+        session,
+        container,
         pointerY,
-        containerTop: container.getBoundingClientRect().top,
-        scrollTop: container.scrollTop,
-        rects: session.headerRects,
-        sidebarRepoHeaderIds: session.sidebarRepoHeaderIds,
-        contentBottom: container.scrollHeight
+        canonicalGroupIdOf: membershipOptionsRef.current.canonicalGroupIdOf
       })
     },
     []
@@ -146,6 +151,7 @@ export function useRepoHeaderDrag({
       if (session.promoted) {
         clickSwallowTimeoutRef.current = swallowNextClickOnDragHandle(session.handleEl)
       }
+      setProjectGroupDropTargetHighlight(getContainerRef.current(), null)
       const sidebarDropIndex =
         commit && session.promoted && latestDropIndexRef.current !== null
           ? latestDropIndexRef.current
@@ -153,7 +159,7 @@ export function useRepoHeaderDrag({
       dragSessionRef.current = null
       setState(INITIAL_REPO_DRAG_STATE)
       setSessionArmed(false)
-      if (sidebarDropIndex === null) {
+      if (!commit || !session.promoted) {
         return
       }
 
@@ -165,6 +171,7 @@ export function useRepoHeaderDrag({
         repoById: repoByIdRef.current,
         liveRepos: getLiveReposRef.current(),
         usesProjectGroupOrdering: usesProjectGroupOrderingRef.current,
+        canonicalGroupIdOf: membershipOptionsRef.current.canonicalGroupIdOf,
         onCommitRepoOrder: onCommitRepoOrderRef.current,
         onCommitProjectGroupOrder: onCommitProjectGroupOrderRef.current
       })
@@ -227,6 +234,7 @@ export function useRepoHeaderDrag({
         endDrag(false)
         return
       }
+      session.latestPointerX = e.clientX
       session.latestPointerY = e.clientY
       if (!session.promoted) {
         const dx = e.clientX - session.startX
@@ -291,19 +299,7 @@ export function useRepoHeaderDrag({
     sessionArmed
   ])
 
-  useEffect(() => {
-    if (state.draggingRepoId === null) {
-      return
-    }
-    const body = document.body
-    const { cursor: prevCursor, userSelect: prevUserSelect } = body.style
-    body.style.cursor = 'grabbing'
-    body.style.userSelect = 'none'
-    return () => {
-      body.style.cursor = prevCursor
-      body.style.userSelect = prevUserSelect
-    }
-  }, [state.draggingRepoId])
+  useGrabbingBodyCursor(state.draggingRepoId !== null)
 
   const onHandlePointerDown = useCallback((event: React.PointerEvent<HTMLElement>, repo: Repo) => {
     const session = createProjectHeaderDragSession({
@@ -311,6 +307,9 @@ export function useRepoHeaderDrag({
       repo,
       rootProjectHeaderKeys: rootDragRef.current.rootProjectHeaderKeys,
       sidebarRepoHeaderIdsByBucket: sidebarRepoHeaderIdsByBucketRef.current,
+      canonicalGroupIdOf: membershipOptionsRef.current.canonicalGroupIdOf,
+      allowMembershipDrag: membershipOptionsRef.current.allowMembershipDrag,
+      allowReorder: membershipOptionsRef.current.allowReorder,
       getScrollContainer: getContainerRef.current
     })
     if (!session) {

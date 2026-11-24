@@ -2909,6 +2909,14 @@ html.native-shell .app-layout {
   will-change: transform;
 }
 
+[data-project-group-drop-target]:not(.project-header-drag-preview) {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--worktree-sidebar-foreground) 14%, var(--worktree-sidebar));
+  box-shadow:
+    inset 3px 0 0 var(--worktree-sidebar-ring),
+    0 0 0 1.5px color-mix(in srgb, var(--worktree-sidebar-ring) 70%, transparent);
+}
+
 [data-worktree-sidebar-drag-preview='true'] * {
   cursor: grabbing !important;
 }

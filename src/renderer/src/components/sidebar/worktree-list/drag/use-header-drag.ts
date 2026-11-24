@@ -20,8 +20,10 @@ import {
   getRepoHeaderSectionEndByRepoId
 } from '../viewport/worktree-header-section-boundaries'
 import { useHostHeaderDrag } from './host-header-drag'
+import { getProjectGroupSectionEndIndexByGroupId } from './project-header-membership'
 import { useRepoHeaderDrag } from './project-header-drag'
 import { getSidebarOrderedRepoHeaderIdsByBucket } from './project-header-drop'
+import { buildProjectGroupClusters } from '../../../../../../shared/project-group-clusters'
 import { useProjectGroupHeaderDrag } from './project-group-header-drag'
 import { getSidebarOrderedProjectGroupHeaderIdsByBucket } from './project-group-header-drop'
 import {
@@ -87,7 +89,10 @@ export function useWorktreeSidebarHeaderDrag(args: {
   const moveProjectToGroup = useAppStore((s) => s.moveProjectToGroup)
   const updateProjectGroup = useAppStore((s) => s.updateProjectGroup)
   const hasProjectGroups = projectGroups.length > 0
-  const canReorderRepoHeaders = groupBy === 'repo' && projectOrderBy === 'manual'
+  // Joining/leaving a group works in every sort mode; reordering stays manual-only.
+  const allowProjectGroupMembershipDrag = groupBy === 'repo' && hasProjectGroups
+  const allowRepoHeaderReorder = groupBy === 'repo' && projectOrderBy === 'manual'
+  const canReorderRepoHeaders = allowRepoHeaderReorder || allowProjectGroupMembershipDrag
   const canReorderProjectGroupHeaders = groupBy === 'repo' && hasProjectGroups
   const rootProjectHeaderKeys = useMemo(
     () =>
@@ -106,6 +111,11 @@ export function useWorktreeSidebarHeaderDrag(args: {
     () => new Map(projectGroups.map((group) => [group.id, group])),
     [projectGroups]
   )
+  // Same-named groups on different machines draw as one header; drag treats them as one group.
+  const canonicalGroupIdOf = useMemo(() => {
+    const { canonicalById } = buildProjectGroupClusters(projectGroups)
+    return (groupId: string): string => canonicalById.get(groupId)?.id ?? groupId
+  }, [projectGroups])
   const rootProjectHeaderCountByOccurrenceKey = useMemo(
     () => getRootProjectHeaderCountByOccurrenceKey(rootProjectHeaderKeys),
     [rootProjectHeaderKeys]
@@ -148,9 +158,10 @@ export function useWorktreeSidebarHeaderDrag(args: {
   const sidebarRepoHeaderIdsByBucket = useMemo(
     () =>
       getSidebarOrderedRepoHeaderIdsByBucket(
-        rows.filter((row): row is Row => row.type !== 'host-header')
+        rows.filter((row): row is Row => row.type !== 'host-header'),
+        canonicalGroupIdOf
       ),
-    [rows]
+    [canonicalGroupIdOf, rows]
   )
   const sidebarProjectGroupHeaderIdsByBucket = useMemo(
     () =>
@@ -177,10 +188,13 @@ export function useWorktreeSidebarHeaderDrag(args: {
     [sidebarProjectGroupHeaderIdsByBucket]
   )
   const commitProjectGroupOrder = useCallback(
-    (project: Repo, projectGroupId: string | null, order: number) => {
+    (project: Repo, projectGroupId: string | null, order?: number) => {
+      if (order === undefined) {
+        onScrollIntent()
+      }
       void moveProjectToGroup(project, projectGroupId, order)
     },
-    [moveProjectToGroup]
+    [moveProjectToGroup, onScrollIntent]
   )
   const commitProjectGroupHeaderOrder = useCallback(
     (groupId: string, tabOrder: number) => {
@@ -219,13 +233,16 @@ export function useWorktreeSidebarHeaderDrag(args: {
     },
     [onScrollIntent]
   )
-  // Drag applies only in manual order; still construct the controller inert for stable hook order.
+  // Always construct the controller (stable hook order); it arms only when reorder or membership applies.
   const repoDrag = useRepoHeaderDrag({
     orderedRepoIds: allRepoIds,
     sidebarRepoHeaderIdsByBucket,
     repoById: repoMap,
     getLiveRepos: readLiveRepos,
     usesProjectGroupOrdering: hasProjectGroups,
+    canonicalGroupIdOf,
+    allowMembershipDrag: allowProjectGroupMembershipDrag,
+    allowReorder: allowRepoHeaderReorder,
     onCommitRepoOrder: commitRepoReorder,
     onCommitProjectGroupOrder: commitProjectGroupOrder,
     rootProjectHeaderKeys,
@@ -264,12 +281,19 @@ export function useWorktreeSidebarHeaderDrag(args: {
         : new Map<string, number>(),
     [hasProjectGroups, renderRows, firstHeaderIndex]
   )
+  const projectGroupMembershipSectionEndIndexByGroupId = useMemo(
+    () => getProjectGroupSectionEndIndexByGroupId(renderRows),
+    [renderRows]
+  )
 
   return {
     rootProjectHeaderCountByOccurrenceKey,
     rootProjectHeaderSectionEndByKey,
+    allowProjectGroupMembershipDrag,
+    allowRepoHeaderReorder,
     canReorderRepoHeaders,
     canReorderProjectGroupHeaders,
+    projectGroupMembershipSectionEndIndexByGroupId,
     rootProjectHeaderKeys,
     orderedHostIds,
     hostDrag,

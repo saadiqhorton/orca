@@ -21,14 +21,23 @@ export type ProjectHeaderDragRect = {
 
 export type ProjectHeaderDropPreview = WorktreeSidebarHeaderDropPreview
 
+/** Maps a twin group id to the id of the merged group it is drawn under (identity by default). */
+export type ProjectGroupCanonicalIdOf = (groupId: string) => string
+
 export function getProjectHeaderDragBucketKey(
-  repo: Pick<Repo, 'projectGroupId'>
+  repo: Pick<Repo, 'projectGroupId'>,
+  canonicalGroupIdOf?: ProjectGroupCanonicalIdOf
 ): ProjectHeaderDragBucketKey {
-  return repo.projectGroupId ? `group:${repo.projectGroupId}` : 'ungrouped'
+  if (!repo.projectGroupId) {
+    return 'ungrouped'
+  }
+  // Twins on different machines share one header, so their projects reorder as one list.
+  return `group:${canonicalGroupIdOf ? canonicalGroupIdOf(repo.projectGroupId) : repo.projectGroupId}`
 }
 
 export function getSidebarOrderedRepoHeaderIdsByBucket(
-  rows: readonly Row[]
+  rows: readonly Row[],
+  canonicalGroupIdOf?: ProjectGroupCanonicalIdOf
 ): Map<ProjectHeaderDragBucketKey, string[]> {
   const buckets = new Map<ProjectHeaderDragBucketKey, string[]>()
   for (const row of rows) {
@@ -36,7 +45,7 @@ export function getSidebarOrderedRepoHeaderIdsByBucket(
     if (!repo) {
       continue
     }
-    const bucketKey = getProjectHeaderDragBucketKey(repo)
+    const bucketKey = getProjectHeaderDragBucketKey(repo, canonicalGroupIdOf)
     const list = buckets.get(bucketKey) ?? []
     list.push(repo.id)
     buckets.set(bucketKey, list)

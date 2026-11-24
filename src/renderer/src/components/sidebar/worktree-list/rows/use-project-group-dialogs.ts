@@ -5,6 +5,7 @@ import { projectRemovalTargets } from '../../workspace-actions/deletion/removal-
 import { confirmUnsavedDiscard } from '@/store/slices/worktrees/teardown/removed-workspace-unsaved-files'
 import { translate } from '@/i18n/i18n'
 import { selectProjectGroupRemovalTargets } from '@/store/project-groups/project-group-removal-targets'
+import { getProjectGroupTwins } from '@/store/project-groups/project-group-twins'
 import type { ProjectGroup } from '../../../../../../shared/project/groups/project-group-types'
 import type { Repo } from '../../../../../../shared/repository/repo-types'
 import {
@@ -172,11 +173,19 @@ export function useProjectGroupDialogs(args: {
         }
         return
       }
-      const renamed = await updateProjectGroup(
-        nameDialog.groupId,
-        { name },
-        { hostId: nameDialog.hostId }
+      // A merged group stands for one same-named group per machine; rename them together so
+      // the header does not split in two.
+      const twins = getProjectGroupTwins(projectGroups, nameDialog.groupId)
+      const results = await Promise.all(
+        twins.map((twin, index) =>
+          updateProjectGroup(
+            twin.id,
+            { name },
+            { hostId: index === 0 ? nameDialog.hostId : twin.hostId }
+          )
+        )
       )
+      const renamed = results.every(Boolean)
       if (!renamed) {
         toast.error(
           translate(
@@ -193,20 +202,41 @@ export function useProjectGroupDialogs(args: {
         )
       }
     },
-    [createProjectGroup, moveProjectToGroup, nameDialog, updateProjectGroup]
+    [createProjectGroup, moveProjectToGroup, nameDialog, projectGroups, updateProjectGroup]
   )
 
+  // Deleting a merged group deletes every machine's twin, so count all of their projects.
+  const deleteTwins = useMemo(
+    () => (deleteDialog ? getProjectGroupTwins(projectGroups, deleteDialog.groupId) : []),
+    [deleteDialog, projectGroups]
+  )
   const deleteTargets = useMemo(() => {
     if (!deleteDialog) {
       return null
     }
-    return selectProjectGroupRemovalTargets(
-      projectGroups,
-      repos,
-      deleteDialog.groupId,
-      deleteDialog.hostId
+    const perTwin = deleteTwins.map((twin, index) =>
+      selectProjectGroupRemovalTargets(
+        projectGroups,
+        repos,
+        twin.id,
+        index === 0 ? deleteDialog.hostId : twin.hostId
+      )
     )
-  }, [deleteDialog, projectGroups, repos])
+    if (perTwin.length === 0) {
+      return selectProjectGroupRemovalTargets(
+        projectGroups,
+        repos,
+        deleteDialog.groupId,
+        deleteDialog.hostId
+      )
+    }
+    return {
+      groupExists: perTwin.some((targets) => targets.groupExists),
+      deletedGroupIds: new Set(perTwin.flatMap((targets) => [...targets.deletedGroupIds])),
+      projectIds: perTwin.flatMap((targets) => targets.projectIds),
+      projects: perTwin.flatMap((targets) => targets.projects)
+    }
+  }, [deleteDialog, deleteTwins, projectGroups, repos])
   const deleteProjectCount = deleteTargets?.projectIds.length ?? 0
   const deleteProjectNames = useMemo(
     () =>
@@ -246,13 +276,17 @@ export function useProjectGroupDialogs(args: {
     }
     const confirmedDiscards = confirmUnsavedDiscard(useAppStore.getState, deleteUnsavedTargets)
     try {
-      reportProjectGroupDeleteFailures(
-        await deleteProjectGroupWithContainedProjects(deleteDialog.groupId, {
-          removeContainedProjects,
-          hostId: deleteDialog.hostId,
-          confirmedDiscards
-        })
-      )
+      const twins =
+        deleteTwins.length > 0 ? deleteTwins : [{ id: deleteDialog.groupId, hostId: undefined }]
+      for (const [index, twin] of twins.entries()) {
+        reportProjectGroupDeleteFailures(
+          await deleteProjectGroupWithContainedProjects(twin.id, {
+            removeContainedProjects,
+            hostId: index === 0 ? deleteDialog.hostId : twin.hostId,
+            confirmedDiscards
+          })
+        )
+      }
     } finally {
       // Why: deleting contained projects can unmount this dialog before its close handler runs, so the parent owns cleanup.
       setDeleteDialog(null)
@@ -261,6 +295,7 @@ export function useProjectGroupDialogs(args: {
     deleteProjectGroupWithContainedProjects,
     removeContainedProjects,
     deleteDialog,
+    deleteTwins,
     deleteUnsavedTargets
   ])
 

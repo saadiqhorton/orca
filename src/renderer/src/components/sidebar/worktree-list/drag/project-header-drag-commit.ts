@@ -2,6 +2,7 @@ import { getLogicalRepoOrderRankById } from '../../../../../../shared/sidebar-li
 import {
   applyAllRepoInsertAt,
   getProjectHeaderDragBucketKey,
+  type ProjectGroupCanonicalIdOf,
   getProjectGroupOrderForSidebarDrop,
   mapSidebarProjectHeaderDropIndexToSiblingInsertIndex,
   mapSidebarRepoDropIndexToAllRepoInsertAt
@@ -10,30 +11,54 @@ import type { ProjectHeaderDragSession } from './project-header-drag-contract'
 import type { Repo } from '../../../../../../shared/repository/repo-types'
 import { isSameRepoRow } from '@/store/repos/repo-host-identity'
 import type { RootProjectHeaderDrag } from './root-project-header-drop'
+import { commitProjectHeaderMembershipDrop } from './project-header-membership'
 
 export function commitProjectHeaderDragDrop(
   args: RootProjectHeaderDrag & {
     session: ProjectHeaderDragSession
-    sidebarDropIndex: number
+    sidebarDropIndex: number | null
     orderedRepoIds: readonly string[]
     repoById: ReadonlyMap<string, Repo>
     liveRepos: readonly Repo[]
     usesProjectGroupOrdering: boolean
+    canonicalGroupIdOf?: ProjectGroupCanonicalIdOf
     onCommitRepoOrder: (orderedIds: string[]) => void
-    onCommitProjectGroupOrder: (project: Repo, projectGroupId: string | null, order: number) => void
+    onCommitProjectGroupOrder: (
+      project: Repo,
+      projectGroupId: string | null,
+      order?: number
+    ) => void
   }
 ): void {
+  if (
+    args.canonicalGroupIdOf &&
+    commitProjectHeaderMembershipDrop({
+      session: args.session,
+      liveRepos: args.liveRepos,
+      canonicalGroupIdOf: args.canonicalGroupIdOf,
+      onCommitProjectGroupOrder: args.onCommitProjectGroupOrder
+    })
+  ) {
+    return
+  }
+  if (!args.session.reorderEnabled || args.sidebarDropIndex === null) {
+    return
+  }
+  const sidebarDropIndex = args.sidebarDropIndex
   if (args.session.rootProjectHeaderKeys) {
     args.onCommitRootProjectOrder?.(
       args.session.rootProjectHeaderKeys,
       `repo:${args.session.repo.id}`,
-      args.sidebarDropIndex
+      sidebarDropIndex
     )
     return
   }
   const draggedRepo = args.liveRepos.find((repo) => isSameRepoRow(repo, args.session.repo))
   // Why: a group change mid-drag (another window or client) moved the row out of this bucket.
-  if (!draggedRepo || getProjectHeaderDragBucketKey(draggedRepo) !== args.session.bucketKey) {
+  if (
+    !draggedRepo ||
+    getProjectHeaderDragBucketKey(draggedRepo, args.canonicalGroupIdOf) !== args.session.bucketKey
+  ) {
     return
   }
 
@@ -42,8 +67,8 @@ export function commitProjectHeaderDragDrop(
   // Both slots beside the dragged header are no-ops; do not compact paired-host occurrences.
   if (
     sourceIndex === -1 ||
-    args.sidebarDropIndex === sourceIndex ||
-    args.sidebarDropIndex === sourceIndex + 1
+    sidebarDropIndex === sourceIndex ||
+    sidebarDropIndex === sourceIndex + 1
   ) {
     return
   }
@@ -54,7 +79,7 @@ export function commitProjectHeaderDragDrop(
       .map((repoId) => args.repoById.get(repoId))
       .filter((repo): repo is Repo => repo !== undefined)
     const siblingDropIndex = mapSidebarProjectHeaderDropIndexToSiblingInsertIndex({
-      sidebarDropIndex: args.sidebarDropIndex,
+      sidebarDropIndex,
       sourceIndex,
       siblingCount: siblings.length
     })
@@ -74,7 +99,7 @@ export function commitProjectHeaderDragDrop(
   }
 
   const insertAt = mapSidebarRepoDropIndexToAllRepoInsertAt(
-    args.sidebarDropIndex,
+    sidebarDropIndex,
     sidebarRepoHeaderIds,
     args.orderedRepoIds
   )

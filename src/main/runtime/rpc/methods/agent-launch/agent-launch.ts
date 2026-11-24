@@ -35,10 +35,11 @@ import {
   launchFailureWithoutEffectsCode
 } from './agent-launch-failure-code'
 import { callerRendersLaunchedChat } from './agent-launch-caller-selection'
+import { supportsAgentLaunch } from './agent-launch-target-authorization'
 import {
-  assertAgentLaunchTargetAuthorized,
-  supportsAgentLaunch
-} from './agent-launch-target-authorization'
+  placeAuthorizedAgentLaunch,
+  withSessionPlacement
+} from './agent-launch-orchestration-placement'
 import { resolveUnlaunchedIntent } from './agent-launch-intent-resolution'
 import { publishEarlyTab, type AgentLaunchView } from './agent-launch-tab-publication'
 import { runAgentLaunch, type HostLaunchContext } from './agent-launch-run'
@@ -211,13 +212,16 @@ export const AGENT_LAUNCH_METHODS = [
     requires: agentLaunchFeatureRequirement,
     permission: 'workspace',
     params: AgentLaunchReplay,
-    handler: async (params, context): Promise<AgentLaunchResult> => {
+    handler: async (requested, context): Promise<AgentLaunchResult> => {
       if (!supportsAgentLaunch(context)) {
         throw new Error('agent_launch_replay_unsupported')
       }
-      assertAgentLaunchTargetAuthorized(params.target, context)
+      const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, context)
       try {
-        return await runReplaySafeAgentLaunch(params, context)
+        return withSessionPlacement(
+          await runReplaySafeAgentLaunch(params, context),
+          sessionPlacement
+        )
       } catch (error) {
         // Nested failures cannot authorize another workspace, regardless of their message or code.
         if (error instanceof AgentLaunchExecutionError) {
@@ -249,7 +253,7 @@ export const AGENT_LAUNCH_METHODS = [
 
 /** In-process schedules and RPC callers share admission, factories and prompt settlement. */
 export async function launchAgentOnHost(
-  { operationId, ...params }: AgentLaunchParams,
+  { operationId, ...requested }: AgentLaunchParams,
   context: RpcContext,
   policy?: HostLaunchContext['agentLaunchPolicy']
 ): Promise<AgentLaunchResult> {
@@ -257,17 +261,19 @@ export async function launchAgentOnHost(
   if (!supportsAgentLaunch(host)) {
     throw new Error('agent_launch_unsupported')
   }
-  assertAgentLaunchTargetAuthorized(params.target, host)
+  const { sessionPlacement, ...params } = await placeAuthorizedAgentLaunch(requested, host)
   if (!operationId) {
-    return runLegacyAgentLaunch(params, host)
+    return withSessionPlacement(await runLegacyAgentLaunch(params, host), sessionPlacement)
   }
-  return runReplaySafeAgentLaunch({ ...params, operationId }, host).catch((error: unknown) => {
-    // Preserve the original error contract for callers of the optional-identity method.
-    if (error instanceof AgentLaunchExecutionError) {
-      throw error.cause instanceof AgentLaunchTabClosedError
-        ? agentLaunchTabClosedAnswer(host)
-        : error.cause
-    }
-    throw error
-  })
+  return runReplaySafeAgentLaunch({ ...params, operationId }, host)
+    .then((result) => withSessionPlacement(result, sessionPlacement))
+    .catch((error: unknown) => {
+      // Preserve the original error contract for callers of the optional-identity method.
+      if (error instanceof AgentLaunchExecutionError) {
+        throw error.cause instanceof AgentLaunchTabClosedError
+          ? agentLaunchTabClosedAnswer(host)
+          : error.cause
+      }
+      throw error
+    })
 }
