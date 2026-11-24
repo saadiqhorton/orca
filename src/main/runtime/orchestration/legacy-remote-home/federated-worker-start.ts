@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Why: home start and first-turn 400 settlement share one catch so the Dispatch stays failed, not missing. */
 import type { FederatedWorkerStartRequest } from './federated-worker-start-request'
 import { isTuiAgent } from '../../../../shared/agent-launch/catalog/tui-agent-config'
 import type { RuntimeStatus } from '../../../../shared/remote-runtime/session-graph/runtime-session-contracts'

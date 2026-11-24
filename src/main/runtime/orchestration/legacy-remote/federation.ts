@@ -285,7 +285,7 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           residualResources: []
         }
       } catch (error) {
-        return settleCaughtWorkerStartError(error, () =>
+        return await settleCaughtWorkerStartError(error, () =>
           failFederatedAttachmentWithReceipt({
             db,
             dispatchId: params.dispatchId,

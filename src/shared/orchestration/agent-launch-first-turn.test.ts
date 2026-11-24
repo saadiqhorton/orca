@@ -39,14 +39,10 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
   })
 
   it('does not treat Working as first-turn activity', () => {
-    expect(
-      isAgentFirstTurnActivity(
-        '>_ OpenAI Codex (v0.154.0)\nTASK submitted\nWorking'
-      )
-    ).toBe(false)
-    expect(
-      isAgentFirstTurnActivity('• Working (0s • 0 tokens)')
-    ).toBe(false)
+    expect(isAgentFirstTurnActivity('>_ OpenAI Codex (v0.154.0)\nTASK submitted\nWorking')).toBe(
+      false
+    )
+    expect(isAgentFirstTurnActivity('• Working (0s • 0 tokens)')).toBe(false)
   })
 
   it('reads Codex Working timer seconds and treats an advancing timer as progress', () => {
@@ -56,10 +52,7 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
     expect(isCodexWorkingTimerProgress('• Working (2s • 12 tokens)', 1)).toBe(false)
     expect(isCodexWorkingTimerProgress('• Working (3s • 12 tokens)', 2)).toBe(true)
     expect(
-      isCodexWorkingTimerProgress(
-        'ERROR: 400 model_not_found gpt-5.4\n• Working (5s)',
-        4
-      )
+      isCodexWorkingTimerProgress('ERROR: 400 model_not_found gpt-5.4\n• Working (5s)', 4)
     ).toBe(false)
   })
 
@@ -68,21 +61,15 @@ describe('classifyAgentLaunchFirstTurnFailure', () => {
     expect(isAgentFirstTurnIdle('thinking about the repo')).toBe(false)
     expect(isAgentFirstTurnIdle('• Working (3s • esc to interrupt)')).toBe(false)
     expect(isAgentFirstTurnIdle('❯ ')).toBe(true)
-    expect(
-      isAgentFirstTurnIdle('>_ OpenAI Codex (v0.154.0)\nhello from the worktree\n>_ ')
-    ).toBe(true)
+    expect(isAgentFirstTurnIdle('>_ OpenAI Codex (v0.154.0)\nhello from the worktree\n>_ ')).toBe(
+      true
+    )
   })
 
   it('treats Claude Code elapsed-seconds status lines as progress', () => {
-    expect(
-      readCodexWorkingElapsedSeconds('✻ Working… (0s · esc to interrupt)')
-    ).toBe(0)
-    expect(
-      readCodexWorkingElapsedSeconds('✻ Thinking… (3s · esc to interrupt)')
-    ).toBe(3)
-    expect(isCodexWorkingTimerProgress('✻ Exploring… (3s · esc to interrupt)', 2)).toBe(
-      true
-    )
+    expect(readCodexWorkingElapsedSeconds('✻ Working… (0s · esc to interrupt)')).toBe(0)
+    expect(readCodexWorkingElapsedSeconds('✻ Thinking… (3s · esc to interrupt)')).toBe(3)
+    expect(isCodexWorkingTimerProgress('✻ Exploring… (3s · esc to interrupt)', 2)).toBe(true)
     expect(isAgentFirstTurnActivity('✻ Working… (3s · esc to interrupt)')).toBe(false)
   })
 })

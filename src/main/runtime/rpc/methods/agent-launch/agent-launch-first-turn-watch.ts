@@ -269,8 +269,7 @@ export async function watchAgentLaunchFirstTurn(
       handle,
       deadline: startedAt + FIRST_TURN_WATCH_MS,
       now,
-      onFailure: (reason) =>
-        reportBackgroundFirstTurnFailure(runtime, handle, reason, onFailure)
+      onFailure: (reason) => reportBackgroundFirstTurnFailure(runtime, handle, reason, onFailure)
     })
   }
   return result

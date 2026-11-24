@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Why: local start keeps placement, readiness, and first-turn failure on one path so a 400 cannot report ready. */
 import { createLocalWorkerStartDispatch } from './local-worker-start-dispatch'
 import { refuseClaimedWorkerTerminal } from '../../../../../orchestration/db/worker-dispatch/worker-terminal-claim'
 import { probeWorkerOpenCodeModelLaunchSupport } from './launch/worker-opencode-model-preflight'

@@ -19,15 +19,17 @@ describe('reportCliError', () => {
       true
     )
     const printed = String(log.mock.calls[0]?.[0])
-    const payload = JSON.parse(printed) as {
-      error: { code: string; data: Record<string, unknown> }
-    }
-    expect(payload.error.code).toBe('agent_blocked_on_prompt')
-    expect(payload.error.data).toMatchObject({
-      dispatchId: 'ctx_abc',
-      handle: 'term_worker',
-      host: 'ubuntu-server-local',
-      blockedReason: 'agent_turn_failed:model_not_found'
+    const payload: unknown = JSON.parse(printed)
+    expect(payload).toMatchObject({
+      error: {
+        code: 'agent_blocked_on_prompt',
+        data: {
+          dispatchId: 'ctx_abc',
+          handle: 'term_worker',
+          host: 'ubuntu-server-local',
+          blockedReason: 'agent_turn_failed:model_not_found'
+        }
+      }
     })
   })
 })

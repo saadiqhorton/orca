@@ -42,6 +42,7 @@ describe('launch readiness blocked on a startup dialog', () => {
   })
 
   it('returns immediately when the composer is on Hooks need review', async () => {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: waitForLaunchedAgentComposer is mocked; the runtime is unused.
     const wait = await waitForStartedAgentReady({} as never, 'term_hooks', 'codex')
     expect(wait?.blockedReason).toBe('agent-hooks-review-prompt')
     expect(wait?.satisfied).toBe(false)
